@@ -37,15 +37,10 @@ def test_real_repo_catches_sub_agent_dispatch_true_positives() -> None:
 
 
 def test_real_repo_catches_bare_command_config_yml_true_positives() -> None:
-    # 12 occurrences / 11 skills / 3 bundles.
+    # 10 occurrences / 10 skills / 2 bundles. code-audit now owns its contract.
     found = real_repo_violation_tuples()
     assert (
         "plugins/manifest-forge/skills/pr-review/SKILL.md",
-        "missing-bundled-reference",
-        "command_config.yml",
-    ) in found
-    assert (
-        "plugins/manifest-security/skills/code-audit/SKILL.md",
         "missing-bundled-reference",
         "command_config.yml",
     ) in found

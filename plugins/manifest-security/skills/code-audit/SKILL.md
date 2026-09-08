@@ -1,53 +1,32 @@
 ---
 name: code-audit
-description: Auto-trigger on security-sensitive code (auth, crypto, secrets, input validation), large files (>500 lines), or complex files (>10 functions/>5 classes). Gives code-audit and security feedback without blocking user flow.
+description: Auto-trigger when changed behavior crosses a security boundary, or run on an explicit security review request. Gives focused security feedback without blocking user flow.
 ---
 
 # Code Quality Analysis Skill
 
-This skill automatically activates when Claude detects code patterns that warrant proactive security or quality review.
+This skill activates for changed behavior at a security boundary or for an
+explicit security review request. It reviews the behavior and its call path,
+not isolated words or identifiers.
 
 ## Trigger Criteria
 
-### Security Patterns (Immediate Trigger)
+Activate when either condition is true:
 
-Activate when code contains any of these patterns:
+1. The user explicitly requests a security review.
+2. The change modifies behavior at a security boundary, including an
+   authentication or authorization decision, cryptographic operation, secret
+   lifecycle, privilege transition, untrusted-input validation boundary, or
+   command/data execution boundary.
 
-**Authentication/Authorization**:
-
-- `auth`, `login`, `logout`, `session`
-- `jwt`, `oauth`, `token`, `bearer`
-- `authenticate`, `authorize`, `permission`
-
-**Cryptography**:
-
-- `crypto`, `encrypt`, `decrypt`
-- `hash`, `digest`, `hmac`
-- `salt`, `iv`, `nonce`
-- `private_key`, `public_key`, `certificate`
-
-**Secrets Handling**:
-
-- `secret`, `password`, `credential`
-- `api_key`, `access_key`, `token`
-- `connection_string`, `database_url`
-
-**Input Validation**:
-
-- `sanitize`, `validate`, `escape`
-- `filter`, `whitelist`, `blacklist`
-- `regex`, `pattern`, `input`
-
-### Complexity Patterns (Immediate Trigger)
-
-Activate when file metrics exceed thresholds:
-
-| Metric | Threshold | Rationale |
-|--------|-----------|-----------|
-| File lines | >500 | God class indicator |
-| Function count | >10 | Single responsibility violation |
-| Class count | >5 | Module doing too much |
-| Cyclomatic complexity | >15 | Hard to test/maintain |
+For implicit activation, confirm the behavior change from the diff and relevant
+call path before activating. For an explicit request, inspect the requested
+existing code and its relevant call paths even when no diff exists; the request
+itself satisfies activation. A variable named `session`, a hash used only for
+nonsecurity caching, or generic words such as `input` or `pattern` do not
+activate this skill. File size, language, function/class counts, and complexity
+metrics are advisory routing context only; they never activate this skill or
+force a panel.
 
 ## Behavior
 
@@ -65,20 +44,39 @@ When triggered, this skill:
    If relevant entries exist, include them as additional check items. This is
    **non-blocking** — skip if the query fails or returns empty.
 
-1. **Scans the file** for security patterns and complexity metrics
-2. **Invokes parallel agents** for cross-verification:
+1. **Establishes the review scope.** For implicit activation, confirm the
+   changed boundary behavior from the diff and relevant call path. For an
+   explicit request, inspect the requested existing code and call paths whether
+   or not a diff is present.
+2. **Reviews inline by default** with one capable reviewing agent.
+3. **Runs applicable deterministic checks** using shell access only for
+   check-only linters, tests, and security scanners. Never run `--fix`, a
+   formatter that writes, installation, deployment, or remediation commands.
+   Record a missing executable as `unavailable` with the reason; never count it
+   as a passing check.
+4. **Adds independent review only when at least one escalation condition is
+   present**:
+   - authentication, authorization, cryptography, secret handling, or another
+     trust-boundary change;
+   - destructive data or infrastructure behavior;
+   - a public compatibility or deployment change with broad impact;
+   - conflicting evidence or unresolved reviewer uncertainty;
+   - a codebase-wide investigation with genuinely independent analysis tracks.
+5. **Reports findings inline** without blocking user workflow. When escalation
+   is required, use `manifest-workspace:parallel-agent --json --validate
+   --analyze <file>` and pin the dispatched reviewer to the configured Sonnet
+   tier. Dispatched reviewers do not re-dispatch.
 
-   ```bash
-   manifest-workspace:parallel-agent --json --validate --analyze <file>
-   ```
+## Sub-agent dispatch
 
-   **Sub-agent dispatch**: pin this fan-out call to Sonnet explicitly
-   (`subagent_model: sonnet` per `command_config.yml`) — never inherit the
-   session's model, which can silently bill premium rates for a routine
-   verification pass.
-
-3. **Reports findings inline** without blocking user workflow
-4. **Escalates critical issues** that require immediate attention
+Follow the shared `sub-agent-dispatch.md` mechanism and model rules when that
+guidance is present, but this skill's five consequence/uncertainty conditions
+override its generic count threshold. Dispatch only when at least one condition
+in step 4 is present; file count or independent-unit count alone is insufficient.
+Use native Task dispatch on Claude/Cursor, or
+`manifest-workspace:parallel-agent` with an inline fallback on other assistants.
+Pass the configured Sonnet tier explicitly. Dispatched reviewers execute their
+review directly and do not re-dispatch.
 
 ## Analysis Scope
 
@@ -140,7 +138,15 @@ When triggered, report findings in this format:
 ## Code Quality Analysis
 
 **File**: `path/to/file.py`
-**Triggered by**: [Security pattern | Complexity threshold]
+**Triggered by**: [Explicit security review | Security-boundary behavior change]
+**review_mode**: [single-agent | escalated]
+**escalation_reason**: [none | one or more concrete escalation conditions]
+
+### Checks
+
+| Command | Result | Unavailable reason |
+|---------|--------|--------------------|
+| `[exact check-only command]` | [pass/fail/unavailable] | [reason or N/A] |
 
 ### Findings
 
@@ -155,10 +161,9 @@ When triggered, report findings in this format:
 - High: X issues (should fix soon)
 - Medium: X issues (refactor when possible)
 
-### Parallel Agent Consensus
-- Agent A: [Key finding]
-- Agent B: [Key finding]
-- Consensus: XX% (HIGH/MEDIUM/LOW)
+### Independent Review
+- Reviewer: [Key finding, or not run]
+- Trigger: [Concrete escalation condition, or none]
 ```
 
 ## Non-Blocking Behavior
@@ -185,20 +190,17 @@ When both trigger:
 
 ## Configuration
 
-Use these bundle-owned defaults unless the user supplies explicit thresholds for
-the current invocation:
+Use this activation contract for the current invocation:
 
 ```yaml
-thresholds:
-  skill_file_lines: 500
-  skill_function_count: 10
-  skill_class_count: 5
-  skill_cyclomatic_complexity: 15
-
-security_patterns:
-  - auth|login|session|jwt
-  - crypto|encrypt|hash|secret
-  - api_key|password|token|credential
+any_of:
+  - explicit_security_review_request
+  - security_boundary_behavior_change
+non_triggers:
+  - nonsecurity_cache_hash
+  - session_variable
+  - generic_input_or_pattern_token
+  - file_size_or_complexity
 ```
 
 ## Prioritization

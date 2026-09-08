@@ -8,13 +8,14 @@ thresholds:
   docs_improve_lines: 500         # Trigger parallel agents when total doc lines > 500
   docs_diagrams_modules: 5       # Trigger when analyzing 5+ unique imports/modules
 
-  # Code quality skill auto-triggers
+  # Advisory complexity signals; these alone do not activate code-audit or fan-out
   skill_file_lines: 500           # File > 500 lines
   skill_function_count: 10        # > 10 functions per file
   skill_class_count: 5            # > 5 classes per file
   skill_cyclomatic_complexity: 15  # Cyclomatic complexity > 15
 
-# Security patterns that trigger code-audit skill
+# Security search vocabulary only, never sufficient to activate code-audit.
+# Activation is defined in skill_policies.yml implicit_invocation_triggers.
 security_patterns:
   # Authentication/authorization
   - auth
@@ -43,6 +44,45 @@ security_patterns:
   - validate
   - escape
   - filter
+
+# Agent-interpreted review contract, not an executable permission sandbox.
+# The six review policies below share this consequence/uncertainty gate.
+review_escalation:
+  default_mode: single-agent
+  conditions:
+    - trust_boundary_change
+    - destructive_behavior
+    - broad_compatibility_or_deployment_change
+    - conflicting_evidence_or_unresolved_uncertainty
+    - codebase_wide_independent_tracks
+  trigger_condition: &review_risk_trigger >-
+    trust_boundary_change OR destructive_behavior OR broad_compatibility_or_deployment_change OR
+    conflicting_evidence_or_unresolved_uncertainty OR codebase_wide_independent_tracks
+  non_triggers:
+    - file_size
+    - language
+    - generic_keyword
+    - independent_unit_count
+  verification:
+    mode: check-only
+    missing_tool_result: unavailable
+    forbidden_operations:
+      - automatic_fixes
+      - format_writes
+      - installations
+      - deployments
+      - remediation
+    instructions: >-
+      Run applicable available linters, tests, and security scanners in check-only mode.
+      Do not use --fix, write-formatting flags, install commands, deployment commands,
+      or automatic remediation. Check project commands before running them for these
+      side effects. Preserve source and user state; use isolated disposable outputs
+      for checks that require generated artifacts. Report a missing verification tool
+      as unavailable with its reason, never as passing. Record each command and result.
+  report_fields:
+    - review_mode
+    - escalation_reason
+    - checks
 
 # Consensus thresholds for parallel agent decisions (float 0.0-1.0)
 consensus:
@@ -222,18 +262,20 @@ tool_policies:
       - Read
       - Glob
       - Grep
+      - Bash  # Check-only verification under review_escalation.verification
     forbidden:
-      - Bash
       - Write
       - Edit  # Read-only analysis
-    parallel_agents: always
+    bash_mode: check-only
+    parallel_agents: conditional
+    trigger_condition: *review_risk_trigger
     validation_tier: 1
     mcp_servers:
       - context7   # Python library/API documentation
       - deepwiki   # Dependency internals and upstream contracts
 
     subagents: conditional
-    subagent_trigger: independent_units >= 3
+    subagent_trigger: *review_risk_trigger
     subagent_model: sonnet
   code-audit-constitution:
     allowed:
@@ -288,64 +330,72 @@ tool_policies:
       - Read
       - Glob
       - Grep
-      - Bash  # Needed for shellcheck and yamllint
+      - Bash  # Check-only verification under review_escalation.verification
     forbidden:
       - Write
       - Edit  # Read-only analysis
-    parallel_agents: always
+    bash_mode: check-only
+    parallel_agents: conditional
+    trigger_condition: *review_risk_trigger
     validation_tier: 1
     security_cli:
       - semgrep    # Local SAST scanning via CLI (requires Bash)
 
     subagents: conditional
-    subagent_trigger: independent_units >= 3
+    subagent_trigger: *review_risk_trigger
     subagent_model: sonnet
   node-refactor:
     allowed:
       - Read
       - Glob
       - Grep
+      - Bash  # Check-only verification under review_escalation.verification
     forbidden:
-      - Bash
       - Write
       - Edit  # Read-only analysis
-    parallel_agents: always
+    bash_mode: check-only
+    parallel_agents: conditional
+    trigger_condition: *review_risk_trigger
     validation_tier: 1
     mcp_servers:
       - context7   # Node/TS library documentation
       - deepwiki   # Dependency internals and upstream contracts
 
     subagents: conditional
-    subagent_trigger: independent_units >= 3
+    subagent_trigger: *review_risk_trigger
     subagent_model: sonnet
   go-refactor:
     allowed:
       - Read
       - Glob
       - Grep
+      - Bash  # Check-only verification under review_escalation.verification
     forbidden:
-      - Bash
       - Write
       - Edit  # Read-only analysis
-    parallel_agents: always
+    bash_mode: check-only
+    parallel_agents: conditional
+    trigger_condition: *review_risk_trigger
     validation_tier: 1
     mcp_servers:
       - context7   # Go library documentation
       - deepwiki   # Dependency internals and upstream contracts
 
     subagents: conditional
-    subagent_trigger: independent_units >= 3
+    subagent_trigger: *review_risk_trigger
     subagent_model: sonnet
   terraform-refactor:
     allowed:
       - Read
       - Glob
       - Grep
+      - Bash  # Check-only verification under review_escalation.verification
     forbidden:
-      - Bash
       - Write
       - Edit  # Read-only analysis
-    parallel_agents: always
+    bash_mode: check-only
+    parallel_agents: conditional
+    trigger_condition: *review_risk_trigger
     validation_tier: 1
     mcp_servers:
       - opentofu   # OpenTofu registry, provider/module docs, resource reference
@@ -353,7 +403,7 @@ tool_policies:
       - semgrep    # Local SAST scanning via CLI (requires Bash)
 
     subagents: conditional
-    subagent_trigger: independent_units >= 3
+    subagent_trigger: *review_risk_trigger
     subagent_model: sonnet
   plan-manage:
     allowed:
@@ -388,19 +438,23 @@ tool_policies:
       - Read
       - Glob
       - Grep
+      - Bash  # Check-only verification under review_escalation.verification
     forbidden:
-      - Bash
       - Write
       - Edit  # Read-only for auto-trigger
-    parallel_agents: always
+    bash_mode: check-only
+    parallel_agents: conditional
+    trigger_condition: *review_risk_trigger
     validation_tier: 1
     mcp_servers:
       - context7   # Library docs for security best practices
     security_cli:
       - semgrep    # Local SAST scanning via CLI (requires Bash)
 
-    subagents: never
-    subagent_rationale: Auto-triggered inline review of a single detected file; non-blocking.
+    subagents: conditional
+    subagent_trigger: *review_risk_trigger
+    subagent_model: sonnet
+    subagent_rationale: Inline review by default; independent review on consequence or uncertainty.
   issue-triage:
     allowed:
       - Read

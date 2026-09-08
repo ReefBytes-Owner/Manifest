@@ -6,6 +6,7 @@ import importlib.util
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tarfile
@@ -13,6 +14,7 @@ from io import BytesIO
 from pathlib import Path
 
 import pytest
+import yaml
 
 from manifest_agent.contracts import CapabilityTier, load_contract
 
@@ -318,6 +320,7 @@ def test_code_quality_contract_declares_every_runtime_asset(
         "skills/smoke-manage/vendor",
         "skills/project-scaffold/templates",
         "skills/code-audit/references",
+        "references/review-escalation.md",
     }
     assert set(contract.capabilities.executables[CapabilityTier.OPTIONAL]) == {
         "browser-use",
@@ -345,3 +348,152 @@ def test_code_quality_skills_do_not_call_legacy_shared_runtimes(
         source = skill.read_text(encoding="utf-8")
         for marker in forbidden:
             assert marker not in source, f"{skill}: forbidden runtime marker {marker}"
+
+
+REFACTOR_SKILLS = (
+    "python-refactor",
+    "node-refactor",
+    "go-refactor",
+    "shell-refactor",
+    "terraform-refactor",
+)
+
+RISK_CONCEPTS = (
+    "authentication, authorization, cryptography, secret handling",
+    "destructive data or infrastructure behavior",
+    "public compatibility or deployment change with broad impact",
+    "conflicting evidence or unresolved reviewer uncertainty",
+    "codebase-wide investigation with genuinely independent analysis tracks",
+)
+
+
+def _markdown_section(source: str, heading: str) -> str:
+    match = re.search(rf"(?ms)^## {re.escape(heading)}\s*$\n(.*?)(?=^## |\Z)", source)
+    assert match is not None, f"missing Markdown section: {heading}"
+    return match.group(1)
+
+
+def _requires_independent_review(policy: dict, signals: set[str]) -> bool:
+    return bool(signals & set(policy["conditions"]))
+
+
+def _review_config(repo_root: Path) -> dict:
+    path = repo_root / "configs/claude/config/command_config.yml"
+    return yaml.safe_load(path.read_text(encoding="utf-8"))
+
+
+@pytest.mark.parametrize(
+    ("signals", "expected"),
+    [
+        ({"file_size", "language", "generic_keyword"}, False),
+        ({"trust_boundary_change"}, True),
+        ({"destructive_behavior"}, True),
+        ({"broad_compatibility_or_deployment_change"}, True),
+        ({"conflicting_evidence_or_unresolved_uncertainty"}, True),
+        ({"codebase_wide_independent_tracks"}, True),
+    ],
+)
+def test_refactor_review_escalation_classifies_risk_scenarios(
+    repo_root: Path, signals: set[str], expected: bool
+) -> None:
+    config = _review_config(repo_root)
+    escalation = config["review_escalation"]
+
+    assert _requires_independent_review(escalation, signals) is expected
+    assert set(escalation["non_triggers"]).isdisjoint(escalation["conditions"])
+
+
+def test_refactor_policies_are_conditional_and_check_only(repo_root: Path) -> None:
+    config = _review_config(repo_root)
+    expected_trigger = " OR ".join(config["review_escalation"]["conditions"])
+
+    for skill_name in REFACTOR_SKILLS:
+        policy = config["tool_policies"][skill_name]
+        assert policy["parallel_agents"] == "conditional"
+        assert policy["trigger_condition"] == expected_trigger
+        assert policy["subagent_trigger"] == expected_trigger
+        assert policy["bash_mode"] == "check-only"
+        assert "Bash" in policy["allowed"]
+        assert {"Write", "Edit"}.issubset(policy["forbidden"])
+        assert "Bash" not in policy["forbidden"]
+
+    check_policy = config["review_escalation"]["verification"]
+    assert check_policy["missing_tool_result"] == "unavailable"
+    assert set(check_policy["forbidden_operations"]) == {
+        "automatic_fixes",
+        "format_writes",
+        "installations",
+        "deployments",
+        "remediation",
+    }
+    assert config["review_escalation"]["report_fields"] == [
+        "review_mode",
+        "escalation_reason",
+        "checks",
+    ]
+
+
+def test_refactor_shared_reference_resolves_in_isolated_bundle(
+    code_quality_bundle: Path, tmp_path: Path
+) -> None:
+    installed = tmp_path / "installed/manifest-code-quality"
+    shutil.copytree(code_quality_bundle, installed)
+    contract = load_contract(installed / "manifest-capabilities.yml")
+    runtime_paths = {component.path for component in contract.components.runtime}
+    reference = installed / "references/review-escalation.md"
+
+    assert "references/review-escalation.md" in runtime_paths
+    assert reference.is_file()
+    for skill_name in REFACTOR_SKILLS:
+        skill = installed / f"skills/{skill_name}/SKILL.md"
+        source = skill.read_text(encoding="utf-8")
+        link = re.search(
+            r"\[review escalation contract\]\(([^)]+)\)", source, re.IGNORECASE
+        )
+        assert link is not None, f"{skill_name}: missing review escalation link"
+        linked = (skill.parent / link.group(1)).resolve()
+        assert linked == reference.resolve()
+
+
+def test_installed_refactor_skills_enforce_the_review_contract(
+    code_quality_bundle: Path, tmp_path: Path
+) -> None:
+    installed = tmp_path / "installed/manifest-code-quality"
+    shutil.copytree(code_quality_bundle, installed)
+    reference = (installed / "references/review-escalation.md").read_text(
+        encoding="utf-8"
+    )
+    normalized_reference = " ".join(reference.split())
+    conditions = reference.split(
+        "Add independent review when at least one of these conditions is present:\n",
+        maxsplit=1,
+    )[1].split("\n\nFile size", maxsplit=1)[0]
+
+    assert "Use one capable reviewing agent by default." in reference
+    assert len(re.findall(r"(?m)^- ", conditions)) == 5
+    for concept in RISK_CONCEPTS:
+        assert concept in conditions
+    for field in ("`review_mode`", "`escalation_reason`", "`checks`"):
+        assert field in reference
+    for restriction in (
+        "automatic fixes",
+        "write formatting changes",
+        "install packages or tools",
+        "deploy",
+        "remediate findings",
+    ):
+        assert restriction in normalized_reference
+    assert "`unavailable`, never a passing check" in normalized_reference
+
+    for skill_name in REFACTOR_SKILLS:
+        skill = installed / f"skills/{skill_name}/SKILL.md"
+        source = skill.read_text(encoding="utf-8")
+        dispatch = _markdown_section(source, "Sub-agent dispatch")
+        normalized_dispatch = " ".join(dispatch.split())
+        assert "ALWAYS uses parallel agents" not in source
+        assert (
+            "only when at least one of that contract's five risk conditions"
+            in normalized_dispatch
+        )
+        assert "overrides any count or size threshold" in normalized_dispatch
+        assert not re.search(r"(?:>=|≥)\s*\d+|independent_units", dispatch)
