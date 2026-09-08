@@ -35,13 +35,14 @@ RULE_FILE="$REPO_ROOT/configs/cursor/rules/orchestration.mdc"
     ! grep -qE '^\*\*CLI tool\*\*.*apm-dev-sync' "$RULE_FILE"
 }
 
-@test "orchestration.mdc contains the CONSIDER Parallel Agents For tier" {
-    grep -qF '### CONSIDER Parallel Agents For' "$RULE_FILE"
+@test "orchestration.mdc uses one capable agent by default" {
+    grep -qF 'Use one capable agent by default.' "$RULE_FILE"
+    grep -qF 'independent-unit counts are advisory context' "$RULE_FILE"
 }
 
-@test "orchestration.mdc contains the code-audit auto-trigger thresholds" {
-    grep -qF '### Auto-Triggered Rule' "$RULE_FILE"
-    grep -qF '>500 lines, >10 functions, or >5' "$RULE_FILE"
+@test "orchestration.mdc contains semantic code-audit activation guidance" {
+    grep -qF '### Security Review Rule' "$RULE_FILE"
+    grep -qF 'Keywords and complexity metrics alone' "$RULE_FILE"
 }
 
 @test "orchestration.mdc contains the token-conserve re-assert note" {
