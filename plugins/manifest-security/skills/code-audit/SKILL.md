@@ -69,8 +69,8 @@ When triggered, this skill:
 
 ## Sub-agent dispatch
 
-Follow shared dispatch mechanism and model guidance when it is available, but
-this skill's five consequence/uncertainty conditions
+Follow the [bundle-local dispatch selection rules](references/sub-agent-dispatch.md),
+but this skill's five consequence/uncertainty conditions
 override its generic count threshold. Dispatch only when at least one condition
 in step 4 is present; file count or independent-unit count alone is insufficient.
 Use native Task dispatch on Claude/Cursor, or

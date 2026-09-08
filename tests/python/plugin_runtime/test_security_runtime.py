@@ -275,7 +275,8 @@ def test_installed_code_audit_prompt_declares_the_review_contract(
 ) -> None:
     installed = tmp_path / "installed/manifest-security"
     shutil.copytree(security_bundle, installed)
-    source = (installed / "skills/code-audit/SKILL.md").read_text(encoding="utf-8")
+    skill = installed / "skills/code-audit/SKILL.md"
+    source = skill.read_text(encoding="utf-8")
     policies = yaml.safe_load(
         (repo_root / "configs/claude/config/skill_policies.yml").read_text(
             encoding="utf-8"
@@ -329,3 +330,15 @@ def test_installed_code_audit_prompt_declares_the_review_contract(
     assert "ALWAYS uses parallel agents" not in source
     assert "Invokes parallel agents" not in source
     assert not re.search(r"(?:>=|≥)\s*3.*dispatch", source, flags=re.IGNORECASE)
+
+
+def test_installed_code_audit_dispatch_reference_resolves(
+    security_bundle: Path, tmp_path: Path
+) -> None:
+    installed = tmp_path / "installed/manifest-security"
+    shutil.copytree(security_bundle, installed)
+    skill = installed / "skills/code-audit/SKILL.md"
+    source = skill.read_text(encoding="utf-8")
+    link = re.search(r"\[bundle-local dispatch selection rules\]\(([^)]+)\)", source)
+    assert link is not None
+    assert (skill.parent / link.group(1)).is_file()
