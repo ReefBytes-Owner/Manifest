@@ -30,6 +30,12 @@
             "path": "skills/code-audit-constitution/scripts"
           },
           {
+            "component_id": "review-escalation-reference",
+            "component_type": "runtime",
+            "mode": "imported",
+            "path": "references/review-escalation.md"
+          },
+          {
             "component_id": "scaffold-templates",
             "component_type": "runtime",
             "mode": "imported",
@@ -66,6 +72,10 @@
           {
             "id": "constitution-scripts",
             "path": "skills/code-audit-constitution/scripts"
+          },
+          {
+            "id": "review-escalation-reference",
+            "path": "references/review-escalation.md"
           },
           {
             "id": "scaffold-templates",
@@ -137,6 +147,12 @@
             "path": "skills/code-audit-constitution/scripts"
           },
           {
+            "component_id": "review-escalation-reference",
+            "component_type": "runtime",
+            "mode": "native",
+            "path": "references/review-escalation.md"
+          },
+          {
             "component_id": "scaffold-templates",
             "component_type": "runtime",
             "mode": "native",
@@ -173,6 +189,10 @@
           {
             "id": "constitution-scripts",
             "path": "skills/code-audit-constitution/scripts"
+          },
+          {
+            "id": "review-escalation-reference",
+            "path": "references/review-escalation.md"
           },
           {
             "id": "scaffold-templates",
@@ -244,6 +264,12 @@
             "path": "skills/code-audit-constitution/scripts"
           },
           {
+            "component_id": "review-escalation-reference",
+            "component_type": "runtime",
+            "mode": "generated",
+            "path": "references/review-escalation.md"
+          },
+          {
             "component_id": "scaffold-templates",
             "component_type": "runtime",
             "mode": "generated",
@@ -280,6 +306,10 @@
           {
             "id": "constitution-scripts",
             "path": "skills/code-audit-constitution/scripts"
+          },
+          {
+            "id": "review-escalation-reference",
+            "path": "references/review-escalation.md"
           },
           {
             "id": "scaffold-templates",
@@ -351,6 +381,12 @@
             "path": "skills/code-audit-constitution/scripts"
           },
           {
+            "component_id": "review-escalation-reference",
+            "component_type": "runtime",
+            "mode": "native",
+            "path": "references/review-escalation.md"
+          },
+          {
             "component_id": "scaffold-templates",
             "component_type": "runtime",
             "mode": "native",
@@ -387,6 +423,10 @@
           {
             "id": "constitution-scripts",
             "path": "skills/code-audit-constitution/scripts"
+          },
+          {
+            "id": "review-escalation-reference",
+            "path": "references/review-escalation.md"
           },
           {
             "id": "scaffold-templates",

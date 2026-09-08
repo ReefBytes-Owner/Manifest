@@ -30,6 +30,13 @@
         "reason": "gemini native manifest cannot encode runtime component 'constitution-scripts' at 'skills/code-audit-constitution/scripts'"
       },
       {
+        "component_id": "review-escalation-reference",
+        "component_type": "runtime",
+        "mode": "degraded",
+        "path": "references/review-escalation.md",
+        "reason": "gemini native manifest cannot encode runtime component 'review-escalation-reference' at 'references/review-escalation.md'"
+      },
+      {
         "component_id": "scaffold-templates",
         "component_type": "runtime",
         "mode": "degraded",

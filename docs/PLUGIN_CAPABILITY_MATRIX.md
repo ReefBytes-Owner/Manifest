@@ -34,6 +34,7 @@ Matching installed plugin, component, and capability evidence is also required.
 | `manifest-code-quality:runtime:constitution-config` | contract runtime | READY | READY | READY | READY | READY | READY |
 | `manifest-code-quality:runtime:constitution-references` | contract runtime | READY | READY | READY | READY | READY | READY |
 | `manifest-code-quality:runtime:constitution-scripts` | contract runtime | READY | READY | READY | READY | READY | READY |
+| `manifest-code-quality:runtime:review-escalation-reference` | contract runtime | READY | READY | READY | READY | READY | READY |
 | `manifest-code-quality:runtime:scaffold-templates` | contract runtime | READY | READY | READY | READY | READY | READY |
 | `manifest-code-quality:runtime:smoke-scripts` | contract runtime | READY | READY | READY | READY | READY | READY |
 | `manifest-code-quality:runtime:smoke-vendor` | contract runtime | READY | READY | READY | READY | READY | READY |

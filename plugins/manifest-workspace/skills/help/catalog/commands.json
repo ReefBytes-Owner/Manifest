@@ -640,7 +640,7 @@
     {
       "bundle": "manifest-security",
       "category": "security",
-      "description": "Auto-trigger on security-sensitive code (auth, crypto, secrets, input validation), large files (>500 lines), or complex files (>10 functions/>5 classes). Gives code-audit and security feedback without blocking user flow.",
+      "description": "Auto-trigger when changed behavior crosses a security boundary, or run on an explicit security review request. Gives focused security feedback without blocking user flow.",
       "name": "code-audit",
       "qualified_name": "manifest-security:code-audit"
     },
