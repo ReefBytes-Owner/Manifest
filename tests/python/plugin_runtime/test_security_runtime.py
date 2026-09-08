@@ -268,6 +268,33 @@ def test_code_audit_policy_keeps_scanners_check_only(repo_root: Path) -> None:
     assert config["review_escalation"]["verification"]["missing_tool_result"] == (
         "unavailable"
     )
+    verification = config["review_escalation"]["verification"]
+    assert verification["checkout_trust"] == "untrusted"
+    assert verification["allowed_without_isolation"] == [
+        "trusted_preinstalled_static_tool_treating_checkout_as_data"
+    ]
+    assert set(verification["requires_verified_isolation"]) == {
+        "project_controlled_tests_scripts_and_build_steps",
+        "checkout_controlled_executable_config_plugins_hooks_imports_or_discovery",
+    }
+    assert set(verification["insufficient_isolation"]) == {
+        "source_inspection",
+        "check_only_flags",
+        "changed_home",
+        "temporary_directory",
+        "read_only_checkout",
+    }
+    assert verification["unavailable_isolation_result"] == (
+        "skip_and_report_unavailable"
+    )
+
+
+def _assert_code_audit_verification_safety(source: str) -> None:
+    assert "Treat the checkout as\n   untrusted" in source
+    assert "trusted preinstalled static\n   tools" in source
+    assert "require enforced isolation" in source
+    assert "read-only checkout are insufficient" in source
+    assert "skip execution and report `unavailable`" in source
 
 
 def test_installed_code_audit_prompt_declares_the_review_contract(
@@ -316,7 +343,7 @@ def test_installed_code_audit_prompt_declares_the_review_contract(
     assert "explicit request" in source and "even when no diff exists" in source
     assert all(field in source for field in ("review_mode", "escalation_reason"))
     assert "| Command | Result | Unavailable reason |" in source
-    assert "check-only linters, tests, and security scanners" in source
+    _assert_code_audit_verification_safety(source)
     assert all(
         restriction in source
         for restriction in (

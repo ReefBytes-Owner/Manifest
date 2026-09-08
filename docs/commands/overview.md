@@ -15,8 +15,8 @@
 |---------|-------------|-----------------|------------|
 | `/help` | Find the right command fast — searchable, categorized discovery (read-only) | NEVER | — |
 | `/git-commit` | Full commit pipeline: regenerate docs, pull latest, run pre-commits, commit, push | CONDITIONAL | Tier 1 + Tier 2 |
-| `/python-refactor` | Python security, architecture, code quality analysis | ALWAYS | Tier 1 + Tier 2 (≥0.80) |
-| `/shell-refactor` | Bash/Shell script security and quality with shellcheck | ALWAYS | Tier 1 + Tier 2 (≥0.70) |
+| `/python-refactor` | Python security, architecture, code quality analysis | CONDITIONAL (risk-based) | Tier 1 + Tier 2 (≥0.80) |
+| `/shell-refactor` | Bash/Shell script security and quality with shellcheck | CONDITIONAL (risk-based) | Tier 1 + Tier 2 (≥0.70) |
 | `/docs-generate-diagrams` | Generate Mermaid architecture flowcharts and sequence diagrams | CONDITIONAL (≥5 imports) | Tier 2 |
 | `/docs-improve` | Analyze docs against Diataxis framework (tutorials, how-tos, reference, explanation) | CONDITIONAL (≥500 lines) | Tier 2 |
 | `/docs-improve-readme` | Improve README structure and content following best practices | NEVER | Tier 2 |

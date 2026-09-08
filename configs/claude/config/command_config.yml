@@ -66,6 +66,24 @@ review_escalation:
   verification:
     mode: check-only
     missing_tool_result: unavailable
+    checkout_trust: untrusted
+    allowed_without_isolation:
+      - trusted_preinstalled_static_tool_treating_checkout_as_data
+    requires_verified_isolation:
+      - project_controlled_tests_scripts_and_build_steps
+      - checkout_controlled_executable_config_plugins_hooks_imports_or_discovery
+    insufficient_isolation:
+      - source_inspection
+      - check_only_flags
+      - changed_home
+      - temporary_directory
+      - read_only_checkout
+    isolation_requirements:
+      - protect_original_checkout_and_host_files
+      - expose_no_credentials_or_host_control_sockets
+      - deny_unauthorized_network_access
+      - confine_writes_to_disposable_storage
+    unavailable_isolation_result: skip_and_report_unavailable
     forbidden_operations:
       - automatic_fixes
       - format_writes
@@ -73,12 +91,16 @@ review_escalation:
       - deployments
       - remediation
     instructions: >-
-      Run applicable available linters, tests, and security scanners in check-only mode.
-      Do not use --fix, write-formatting flags, install commands, deployment commands,
-      or automatic remediation. Check project commands before running them for these
-      side effects. Preserve source and user state; use isolated disposable outputs
-      for checks that require generated artifacts. Report a missing verification tool
-      as unavailable with its reason, never as passing. Record each command and result.
+      Treat the reviewed checkout as untrusted. Outside verified isolation, run only
+      trusted preinstalled static tools that treat checkout files as data, with
+      checkout-controlled executable configuration, plugins, hooks, imports, and
+      executable discovery disabled. Project-controlled tests, scripts, build steps,
+      and checks that load project code require enforced isolation satisfying every
+      isolation requirement above. Source inspection, check-only flags, a changed HOME,
+      a temporary directory, or a read-only checkout do not establish isolation. If
+      isolation is unavailable or uncertain, skip execution and report unavailable
+      with the reason. Never apply fixes, write formatting changes, install, deploy,
+      or remediate. Record each command and result.
   report_fields:
     - review_mode
     - escalation_reason

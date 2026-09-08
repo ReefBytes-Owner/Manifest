@@ -11,7 +11,7 @@ components:
   agents: []
   hooks: []
   runtime:
-    - {id: review-escalation-reference, path: references/review-escalation.md}
+    - {id: review-escalation-reference, path: skills/refactor/references/review-escalation.md}
     - {id: constitution-scripts, path: skills/code-audit-constitution/scripts}
     - {id: constitution-config, path: skills/code-audit-constitution/config}
     - {id: constitution-references, path: skills/code-audit-constitution/references}

@@ -49,11 +49,17 @@ When triggered, this skill:
    explicit request, inspect the requested existing code and call paths whether
    or not a diff is present.
 2. **Reviews inline by default** with one capable reviewing agent.
-3. **Runs applicable deterministic checks** using shell access only for
-   check-only linters, tests, and security scanners. Never run `--fix`, a
-   formatter that writes, installation, deployment, or remediation commands.
-   Record a missing executable as `unavailable` with the reason; never count it
-   as a passing check.
+3. **Runs applicable deterministic checks safely.** Treat the checkout as
+   untrusted. Outside verified isolation, run only trusted preinstalled static
+   tools that treat checkout files as data, with checkout-controlled executable
+   configuration, plugins, hooks, imports, and discovery disabled. Tests,
+   scripts, builds, and checks that load project code require enforced isolation
+   that protects host files, exposes no credentials or control sockets, denies
+   unauthorized network access, and confines writes to disposable storage.
+   Source inspection, check-only flags, a changed `HOME`, a temporary directory,
+   or a read-only checkout are insufficient. If isolation is unavailable or
+   uncertain, skip execution and report `unavailable` with the reason. Never run
+   `--fix`, a formatter that writes, installation, deployment, or remediation.
 4. **Adds independent review only when at least one escalation condition is
    present**:
    - authentication, authorization, cryptography, secret handling, or another
@@ -173,7 +179,8 @@ This skill provides information without interrupting user workflow:
 - **Never blocks** code execution or user commands
 - **Reports inline** when patterns detected
 - **Suggests fixes** but doesn't auto-apply
-- **Escalates only** for Critical severity findings
+- **Escalates finding severity** only for Critical findings; independent review
+  follows the five consequence/uncertainty conditions in step 4
 
 ## Integration with Commands
 

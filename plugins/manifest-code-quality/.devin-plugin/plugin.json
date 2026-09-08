@@ -33,7 +33,7 @@
             "component_id": "review-escalation-reference",
             "component_type": "runtime",
             "mode": "imported",
-            "path": "references/review-escalation.md"
+            "path": "skills/refactor/references/review-escalation.md"
           },
           {
             "component_id": "scaffold-templates",
@@ -75,7 +75,7 @@
           },
           {
             "id": "review-escalation-reference",
-            "path": "references/review-escalation.md"
+            "path": "skills/refactor/references/review-escalation.md"
           },
           {
             "id": "scaffold-templates",
@@ -150,7 +150,7 @@
             "component_id": "review-escalation-reference",
             "component_type": "runtime",
             "mode": "native",
-            "path": "references/review-escalation.md"
+            "path": "skills/refactor/references/review-escalation.md"
           },
           {
             "component_id": "scaffold-templates",
@@ -192,7 +192,7 @@
           },
           {
             "id": "review-escalation-reference",
-            "path": "references/review-escalation.md"
+            "path": "skills/refactor/references/review-escalation.md"
           },
           {
             "id": "scaffold-templates",
@@ -267,7 +267,7 @@
             "component_id": "review-escalation-reference",
             "component_type": "runtime",
             "mode": "generated",
-            "path": "references/review-escalation.md"
+            "path": "skills/refactor/references/review-escalation.md"
           },
           {
             "component_id": "scaffold-templates",
@@ -309,7 +309,7 @@
           },
           {
             "id": "review-escalation-reference",
-            "path": "references/review-escalation.md"
+            "path": "skills/refactor/references/review-escalation.md"
           },
           {
             "id": "scaffold-templates",
@@ -384,7 +384,7 @@
             "component_id": "review-escalation-reference",
             "component_type": "runtime",
             "mode": "native",
-            "path": "references/review-escalation.md"
+            "path": "skills/refactor/references/review-escalation.md"
           },
           {
             "component_id": "scaffold-templates",
@@ -426,7 +426,7 @@
           },
           {
             "id": "review-escalation-reference",
-            "path": "references/review-escalation.md"
+            "path": "skills/refactor/references/review-escalation.md"
           },
           {
             "id": "scaffold-templates",

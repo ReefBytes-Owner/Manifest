@@ -1,7 +1,19 @@
 # Modern-Model Plugin Simplification Design
 
 **Date:** 2026-09-07
-**Status:** Approved in chat; awaiting written-spec review
+**Status:** Approved after Astra review (2026-09-07)
+
+## Astra Review Disposition
+
+Approved after verifying the revised design against repository source. The four
+material findings are resolved: assurance selection and verdict semantics are
+explicit; refactor policies permit check-only verification; benchmarks freeze
+their baseline and isolate trials with honest telemetry and bounded repair;
+command retirement distinguishes active routing from migration history and
+requires effective replacement delivery. The security alias preserves inputs and
+scope, and delegated-control claims require evidence beyond comments. No material
+design blockers remain. This approval covers the design, not implementation or
+measured performance claims.
 
 ## Goal
 
@@ -56,6 +68,11 @@ one of these conditions is present:
 File size, language, or a generic keyword alone cannot force fan-out. Reports
 must state whether review was single-agent or escalated and identify the trigger.
 
+Update the corresponding command policies and generated harness guidance to
+permit applicable check-only commands. Keep the review read-only: do not enable
+automatic fixes, formatting writes, package installation, or deployment. Missing
+verification tools are reported as unavailable, never as passing checks.
+
 ## 2. Proportional Spec Implementation Loop
 
 `spec-implement-loop` gains two assurance modes:
@@ -72,6 +89,24 @@ block either mode. They may be reported as advisory observations. The existing
 run artifacts, iteration ceiling, dirty-tree protections, and no-commit policy
 remain intact.
 
+Select the mode with `--assurance standard|high-assurance`; reject unknown values.
+Persist it as `assurance` in run context and state. Resume the stored mode; an
+explicit conflicting mode must fail rather than silently change the gate.
+Standard clarification is performed by the orchestrator against acceptance
+criteria; escalate unresolved material questions before implementation. High
+assurance retains the separate QA and architecture clarification reviews.
+
+In structured verdicts, `findings` contains only material blockers; optional
+`advisories` contains nonblocking observations. `approve` requires empty
+`findings`, passing required verification, and satisfied acceptance criteria.
+Unknown, malformed, contradictory, or missing verdicts cannot approve a gate.
+Legacy verdicts without `advisories` remain valid; do not silently downgrade an
+existing finding to an advisory based only on its severity label. Update persona
+charters, dispatch templates, and verdict instructions together. High assurance
+means unanimous approval with zero material findings in the same iteration.
+Keep the retired `runtime/cddl/cddl_loop.py` retired; mode handling belongs to
+the active skill orchestration contract, not a revived loop executable.
+
 ## 3. Workspace Prompt Cleanup
 
 ### Retire `token-conserve`
@@ -81,6 +116,12 @@ guidance. Its skill directory, command policies, reminder hooks, catalog entry,
 capability declarations, generated views, and documentation references are
 removed together. This is a deliberate command removal; release notes must name
 the always-on replacement behavior.
+
+Verify that the replacement guidance is actually delivered through each supported
+harness's install path, including plugin-only installations. Close any missing
+delivery path before retiring the command. Remove active recommendations and
+routing references; retain historical documents, release notes, and migration
+records that deliberately describe the retired command.
 
 ### Correct `memory-compress`
 
@@ -99,6 +140,11 @@ by `security-refute-findings`.
 `security-refute-findings` remains temporarily as a deprecated compatibility
 alias that routes to the canonical skill. It must not duplicate the full policy.
 Catalog and command documentation mark the alias clearly.
+
+The alias must preserve the original candidate inputs, scope, and output
+contract. Its eventual removal requires a separate migration decision. Claims
+that controls moved or were delegated must be verified against functioning
+validation and call paths; explanatory comments alone do not refute a finding.
 
 `code-audit` will trigger from changed behavior at a security boundary or from an
 explicit security review request. Generic tokens such as `input`, `pattern`,
@@ -119,6 +165,31 @@ against acceptance criteria, and repository documentation. Each condition record
 task correctness, required-constraint compliance, latency, input/output tokens,
 and repair cost after a miss. Repair cost is measured by recovery runs rather than
 assumed.
+
+Freeze the pre-change full skills and their referenced policy context as benchmark
+fixtures before rewriting them. Record source revision, content hashes, and
+fixture identity. Compare frozen `full`, `slim`, and `none` conditions using the
+same model, reasoning effort, tool access, background instructions, input fixture,
+and acceptance criteria. Use fresh isolated trial state with repeated trials and
+balanced condition order. Prevent home configuration, installed skills, prior
+conversation, and repository guides from contaminating the conditions. An adapter
+that cannot establish isolation reports unsupported rather than a scored result.
+
+Run fixture acceptance checks using deterministic outcomes, never lexical answer
+matching or an uncalibrated judge alone. Execute generated code only within an
+explicitly isolated fixture environment; a temporary directory alone does not
+establish execution isolation. Fixture trials must not access live repositories,
+credentials, or services beyond the controlled model transport.
+
+Version result records and include suite, condition, fixture hashes, provider,
+resolved model/effort, trial identity, verification status, latency, and usage.
+Unavailable token or cost telemetry is null with a reason, never zero or inferred
+from output length. Keep legacy academic records readable and separate from
+workflow aggregates. Bound each initial trial and recovery attempt with a timeout.
+For misses, measure up to two recovery attempts under a fixed recovery protocol;
+record cumulative observed usage/time and recovered, unresolved, or unavailable
+status. Unresolved repairs are censored observations, not zero-cost successes.
+Do not claim break-even savings without comparable measured recovery data.
 
 The existing MMLU, HumanEval, HellaSwag, and TruthfulQA prompts remain available
 as a secondary regression suite. They cannot be the primary evidence for keeping
@@ -143,8 +214,9 @@ Tests are written before behavior changes and must prove:
 - all language refactor skills contain the shared conditional-escalation contract
   and no unconditional fan-out language;
 - standard and high-assurance loop contracts have distinct completion criteria;
-- `token-conserve` is absent from source inventories, generated views, hooks,
-  catalogs, and user documentation;
+- `token-conserve` is absent from active source inventories, generated views,
+  hooks, catalogs, and recommendations; deliberate migration/history references
+  remain valid, and replacement guidance is delivered on supported install paths;
 - memory compression makes no lossless guarantee and preserves source provenance;
 - the compatibility security alias routes to the canonical triage skill;
 - broad keywords alone do not satisfy the code-audit trigger contract;

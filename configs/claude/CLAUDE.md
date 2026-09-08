@@ -82,20 +82,11 @@ Registry: `~/.claude/config/knowledge_base.yml`; `/ai-code-audit` = full audit.
 
 ## Proactive Decision Framework
 
-### ALWAYS Use Parallel Agents For
-
-1. **Security-sensitive changes**: authN/authZ, input validation/sanitization, crypto, secret handling
-2. **Architectural decisions**: new components, API design, DB schema, service integration
-3. **Large file mods (>200 lines)**: complex refactoring, major features, performance-critical code
-4. **Critical business logic**: payment processing, user-data handling, compliance
-
-### CONSIDER Parallel Agents For
-
-Complex multi-file refactoring, new feature implementation, performance optimization, debugging difficult issues.
-
-### SKIP Parallel Agents For
-
-Typo/comment/formatting fixes, single-line changes, documentation updates, simple variable renames.
+Use one capable agent by default. Add independent review only for a trust-boundary
+change, destructive behavior, a broad public compatibility or deployment change,
+conflicting evidence or unresolved uncertainty, or a codebase-wide investigation
+with genuinely independent tracks. File size, language, generic keywords, and
+independent-unit counts are advisory context; they do not trigger a panel.
 
 ## Validation Criteria
 
@@ -121,11 +112,11 @@ Common entry points: `/git-commit`, `/project-verify`, `/<lang>-refactor`,
 **Skills are plugin bundles**: `/<bundle>:<name>`; refresh with
 `claude plugin update <bundle>@manifest`. Others read `~/.manifest/skills`.
 
-### Auto-Triggered Skill
+### Security Review Skill
 
-`code-audit` auto-triggers on security-sensitive patterns (auth, crypto,
-secrets, input validation) or complexity (>500 lines, >10 functions):
-inline, non-blocking.
+`code-audit` activates for an explicit security-review request or a confirmed
+change in behavior at a security boundary. Keywords and complexity metrics alone
+do not activate it. Feedback remains inline and non-blocking.
 
 ## Plan Management
 

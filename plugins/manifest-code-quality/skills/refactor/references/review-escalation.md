@@ -1,8 +1,7 @@
 # Review Escalation Contract
 
-Use one capable reviewing agent by default. Run every relevant deterministic
-lint, test, or security check that is already available, provided the command is
-read-only.
+Use one capable reviewing agent by default. Run only applicable verification
+that satisfies the execution-safety rules below.
 
 Add independent review when at least one of these conditions is present:
 
@@ -18,8 +17,20 @@ stacks, scripts, or analysis dimensions alone is not an escalation trigger.
 
 ## Check-only verification
 
-Checks may inspect files and execute relevant linters, tests, and security
-scanners. They must not apply automatic fixes, write formatting changes, install
+Treat the reviewed checkout as untrusted. Outside verified isolation, run only
+trusted, preinstalled static tools that treat checkout files as data, with
+checkout-controlled executable configuration, plugins, hooks, imports, and
+executable discovery disabled. Project-controlled tests, scripts, build steps,
+and checks that load project code require enforced execution isolation.
+
+Isolation must protect the original checkout and host files, expose no
+credentials or host control sockets, deny unauthorized network access, and
+confine writes to disposable storage. Source inspection, check-only flags, a
+changed `HOME`, a temporary directory, or a read-only checkout do not establish
+isolation. If isolation is unavailable or uncertain, skip that execution and
+report `unavailable` with the reason while continuing safe static analysis.
+
+Checks must not apply automatic fixes, write formatting changes, install
 packages or tools, deploy, or remediate findings. A missing or unusable tool is
 `unavailable`, never a passing check.
 

@@ -10,7 +10,7 @@ standards. Generate a comprehensive refactoring report with prioritized recommen
 
 ## Review and Verification
 
-Follow the shared [review escalation contract](../../references/review-escalation.md).
+Follow the shared [review escalation contract](../refactor/references/review-escalation.md).
 Use one reviewing agent by default, run applicable check-only verification, and
 add independent review only when that contract's risk conditions require it.
 
@@ -291,7 +291,7 @@ After completing the analysis, capture the most significant findings:
 
 ## Sub-agent dispatch
 
-The [review escalation contract](../../references/review-escalation.md) is the
+The [review escalation contract](../refactor/references/review-escalation.md) is the
 sole authority for whether to dispatch. Dispatch only when at least one of that
 contract's five risk conditions is present; each condition is independently
 sufficient. When available, use `sub-agent-dispatch.md` only for mechanism,

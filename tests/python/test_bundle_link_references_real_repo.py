@@ -37,7 +37,7 @@ def test_real_repo_catches_sub_agent_dispatch_true_positives() -> None:
 
 
 def test_real_repo_catches_bare_command_config_yml_true_positives() -> None:
-    # 10 occurrences / 10 skills / 2 bundles. code-audit now owns its contract.
+    # 11 occurrences / 10 skills / 2 bundles. code-audit now owns its contract.
     found = real_repo_violation_tuples()
     assert (
         "plugins/manifest-forge/skills/pr-review/SKILL.md",

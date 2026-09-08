@@ -320,7 +320,7 @@ def test_code_quality_contract_declares_every_runtime_asset(
         "skills/smoke-manage/vendor",
         "skills/project-scaffold/templates",
         "skills/code-audit/references",
-        "references/review-escalation.md",
+        "skills/refactor/references/review-escalation.md",
     }
     assert set(contract.capabilities.executables[CapabilityTier.OPTIONAL]) == {
         "browser-use",
@@ -440,9 +440,9 @@ def test_refactor_shared_reference_resolves_in_isolated_bundle(
     shutil.copytree(code_quality_bundle, installed)
     contract = load_contract(installed / "manifest-capabilities.yml")
     runtime_paths = {component.path for component in contract.components.runtime}
-    reference = installed / "references/review-escalation.md"
+    reference = installed / "skills/refactor/references/review-escalation.md"
 
-    assert "references/review-escalation.md" in runtime_paths
+    assert "skills/refactor/references/review-escalation.md" in runtime_paths
     assert reference.is_file()
     for skill_name in REFACTOR_SKILLS:
         skill = installed / f"skills/{skill_name}/SKILL.md"
@@ -460,9 +460,9 @@ def test_installed_refactor_skills_enforce_the_review_contract(
 ) -> None:
     installed = tmp_path / "installed/manifest-code-quality"
     shutil.copytree(code_quality_bundle, installed)
-    reference = (installed / "references/review-escalation.md").read_text(
-        encoding="utf-8"
-    )
+    reference = (
+        installed / "skills/refactor/references/review-escalation.md"
+    ).read_text(encoding="utf-8")
     normalized_reference = " ".join(reference.split())
     conditions = reference.split(
         "Add independent review when at least one of these conditions is present:\n",

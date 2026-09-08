@@ -59,7 +59,9 @@ flowchart LR
 
 **Command Types**:
 
-- **ALWAYS Parallel**: `/python-refactor`, `/shell-refactor` (security-sensitive)
+- **CONDITIONAL**: Refactor skills add independent review only for a trust-boundary
+  change, destructive behavior, broad compatibility/deployment impact, unresolved
+  uncertainty, or genuinely independent codebase-wide tracks
 - **CONDITIONAL**: `/docs-generate-diagrams` (5+ modules), `/plan-manage` (complex planning),
   `/docs-improve` (500+ total doc lines)
 - **NEVER Parallel**: `/docs-improve-readme` (straightforward documentation)
