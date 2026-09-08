@@ -273,11 +273,6 @@
       "value": "sub-agent-dispatch.md"
     },
     {
-      "path": "plugins/manifest-security/skills/code-audit/SKILL.md",
-      "kind": "missing-bundled-reference",
-      "value": "command_config.yml"
-    },
-    {
       "path": "plugins/manifest-security/skills/security-refute-findings/SKILL.md",
       "kind": "missing-bundled-reference",
       "value": "sub-agent-dispatch.md"

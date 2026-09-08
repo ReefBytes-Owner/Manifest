@@ -12,3 +12,4 @@ Auto-trigger when changed behavior crosses a security boundary, or run on an exp
 <!-- Regenerate with: .claude/scripts/generate_cursor_rules.sh -->
 
 Refer to `.cursor/skills/code-audit/SKILL.md` for the full skill definition.
+
