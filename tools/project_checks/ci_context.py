@@ -59,7 +59,13 @@ def _fetch_producer_jobs(
         raise CIContextBlockedError(
             "current-run producer job fetch returned a non-list result"
         )
-    return [dict(job) for job in jobs]
+    # `fetch_jobs` is called scoped to exactly this run attempt (it is one of
+    # its own parameters), so every job it returns belongs to this attempt.
+    # Stamping it here — rather than trusting a per-job field the provider
+    # response may or may not carry — is what lets `aggregate_results` reject
+    # a `--context` document whose job entries were edited to claim a
+    # different (stale) attempt.
+    return [{**job, "run_attempt": int(run_attempt)} for job in jobs]
 
 
 def collect_ci_context(

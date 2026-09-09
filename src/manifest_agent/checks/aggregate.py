@@ -28,14 +28,26 @@ RECEIPT_KEYS = frozenset(
         "profile",
         "group",
         "partial",
+        "candidate_digest",
         "source_digest",
         "head_sha",
         "base_sha",
         "tree_sha",
         "config_digest",
+        "coverage_pending",
+        "required_ids",
         "results",
         "status",
+        "duration_seconds",
     }
+)
+# Receipt-local, non-authoritative fields: `run_profile` reports them for its
+# own candidate/local view, but the aggregator independently recomputes
+# `config_digest` from the loaded registry and coverage from the registry's
+# `coverage_pending` + the resolved profile, so these are only type-checked,
+# never trusted as the source of truth for the aggregate verdict.
+RECEIPT_LOCAL_KEYS = frozenset(
+    {"candidate_digest", "coverage_pending", "required_ids", "duration_seconds"}
 )
 RESULT_KEYS = frozenset(
     {"id", "status", "returncode", "duration_seconds", "diagnostics", "selected_inputs"}
@@ -177,6 +189,22 @@ def _receipt_identity_errors(receipt: dict[str, Any], trust: _Trust) -> list[str
         errors.append("receipt cannot be verified without a trustworthy context")
     elif receipt["head_sha"] != trust.tested_sha:
         errors.append("receipt head_sha does not match the current run's tested_sha")
+    errors.extend(_receipt_local_field_errors(receipt))
+    return errors
+
+
+def _receipt_local_field_errors(receipt: dict[str, Any]) -> list[str]:
+    """Type-check receipt-local fields; never used as the verdict's authority."""
+    errors = []
+    if not isinstance(receipt["candidate_digest"], str):
+        errors.append("receipt candidate_digest must be a string")
+    if not isinstance(receipt["coverage_pending"], list):
+        errors.append("receipt coverage_pending must be a list")
+    if not isinstance(receipt["required_ids"], list):
+        errors.append("receipt required_ids must be a list")
+    duration = receipt["duration_seconds"]
+    if isinstance(duration, bool) or not isinstance(duration, (int, float)):
+        errors.append("receipt duration_seconds must be a number")
     return errors
 
 

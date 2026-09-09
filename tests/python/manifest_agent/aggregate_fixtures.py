@@ -58,13 +58,17 @@ def receipt(
         "profile": "full",
         "group": group,
         "partial": True,
+        "candidate_digest": "candidate-digest",
         "source_digest": "source-digest",
         "head_sha": TESTED_SHA,
         "base_sha": "b" * 40,
         "tree_sha": "c" * 40,
         "config_digest": digest,
+        "coverage_pending": [],
+        "required_ids": [result["id"] for result in results],
         "results": results,
         "status": "PASS",
+        "duration_seconds": 0.1,
     }
     built.update(overrides)
     return built
