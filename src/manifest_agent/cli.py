@@ -16,6 +16,26 @@ from manifest_agent.service import HARNESS_ORDER, ManifestService, ServiceReport
 from manifest_agent.skill_run import SkillRunExecutionError, execute_skill_command
 
 
+class _LazyCheckCommand(click.Command):
+    def __init__(self) -> None:
+        super().__init__(
+            "check",
+            help="Run or list one explicitly configured project-check PROFILE.",
+        )
+
+    def make_context(
+        self,
+        info_name: str | None,
+        args: list[str],
+        parent: click.Context | None = None,
+        **extra: Any,
+    ) -> click.Context:
+        """Load project-check implementation only when the command is selected."""
+        from manifest_agent.checks.cli import check
+
+        return check.make_context(info_name, args, parent=parent, **extra)
+
+
 @click.group()
 def cli() -> None:
     """Install and manage Manifest plugin bundles."""
@@ -228,3 +248,6 @@ def skill_run(
 def main() -> None:
     """Run the console entry point."""
     cli()
+
+
+cli.add_command(_LazyCheckCommand())

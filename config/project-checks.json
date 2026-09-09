@@ -1,0 +1,3034 @@
+{
+  "schema_version": 1,
+  "tools": {
+    "structure.symlinks": {
+      "executable": "python3",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "python-wrapper",
+        "--file",
+        "tools/project_checks/structure.py"
+      ],
+      "expected_version": "python=3.14;file:tools/project_checks/structure.py=cbbaf0c9faa75a08c9a90794f3dad3a8b2e85a29ccae3cdc82ec2bf096bdc8fa",
+      "required_modules": []
+    },
+    "syntax.yaml.config": {
+      "executable": "python3",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "python-wrapper",
+        "--file",
+        "tools/project_checks/structure.py",
+        "--distribution",
+        "PyYAML"
+      ],
+      "expected_version": "python=3.14;file:tools/project_checks/structure.py=cbbaf0c9faa75a08c9a90794f3dad3a8b2e85a29ccae3cdc82ec2bf096bdc8fa;distribution:pyyaml=6.0.2",
+      "required_modules": [
+        "yaml"
+      ]
+    },
+    "structure.case-collision": {
+      "executable": "python3",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "python-wrapper",
+        "--file",
+        "tools/project_checks/structure.py"
+      ],
+      "expected_version": "python=3.14;file:tools/project_checks/structure.py=cbbaf0c9faa75a08c9a90794f3dad3a8b2e85a29ccae3cdc82ec2bf096bdc8fa",
+      "required_modules": []
+    },
+    "structure.inventory": {
+      "executable": "python3",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "python-wrapper",
+        "--file",
+        "tools/project_checks/structure.py"
+      ],
+      "expected_version": "python=3.14;file:tools/project_checks/structure.py=cbbaf0c9faa75a08c9a90794f3dad3a8b2e85a29ccae3cdc82ec2bf096bdc8fa",
+      "required_modules": []
+    },
+    "syntax.shell.project": {
+      "executable": "python3",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "python-wrapper",
+        "--file",
+        "tools/project_checks/structure.py"
+      ],
+      "expected_version": "python=3.14;file:tools/project_checks/structure.py=cbbaf0c9faa75a08c9a90794f3dad3a8b2e85a29ccae3cdc82ec2bf096bdc8fa",
+      "required_modules": []
+    },
+    "structure.skill-paths": {
+      "executable": "python3",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "python-wrapper",
+        "--file",
+        "tools/project_checks/structure.py"
+      ],
+      "expected_version": "python=3.14;file:tools/project_checks/structure.py=cbbaf0c9faa75a08c9a90794f3dad3a8b2e85a29ccae3cdc82ec2bf096bdc8fa",
+      "required_modules": []
+    },
+    "lint.shell.scripts": {
+      "executable": "python3",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "python-wrapper",
+        "--file",
+        "tools/project_checks/structure.py",
+        "--console-command",
+        "shellcheck-py",
+        "shellcheck",
+        "shellcheck"
+      ],
+      "expected_version": "python=3.14;file:tools/project_checks/structure.py=cbbaf0c9faa75a08c9a90794f3dad3a8b2e85a29ccae3cdc82ec2bf096bdc8fa;distribution:shellcheck-py=0.11.0.1;command:shellcheck=0.11.0",
+      "required_modules": []
+    },
+    "lint.shell.bootstrap": {
+      "executable": "python3",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "python-wrapper",
+        "--file",
+        "tools/project_checks/structure.py",
+        "--console-command",
+        "shellcheck-py",
+        "shellcheck",
+        "shellcheck"
+      ],
+      "expected_version": "python=3.14;file:tools/project_checks/structure.py=cbbaf0c9faa75a08c9a90794f3dad3a8b2e85a29ccae3cdc82ec2bf096bdc8fa;distribution:shellcheck-py=0.11.0.1;command:shellcheck=0.11.0",
+      "required_modules": []
+    },
+    "lint.yaml.config": {
+      "executable": "python3",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "python-wrapper",
+        "--file",
+        "tools/project_checks/structure.py",
+        "--distribution",
+        "PyYAML",
+        "--console-command",
+        "yamllint",
+        "yamllint",
+        "yamllint"
+      ],
+      "expected_version": "python=3.14;file:tools/project_checks/structure.py=cbbaf0c9faa75a08c9a90794f3dad3a8b2e85a29ccae3cdc82ec2bf096bdc8fa;distribution:pyyaml=6.0.2;distribution:yamllint=1.38.0;command:yamllint=1.38.0",
+      "required_modules": [
+        "yaml"
+      ]
+    },
+    "lint.shell.arrays": {
+      "executable": "tests/lint/check_array_expansion.sh",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "file-sha",
+        "tests/lint/check_array_expansion.sh"
+      ],
+      "expected_version": "python=3.14;file-sha=0b4a3523a5b8f90d4285563843995019e28f53666faf2644323d13085df00677",
+      "required_modules": []
+    },
+    "lint.bats.assertions": {
+      "executable": "tests/lint/check_bats_assertions.sh",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "file-sha",
+        "tests/lint/check_bats_assertions.sh"
+      ],
+      "expected_version": "python=3.14;file-sha=1d402c5e83b657ef1ecfe38e04b5d053e627b1d5e632e15469dba9b3e65c58d9",
+      "required_modules": []
+    },
+    "package.self-contained": {
+      "executable": "tests/lint/check_fresh_checkout.sh",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "file-sha",
+        "tests/lint/check_fresh_checkout.sh"
+      ],
+      "expected_version": "python=3.14;file-sha=602f113e02ada72743becde66236a155798e94754a709c59ecaed951524bda95",
+      "required_modules": []
+    },
+    "structure.bundle-references": {
+      "executable": "python3",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "python-wrapper",
+        "--file",
+        "tools/check_bundle_link_references.py"
+      ],
+      "expected_version": "python=3.14;file:tools/check_bundle_link_references.py=9269d592c90ac63601120b13dc70ff377bf9dd4df086f51f491c030e5db4eb4a",
+      "required_modules": []
+    },
+    "structure.runtime-paths": {
+      "executable": "python3",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "python-wrapper",
+        "--file",
+        "tools/check_plugin_runtime_paths.py"
+      ],
+      "expected_version": "python=3.14;file:tools/check_plugin_runtime_paths.py=a302648ffea8bf47fddaef1601fc191676e0edf0ee0b595e46675f06624041fc",
+      "required_modules": []
+    },
+    "structure.agent-frontmatter": {
+      "executable": "python3",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "python-wrapper",
+        "--file",
+        "tools/check_agent_frontmatter.py"
+      ],
+      "expected_version": "python=3.14;file:tools/check_agent_frontmatter.py=acc9167cf6f646071f230299a0c3491d565c52e9b635959779586dcac0b3e8c0",
+      "required_modules": []
+    },
+    "structure.skill-references": {
+      "executable": "python3",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "python-wrapper",
+        "--file",
+        "configs/claude/scripts/skill_reference_check.py"
+      ],
+      "expected_version": "python=3.14;file:configs/claude/scripts/skill_reference_check.py=442a8269edcaea366f417126ad794e67e6abc042aedcca1f1f49218bc4249267",
+      "required_modules": []
+    },
+    "test.bats": {
+      "executable": "./node_modules/.bin/bats",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "command-version",
+        "bats",
+        "--executable",
+        "./node_modules/.bin/bats"
+      ],
+      "expected_version": "python=3.14;command:bats=1.11.1",
+      "required_modules": []
+    },
+    "test.python": {
+      "executable": "pytest",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "console-distribution",
+        "pytest",
+        "pytest"
+      ],
+      "expected_version": "python=3.14;distribution:pytest=8.3.4",
+      "required_modules": []
+    },
+    "test.hooks": {
+      "executable": "pytest",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "console-distribution",
+        "pytest",
+        "pytest"
+      ],
+      "expected_version": "python=3.14;distribution:pytest=8.3.4",
+      "required_modules": []
+    },
+    "test.smoke.lite": {
+      "executable": "configs/claude/.venv/bin/manifest",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "python-runtime",
+        "python3"
+      ],
+      "expected_version": "python=3.14;runtime:python=3.14",
+      "required_modules": []
+    },
+    "lint.markdown.keydocs": {
+      "executable": "python3",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "python-wrapper",
+        "--file",
+        "tools/project_checks/structure.py"
+      ],
+      "expected_version": "python=3.14;file:tools/project_checks/structure.py=cbbaf0c9faa75a08c9a90794f3dad3a8b2e85a29ccae3cdc82ec2bf096bdc8fa",
+      "required_modules": []
+    },
+    "test.bundle-partition": {
+      "executable": "python3",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "python-wrapper",
+        "--file",
+        "tools/project_checks/structure.py"
+      ],
+      "expected_version": "python=3.14;file:tools/project_checks/structure.py=cbbaf0c9faa75a08c9a90794f3dad3a8b2e85a29ccae3cdc82ec2bf096bdc8fa",
+      "required_modules": []
+    },
+    "generated.commands-doc": {
+      "executable": "python3",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "python-wrapper",
+        "--file",
+        "tools/project_checks/generated.py"
+      ],
+      "expected_version": "python=3.14;file:tools/project_checks/generated.py=70e18f7320f406be4d26e821dc22861fcfbbb7b519b1b707c02b64b4267d414f",
+      "required_modules": []
+    },
+    "generated.plugin-views": {
+      "executable": "python3",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "python-wrapper",
+        "--file",
+        "tools/project_checks/generated.py"
+      ],
+      "expected_version": "python=3.14;file:tools/project_checks/generated.py=70e18f7320f406be4d26e821dc22861fcfbbb7b519b1b707c02b64b4267d414f",
+      "required_modules": []
+    },
+    "generated.vendor": {
+      "executable": "python3",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "python-wrapper",
+        "--file",
+        "tools/project_checks/generated.py"
+      ],
+      "expected_version": "python=3.14;file:tools/project_checks/generated.py=70e18f7320f406be4d26e821dc22861fcfbbb7b519b1b707c02b64b4267d414f",
+      "required_modules": []
+    },
+    "generated.capability-inventory": {
+      "executable": "python3",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "python-wrapper",
+        "--file",
+        "tools/project_checks/generated.py"
+      ],
+      "expected_version": "python=3.14;file:tools/project_checks/generated.py=70e18f7320f406be4d26e821dc22861fcfbbb7b519b1b707c02b64b4267d414f",
+      "required_modules": []
+    },
+    "generated.capability-matrix": {
+      "executable": "python3",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "python-wrapper",
+        "--file",
+        "tools/project_checks/generated.py"
+      ],
+      "expected_version": "python=3.14;file:tools/project_checks/generated.py=70e18f7320f406be4d26e821dc22861fcfbbb7b519b1b707c02b64b4267d414f",
+      "required_modules": []
+    },
+    "generated.cursor": {
+      "executable": "python3",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "python-wrapper",
+        "--file",
+        "tools/project_checks/generated.py"
+      ],
+      "expected_version": "python=3.14;file:tools/project_checks/generated.py=70e18f7320f406be4d26e821dc22861fcfbbb7b519b1b707c02b64b4267d414f",
+      "required_modules": []
+    },
+    "hook.trailing-whitespace": {
+      "executable": "python3",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "python-wrapper",
+        "--file",
+        "tools/project_checks/hooks.py"
+      ],
+      "expected_version": "python=3.14;file:tools/project_checks/hooks.py=0f2bdb531fa16756472ca9d7296df9acf6989974d57e4d65a853a4f7df5efec3",
+      "required_modules": []
+    },
+    "hook.end-of-file-fixer": {
+      "executable": "python3",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "python-wrapper",
+        "--file",
+        "tools/project_checks/hooks.py"
+      ],
+      "expected_version": "python=3.14;file:tools/project_checks/hooks.py=0f2bdb531fa16756472ca9d7296df9acf6989974d57e4d65a853a4f7df5efec3",
+      "required_modules": []
+    },
+    "hook.mixed-line-ending": {
+      "executable": "python3",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "python-wrapper",
+        "--file",
+        "tools/project_checks/hooks.py"
+      ],
+      "expected_version": "python=3.14;file:tools/project_checks/hooks.py=0f2bdb531fa16756472ca9d7296df9acf6989974d57e4d65a853a4f7df5efec3",
+      "required_modules": []
+    },
+    "hook.shfmt": {
+      "executable": "python3",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "python-wrapper",
+        "--file",
+        "tools/project_checks/hooks.py"
+      ],
+      "expected_version": "python=3.14;file:tools/project_checks/hooks.py=0f2bdb531fa16756472ca9d7296df9acf6989974d57e4d65a853a4f7df5efec3",
+      "required_modules": []
+    },
+    "hook.check-credentials": {
+      "executable": "python3",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "python-wrapper",
+        "--file",
+        "tools/project_checks/hooks.py"
+      ],
+      "expected_version": "python=3.14;file:tools/project_checks/hooks.py=0f2bdb531fa16756472ca9d7296df9acf6989974d57e4d65a853a4f7df5efec3",
+      "required_modules": []
+    },
+    "hook.validate-yaml-configs": {
+      "executable": "python3",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "python-wrapper",
+        "--file",
+        "tools/project_checks/hooks.py",
+        "--distribution",
+        "PyYAML"
+      ],
+      "expected_version": "python=3.14;file:tools/project_checks/hooks.py=0f2bdb531fa16756472ca9d7296df9acf6989974d57e4d65a853a4f7df5efec3;distribution:pyyaml=6.0.2",
+      "required_modules": [
+        "yaml"
+      ]
+    },
+    "hook.check-cursor-rules-drift": {
+      "executable": "python3",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "python-wrapper",
+        "--file",
+        "tools/project_checks/hooks.py"
+      ],
+      "expected_version": "python=3.14;file:tools/project_checks/hooks.py=0f2bdb531fa16756472ca9d7296df9acf6989974d57e4d65a853a4f7df5efec3",
+      "required_modules": []
+    },
+    "hook.check-stale-repo-paths": {
+      "executable": "python3",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "python-wrapper",
+        "--file",
+        "tools/project_checks/hooks.py"
+      ],
+      "expected_version": "python=3.14;file:tools/project_checks/hooks.py=0f2bdb531fa16756472ca9d7296df9acf6989974d57e4d65a853a4f7df5efec3",
+      "required_modules": []
+    },
+    "hook.check-yaml": {
+      "executable": "check-yaml",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "console-distribution",
+        "pre-commit-hooks",
+        "check-yaml"
+      ],
+      "expected_version": "python=3.14;distribution:pre-commit-hooks=6.0.0",
+      "required_modules": []
+    },
+    "hook.check-json": {
+      "executable": "check-json",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "console-distribution",
+        "pre-commit-hooks",
+        "check-json"
+      ],
+      "expected_version": "python=3.14;distribution:pre-commit-hooks=6.0.0",
+      "required_modules": []
+    },
+    "hook.check-added-large-files": {
+      "executable": "check-added-large-files",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "console-distribution",
+        "pre-commit-hooks",
+        "check-added-large-files"
+      ],
+      "expected_version": "python=3.14;distribution:pre-commit-hooks=6.0.0",
+      "required_modules": []
+    },
+    "hook.check-case-conflict": {
+      "executable": "check-case-conflict",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "console-distribution",
+        "pre-commit-hooks",
+        "check-case-conflict"
+      ],
+      "expected_version": "python=3.14;distribution:pre-commit-hooks=6.0.0",
+      "required_modules": []
+    },
+    "hook.check-merge-conflict": {
+      "executable": "check-merge-conflict",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "console-distribution",
+        "pre-commit-hooks",
+        "check-merge-conflict"
+      ],
+      "expected_version": "python=3.14;distribution:pre-commit-hooks=6.0.0",
+      "required_modules": []
+    },
+    "hook.check-executables-have-shebangs": {
+      "executable": "check-executables-have-shebangs",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "console-distribution",
+        "pre-commit-hooks",
+        "check-executables-have-shebangs"
+      ],
+      "expected_version": "python=3.14;distribution:pre-commit-hooks=6.0.0",
+      "required_modules": []
+    },
+    "hook.check-shebang-scripts-are-executable": {
+      "executable": "check-shebang-scripts-are-executable",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "console-distribution",
+        "pre-commit-hooks",
+        "check-shebang-scripts-are-executable"
+      ],
+      "expected_version": "python=3.14;distribution:pre-commit-hooks=6.0.0",
+      "required_modules": []
+    },
+    "hook.detect-private-key": {
+      "executable": "detect-private-key",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "console-distribution",
+        "pre-commit-hooks",
+        "detect-private-key"
+      ],
+      "expected_version": "python=3.14;distribution:pre-commit-hooks=6.0.0",
+      "required_modules": []
+    },
+    "hook.check-ast": {
+      "executable": "check-ast",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "console-distribution",
+        "pre-commit-hooks",
+        "check-ast"
+      ],
+      "expected_version": "python=3.14;distribution:pre-commit-hooks=6.0.0",
+      "required_modules": []
+    },
+    "hook.debug-statements": {
+      "executable": "debug-statement-hook",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "console-distribution",
+        "pre-commit-hooks",
+        "debug-statement-hook"
+      ],
+      "expected_version": "python=3.14;distribution:pre-commit-hooks=6.0.0",
+      "required_modules": []
+    },
+    "hook.shellcheck": {
+      "executable": "shellcheck",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "python-wrapper",
+        "--console-command",
+        "shellcheck-py",
+        "shellcheck",
+        "shellcheck"
+      ],
+      "expected_version": "python=3.14;distribution:shellcheck-py=0.11.0.1;command:shellcheck=0.11.0",
+      "required_modules": []
+    },
+    "hook.markdownlint-cli2": {
+      "executable": "markdownlint-cli2",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "command-version",
+        "markdownlint-cli2"
+      ],
+      "expected_version": "python=3.14;command:markdownlint-cli2=0.23.0",
+      "required_modules": []
+    },
+    "hook.yamllint": {
+      "executable": "yamllint",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "python-wrapper",
+        "--console-command",
+        "yamllint",
+        "yamllint",
+        "yamllint"
+      ],
+      "expected_version": "python=3.14;distribution:yamllint=1.38.0;command:yamllint=1.38.0",
+      "required_modules": []
+    },
+    "hook.ruff": {
+      "executable": "ruff",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "console-distribution",
+        "ruff",
+        "ruff"
+      ],
+      "expected_version": "python=3.14;distribution:ruff=0.15.20",
+      "required_modules": []
+    },
+    "hook.ruff-format": {
+      "executable": "ruff",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "console-distribution",
+        "ruff",
+        "ruff"
+      ],
+      "expected_version": "python=3.14;distribution:ruff=0.15.20",
+      "required_modules": []
+    },
+    "hook.eslint": {
+      "executable": "eslint",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "command-version",
+        "eslint"
+      ],
+      "expected_version": "python=3.14;command:eslint=9.18.0",
+      "required_modules": []
+    },
+    "hook.gitleaks": {
+      "executable": "gitleaks",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "command-version",
+        "gitleaks"
+      ],
+      "expected_version": "python=3.14;command:gitleaks=8.30.0",
+      "required_modules": []
+    },
+    "hook.constitution-check": {
+      "executable": "python3",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "python-wrapper",
+        "--file",
+        "configs/claude/scripts/constitution_check.py"
+      ],
+      "expected_version": "python=3.14;file:configs/claude/scripts/constitution_check.py=5c26fe2b48cb08957cb833d8969526faf9e34e35983c6126b40023a50b77196a",
+      "required_modules": []
+    },
+    "hook.validate-bootstrap": {
+      "executable": "bash",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "command-version",
+        "bash"
+      ],
+      "expected_version": "python=3.14;command:bash=UNPINNED",
+      "required_modules": []
+    },
+    "hook.check-bats-assertions": {
+      "executable": "tests/lint/check_bats_assertions.sh",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "file-sha",
+        "tests/lint/check_bats_assertions.sh"
+      ],
+      "expected_version": "python=3.14;file-sha=1d402c5e83b657ef1ecfe38e04b5d053e627b1d5e632e15469dba9b3e65c58d9",
+      "required_modules": []
+    },
+    "hook.check-array-expansion": {
+      "executable": "tests/lint/check_array_expansion.sh",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "file-sha",
+        "tests/lint/check_array_expansion.sh"
+      ],
+      "expected_version": "python=3.14;file-sha=0b4a3523a5b8f90d4285563843995019e28f53666faf2644323d13085df00677",
+      "required_modules": []
+    },
+    "hook.cargo-fmt-check": {
+      "executable": "cargo",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "command-version",
+        "cargo"
+      ],
+      "expected_version": "python=3.14;command:cargo=UNPINNED",
+      "required_modules": []
+    },
+    "hook.cargo-clippy": {
+      "executable": "cargo",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "command-version",
+        "cargo"
+      ],
+      "expected_version": "python=3.14;command:cargo=UNPINNED",
+      "required_modules": []
+    },
+    "hook.pyright": {
+      "executable": "pyright",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "command-version",
+        "pyright"
+      ],
+      "expected_version": "python=3.14;command:pyright=UNPINNED",
+      "required_modules": []
+    },
+    "hook.golangci-lint": {
+      "executable": "python3",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "python-wrapper",
+        "--file",
+        "tools/project_checks/hooks.py"
+      ],
+      "expected_version": "python=3.14;file:tools/project_checks/hooks.py=0f2bdb531fa16756472ca9d7296df9acf6989974d57e4d65a853a4f7df5efec3",
+      "required_modules": []
+    },
+    "hook.terraform_fmt": {
+      "executable": "python3",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "python-wrapper",
+        "--file",
+        "tools/project_checks/hooks.py"
+      ],
+      "expected_version": "python=3.14;file:tools/project_checks/hooks.py=0f2bdb531fa16756472ca9d7296df9acf6989974d57e4d65a853a4f7df5efec3",
+      "required_modules": []
+    },
+    "hook.terraform_validate": {
+      "executable": "python3",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "python-wrapper",
+        "--file",
+        "tools/project_checks/hooks.py"
+      ],
+      "expected_version": "python=3.14;file:tools/project_checks/hooks.py=0f2bdb531fa16756472ca9d7296df9acf6989974d57e4d65a853a4f7df5efec3",
+      "required_modules": []
+    },
+    "hook.terraform_tflint": {
+      "executable": "python3",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "python-wrapper",
+        "--file",
+        "tools/project_checks/hooks.py"
+      ],
+      "expected_version": "python=3.14;file:tools/project_checks/hooks.py=0f2bdb531fa16756472ca9d7296df9acf6989974d57e4d65a853a4f7df5efec3",
+      "required_modules": []
+    },
+    "hook.terraform_trivy": {
+      "executable": "python3",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "python-wrapper",
+        "--file",
+        "tools/project_checks/hooks.py"
+      ],
+      "expected_version": "python=3.14;file:tools/project_checks/hooks.py=0f2bdb531fa16756472ca9d7296df9acf6989974d57e4d65a853a4f7df5efec3",
+      "required_modules": []
+    },
+    "dependency.lock.config": {
+      "executable": "python3",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "python-wrapper",
+        "--file",
+        "tools/project_checks/packages.py",
+        "--command",
+        "uv"
+      ],
+      "expected_version": "python=3.14;file:tools/project_checks/packages.py=6c413a54dabe2cfa30f0449f08b5db780bbdbf4149ccd1d1117dd4120f7e11bc;command:uv=0.12.6",
+      "required_modules": []
+    },
+    "dependency.lock.delegate": {
+      "executable": "python3",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "python-wrapper",
+        "--file",
+        "tools/project_checks/packages.py",
+        "--command",
+        "uv"
+      ],
+      "expected_version": "python=3.14;file:tools/project_checks/packages.py=6c413a54dabe2cfa30f0449f08b5db780bbdbf4149ccd1d1117dd4120f7e11bc;command:uv=0.12.6",
+      "required_modules": []
+    },
+    "package.coordinator": {
+      "executable": "python3",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "python-wrapper",
+        "--file",
+        "tools/project_checks/packages.py",
+        "--command",
+        "uv"
+      ],
+      "expected_version": "python=3.14;file:tools/project_checks/packages.py=6c413a54dabe2cfa30f0449f08b5db780bbdbf4149ccd1d1117dd4120f7e11bc;command:uv=0.12.6",
+      "required_modules": []
+    },
+    "package.config": {
+      "executable": "python3",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "python-wrapper",
+        "--file",
+        "tools/project_checks/packages.py",
+        "--command",
+        "uv"
+      ],
+      "expected_version": "python=3.14;file:tools/project_checks/packages.py=6c413a54dabe2cfa30f0449f08b5db780bbdbf4149ccd1d1117dd4120f7e11bc;command:uv=0.12.6",
+      "required_modules": []
+    },
+    "package.release-archive": {
+      "executable": "python3",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "python-wrapper",
+        "--file",
+        "tools/project_checks/packages.py",
+        "--command",
+        "uv"
+      ],
+      "expected_version": "python=3.14;file:tools/project_checks/packages.py=6c413a54dabe2cfa30f0449f08b5db780bbdbf4149ccd1d1117dd4120f7e11bc;command:uv=0.12.6",
+      "required_modules": []
+    },
+    "package.release-manifest": {
+      "executable": "python3",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "python-wrapper",
+        "--file",
+        "tools/project_checks/packages.py",
+        "--command",
+        "uv"
+      ],
+      "expected_version": "python=3.14;file:tools/project_checks/packages.py=6c413a54dabe2cfa30f0449f08b5db780bbdbf4149ccd1d1117dd4120f7e11bc;command:uv=0.12.6",
+      "required_modules": []
+    }
+  },
+  "checks": [
+    {
+      "id": "structure.symlinks",
+      "category": "structure",
+      "group": "structure",
+      "argv": [
+        "python3",
+        "tools/project_checks/structure.py",
+        "structure.symlinks",
+        "--root",
+        "."
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 20,
+      "selection": "project",
+      "tool": "structure.symlinks",
+      "version": "python=3.14;file:tools/project_checks/structure.py=cbbaf0c9faa75a08c9a90794f3dad3a8b2e85a29ccae3cdc82ec2bf096bdc8fa",
+      "pass_filenames": false
+    },
+    {
+      "id": "syntax.yaml.config",
+      "category": "syntax",
+      "group": "lint",
+      "argv": [
+        "python3",
+        "tools/project_checks/structure.py",
+        "syntax.yaml.config",
+        "--root",
+        "."
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 20,
+      "selection": "project",
+      "tool": "syntax.yaml.config",
+      "version": "python=3.14;file:tools/project_checks/structure.py=cbbaf0c9faa75a08c9a90794f3dad3a8b2e85a29ccae3cdc82ec2bf096bdc8fa;distribution:pyyaml=6.0.2",
+      "pass_filenames": false
+    },
+    {
+      "id": "structure.case-collision",
+      "category": "structure",
+      "group": "structure",
+      "argv": [
+        "python3",
+        "tools/project_checks/structure.py",
+        "structure.case-collision",
+        "--root",
+        "."
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 20,
+      "selection": "project",
+      "tool": "structure.case-collision",
+      "version": "python=3.14;file:tools/project_checks/structure.py=cbbaf0c9faa75a08c9a90794f3dad3a8b2e85a29ccae3cdc82ec2bf096bdc8fa",
+      "pass_filenames": false
+    },
+    {
+      "id": "structure.inventory",
+      "category": "structure",
+      "group": "structure",
+      "argv": [
+        "python3",
+        "tools/project_checks/structure.py",
+        "structure.inventory",
+        "--root",
+        "."
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 20,
+      "selection": "project",
+      "tool": "structure.inventory",
+      "version": "python=3.14;file:tools/project_checks/structure.py=cbbaf0c9faa75a08c9a90794f3dad3a8b2e85a29ccae3cdc82ec2bf096bdc8fa",
+      "pass_filenames": false
+    },
+    {
+      "id": "syntax.shell.project",
+      "category": "syntax",
+      "group": "lint",
+      "argv": [
+        "python3",
+        "tools/project_checks/structure.py",
+        "syntax.shell.project",
+        "--root",
+        "."
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 20,
+      "selection": "project",
+      "tool": "syntax.shell.project",
+      "version": "python=3.14;file:tools/project_checks/structure.py=cbbaf0c9faa75a08c9a90794f3dad3a8b2e85a29ccae3cdc82ec2bf096bdc8fa",
+      "pass_filenames": false
+    },
+    {
+      "id": "structure.skill-paths",
+      "category": "structure",
+      "group": "structure",
+      "argv": [
+        "python3",
+        "tools/project_checks/structure.py",
+        "structure.skill-paths",
+        "--root",
+        "."
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 20,
+      "selection": "project",
+      "tool": "structure.skill-paths",
+      "version": "python=3.14;file:tools/project_checks/structure.py=cbbaf0c9faa75a08c9a90794f3dad3a8b2e85a29ccae3cdc82ec2bf096bdc8fa",
+      "pass_filenames": false
+    },
+    {
+      "id": "lint.shell.scripts",
+      "category": "lint",
+      "group": "lint",
+      "argv": [
+        "python3",
+        "tools/project_checks/structure.py",
+        "lint.shell.scripts",
+        "--root",
+        "."
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 20,
+      "selection": "project",
+      "tool": "lint.shell.scripts",
+      "version": "python=3.14;file:tools/project_checks/structure.py=cbbaf0c9faa75a08c9a90794f3dad3a8b2e85a29ccae3cdc82ec2bf096bdc8fa;distribution:shellcheck-py=0.11.0.1;command:shellcheck=0.11.0",
+      "pass_filenames": false
+    },
+    {
+      "id": "lint.shell.bootstrap",
+      "category": "lint",
+      "group": "lint",
+      "argv": [
+        "python3",
+        "tools/project_checks/structure.py",
+        "lint.shell.bootstrap",
+        "--root",
+        "."
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 20,
+      "selection": "project",
+      "tool": "lint.shell.bootstrap",
+      "version": "python=3.14;file:tools/project_checks/structure.py=cbbaf0c9faa75a08c9a90794f3dad3a8b2e85a29ccae3cdc82ec2bf096bdc8fa;distribution:shellcheck-py=0.11.0.1;command:shellcheck=0.11.0",
+      "pass_filenames": false
+    },
+    {
+      "id": "lint.yaml.config",
+      "category": "lint",
+      "group": "lint",
+      "argv": [
+        "python3",
+        "tools/project_checks/structure.py",
+        "lint.yaml.config",
+        "--root",
+        "."
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 20,
+      "selection": "project",
+      "tool": "lint.yaml.config",
+      "version": "python=3.14;file:tools/project_checks/structure.py=cbbaf0c9faa75a08c9a90794f3dad3a8b2e85a29ccae3cdc82ec2bf096bdc8fa;distribution:pyyaml=6.0.2;distribution:yamllint=1.38.0;command:yamllint=1.38.0",
+      "pass_filenames": false
+    },
+    {
+      "id": "lint.shell.arrays",
+      "category": "lint",
+      "group": "lint",
+      "argv": [
+        "tests/lint/check_array_expansion.sh"
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 20,
+      "selection": "project",
+      "tool": "lint.shell.arrays",
+      "version": "python=3.14;file-sha=0b4a3523a5b8f90d4285563843995019e28f53666faf2644323d13085df00677",
+      "pass_filenames": false
+    },
+    {
+      "id": "lint.bats.assertions",
+      "category": "lint",
+      "group": "lint",
+      "argv": [
+        "tests/lint/check_bats_assertions.sh"
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 20,
+      "selection": "project",
+      "tool": "lint.bats.assertions",
+      "version": "python=3.14;file-sha=1d402c5e83b657ef1ecfe38e04b5d053e627b1d5e632e15469dba9b3e65c58d9",
+      "pass_filenames": false
+    },
+    {
+      "id": "package.self-contained",
+      "category": "package",
+      "group": "package",
+      "argv": [
+        "tests/lint/check_fresh_checkout.sh"
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 60,
+      "selection": "project",
+      "tool": "package.self-contained",
+      "version": "python=3.14;file-sha=602f113e02ada72743becde66236a155798e94754a709c59ecaed951524bda95",
+      "pass_filenames": false
+    },
+    {
+      "id": "structure.bundle-references",
+      "category": "structure",
+      "group": "structure",
+      "argv": [
+        "python3",
+        "tools/check_bundle_link_references.py"
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 20,
+      "selection": "project",
+      "tool": "structure.bundle-references",
+      "version": "python=3.14;file:tools/check_bundle_link_references.py=9269d592c90ac63601120b13dc70ff377bf9dd4df086f51f491c030e5db4eb4a",
+      "pass_filenames": false
+    },
+    {
+      "id": "structure.runtime-paths",
+      "category": "structure",
+      "group": "structure",
+      "argv": [
+        "python3",
+        "tools/check_plugin_runtime_paths.py",
+        "--json"
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 20,
+      "selection": "project",
+      "tool": "structure.runtime-paths",
+      "version": "python=3.14;file:tools/check_plugin_runtime_paths.py=a302648ffea8bf47fddaef1601fc191676e0edf0ee0b595e46675f06624041fc",
+      "pass_filenames": false
+    },
+    {
+      "id": "structure.agent-frontmatter",
+      "category": "structure",
+      "group": "structure",
+      "argv": [
+        "python3",
+        "tools/check_agent_frontmatter.py"
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 20,
+      "selection": "project",
+      "tool": "structure.agent-frontmatter",
+      "version": "python=3.14;file:tools/check_agent_frontmatter.py=acc9167cf6f646071f230299a0c3491d565c52e9b635959779586dcac0b3e8c0",
+      "pass_filenames": false
+    },
+    {
+      "id": "structure.skill-references",
+      "category": "structure",
+      "group": "structure",
+      "argv": [
+        "python3",
+        "configs/claude/scripts/skill_reference_check.py",
+        "--registry",
+        "configs/claude/config/skill_policies.yml",
+        "--baseline",
+        "configs/claude/config/skill_reference_baseline.json"
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 20,
+      "selection": "project",
+      "tool": "structure.skill-references",
+      "version": "python=3.14;file:configs/claude/scripts/skill_reference_check.py=442a8269edcaea366f417126ad794e67e6abc042aedcca1f1f49218bc4249267",
+      "pass_filenames": false
+    },
+    {
+      "id": "test.bats",
+      "category": "test",
+      "group": "test",
+      "argv": [
+        "./node_modules/.bin/bats",
+        "tests/bats/"
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 300,
+      "selection": "project",
+      "tool": "test.bats",
+      "version": "python=3.14;command:bats=1.11.1",
+      "pass_filenames": false
+    },
+    {
+      "id": "test.python",
+      "category": "test",
+      "group": "test",
+      "argv": [
+        "pytest",
+        "tests/python/",
+        "-v",
+        "-m",
+        "not native"
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 300,
+      "selection": "project",
+      "tool": "test.python",
+      "version": "python=3.14;distribution:pytest=8.3.4",
+      "pass_filenames": false
+    },
+    {
+      "id": "test.hooks",
+      "category": "test",
+      "group": "test",
+      "argv": [
+        "pytest",
+        ".apm/skills/ai-hooks-integration/tests/",
+        "-v"
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 300,
+      "selection": "project",
+      "tool": "test.hooks",
+      "version": "python=3.14;distribution:pytest=8.3.4",
+      "pass_filenames": false
+    },
+    {
+      "id": "test.smoke.lite",
+      "category": "test",
+      "group": "test",
+      "argv": [
+        "configs/claude/.venv/bin/manifest",
+        "smoke",
+        "run",
+        "--app",
+        "manifest",
+        "--tier",
+        "Lite",
+        "--catalog-dir",
+        "smoke-catalog"
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 300,
+      "selection": "project",
+      "tool": "test.smoke.lite",
+      "version": "python=3.14;runtime:python=3.14",
+      "pass_filenames": false
+    },
+    {
+      "id": "lint.markdown.keydocs",
+      "category": "lint",
+      "group": "lint",
+      "argv": [
+        "python3",
+        "tools/project_checks/structure.py",
+        "lint.markdown.keydocs",
+        "--root",
+        "."
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 20,
+      "selection": "project",
+      "tool": "lint.markdown.keydocs",
+      "version": "python=3.14;file:tools/project_checks/structure.py=cbbaf0c9faa75a08c9a90794f3dad3a8b2e85a29ccae3cdc82ec2bf096bdc8fa",
+      "pass_filenames": false
+    },
+    {
+      "id": "test.bundle-partition",
+      "category": "test",
+      "group": "test",
+      "argv": [
+        "python3",
+        "tools/project_checks/structure.py",
+        "test.bundle-partition",
+        "--root",
+        "."
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 300,
+      "selection": "project",
+      "tool": "test.bundle-partition",
+      "version": "python=3.14;file:tools/project_checks/structure.py=cbbaf0c9faa75a08c9a90794f3dad3a8b2e85a29ccae3cdc82ec2bf096bdc8fa",
+      "pass_filenames": false
+    },
+    {
+      "id": "generated.commands-doc",
+      "category": "generated",
+      "group": "structure",
+      "argv": [
+        "python3",
+        "tools/project_checks/generated.py",
+        "generated.commands-doc",
+        "--root",
+        "."
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 20,
+      "selection": "project",
+      "tool": "generated.commands-doc",
+      "version": "python=3.14;file:tools/project_checks/generated.py=70e18f7320f406be4d26e821dc22861fcfbbb7b519b1b707c02b64b4267d414f",
+      "pass_filenames": false
+    },
+    {
+      "id": "generated.plugin-views",
+      "category": "generated",
+      "group": "structure",
+      "argv": [
+        "python3",
+        "tools/project_checks/generated.py",
+        "generated.plugin-views",
+        "--root",
+        "."
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 20,
+      "selection": "project",
+      "tool": "generated.plugin-views",
+      "version": "python=3.14;file:tools/project_checks/generated.py=70e18f7320f406be4d26e821dc22861fcfbbb7b519b1b707c02b64b4267d414f",
+      "pass_filenames": false
+    },
+    {
+      "id": "generated.vendor",
+      "category": "generated",
+      "group": "structure",
+      "argv": [
+        "python3",
+        "tools/project_checks/generated.py",
+        "generated.vendor",
+        "--root",
+        "."
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 20,
+      "selection": "project",
+      "tool": "generated.vendor",
+      "version": "python=3.14;file:tools/project_checks/generated.py=70e18f7320f406be4d26e821dc22861fcfbbb7b519b1b707c02b64b4267d414f",
+      "pass_filenames": false
+    },
+    {
+      "id": "generated.capability-inventory",
+      "category": "generated",
+      "group": "structure",
+      "argv": [
+        "python3",
+        "tools/project_checks/generated.py",
+        "generated.capability-inventory",
+        "--root",
+        "."
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 20,
+      "selection": "project",
+      "tool": "generated.capability-inventory",
+      "version": "python=3.14;file:tools/project_checks/generated.py=70e18f7320f406be4d26e821dc22861fcfbbb7b519b1b707c02b64b4267d414f",
+      "pass_filenames": false
+    },
+    {
+      "id": "generated.capability-matrix",
+      "category": "generated",
+      "group": "structure",
+      "argv": [
+        "python3",
+        "tools/project_checks/generated.py",
+        "generated.capability-matrix",
+        "--root",
+        "."
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 20,
+      "selection": "project",
+      "tool": "generated.capability-matrix",
+      "version": "python=3.14;file:tools/project_checks/generated.py=70e18f7320f406be4d26e821dc22861fcfbbb7b519b1b707c02b64b4267d414f",
+      "pass_filenames": false
+    },
+    {
+      "id": "generated.cursor",
+      "category": "generated",
+      "group": "structure",
+      "argv": [
+        "python3",
+        "tools/project_checks/generated.py",
+        "generated.cursor",
+        "--root",
+        "."
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 20,
+      "selection": "project",
+      "tool": "generated.cursor",
+      "version": "python=3.14;file:tools/project_checks/generated.py=70e18f7320f406be4d26e821dc22861fcfbbb7b519b1b707c02b64b4267d414f",
+      "pass_filenames": false
+    },
+    {
+      "id": "hook.trailing-whitespace",
+      "category": "format",
+      "group": "lint",
+      "argv": [
+        "python3",
+        "tools/project_checks/hooks.py",
+        "hook.trailing-whitespace",
+        "--root",
+        "."
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 20,
+      "selection": "changed",
+      "tool": "hook.trailing-whitespace",
+      "version": "python=3.14;file:tools/project_checks/hooks.py=0f2bdb531fa16756472ca9d7296df9acf6989974d57e4d65a853a4f7df5efec3",
+      "include_regex": "",
+      "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))|(?:^(\\.Jules/|docs/templates/|plugins/manifest-code-quality/skills/smoke-manage/vendor/(LICENSE\\.PyYAML|yaml/)|plugins/manifest-i-have-adhd/(skills/|guidance/|devin/|LICENSE\\.upstream))|\\.patch$)",
+      "types": [],
+      "types_or": [],
+      "pass_filenames": true
+    },
+    {
+      "id": "hook.end-of-file-fixer",
+      "category": "format",
+      "group": "lint",
+      "argv": [
+        "python3",
+        "tools/project_checks/hooks.py",
+        "hook.end-of-file-fixer",
+        "--root",
+        "."
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 20,
+      "selection": "changed",
+      "tool": "hook.end-of-file-fixer",
+      "version": "python=3.14;file:tools/project_checks/hooks.py=0f2bdb531fa16756472ca9d7296df9acf6989974d57e4d65a853a4f7df5efec3",
+      "include_regex": "",
+      "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))|(?:^(\\.Jules/|docs/templates/|configs/cursor/rules/|plugins/manifest-code-quality/skills/smoke-manage/vendor/(LICENSE\\.PyYAML|yaml/)|plugins/manifest-i-have-adhd/(skills/|guidance/|devin/|LICENSE\\.upstream)))",
+      "types": [],
+      "types_or": [],
+      "pass_filenames": true
+    },
+    {
+      "id": "hook.mixed-line-ending",
+      "category": "format",
+      "group": "lint",
+      "argv": [
+        "python3",
+        "tools/project_checks/hooks.py",
+        "hook.mixed-line-ending",
+        "--root",
+        "."
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 20,
+      "selection": "changed",
+      "tool": "hook.mixed-line-ending",
+      "version": "python=3.14;file:tools/project_checks/hooks.py=0f2bdb531fa16756472ca9d7296df9acf6989974d57e4d65a853a4f7df5efec3",
+      "include_regex": "",
+      "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))|(?:^(plugins/manifest-code-quality/skills/smoke-manage/vendor/(LICENSE\\.PyYAML|yaml/)|plugins/manifest-i-have-adhd/(skills/|guidance/|devin/|LICENSE\\.upstream)))",
+      "types": [],
+      "types_or": [],
+      "pass_filenames": true
+    },
+    {
+      "id": "hook.shfmt",
+      "category": "format",
+      "group": "lint",
+      "argv": [
+        "python3",
+        "tools/project_checks/hooks.py",
+        "hook.shfmt",
+        "--root",
+        "."
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 20,
+      "selection": "changed",
+      "tool": "hook.shfmt",
+      "version": "python=3.14;file:tools/project_checks/hooks.py=0f2bdb531fa16756472ca9d7296df9acf6989974d57e4d65a853a4f7df5efec3",
+      "include_regex": "",
+      "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))|(?:(^\\.Jules/|\\.bats$))",
+      "types": [],
+      "types_or": [],
+      "pass_filenames": true
+    },
+    {
+      "id": "hook.check-credentials",
+      "category": "security",
+      "group": "lint",
+      "argv": [
+        "python3",
+        "tools/project_checks/hooks.py",
+        "hook.check-credentials",
+        "--root",
+        "."
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 20,
+      "selection": "project",
+      "tool": "hook.check-credentials",
+      "version": "python=3.14;file:tools/project_checks/hooks.py=0f2bdb531fa16756472ca9d7296df9acf6989974d57e4d65a853a4f7df5efec3",
+      "include_regex": "",
+      "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))",
+      "types": [],
+      "types_or": [],
+      "pass_filenames": false
+    },
+    {
+      "id": "hook.validate-yaml-configs",
+      "category": "syntax",
+      "group": "lint",
+      "argv": [
+        "python3",
+        "tools/project_checks/hooks.py",
+        "hook.validate-yaml-configs",
+        "--root",
+        "."
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 20,
+      "selection": "changed",
+      "tool": "hook.validate-yaml-configs",
+      "version": "python=3.14;file:tools/project_checks/hooks.py=0f2bdb531fa16756472ca9d7296df9acf6989974d57e4d65a853a4f7df5efec3;distribution:pyyaml=6.0.2",
+      "include_regex": "^configs/claude/config/.*\\.yml$",
+      "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))",
+      "types": [],
+      "types_or": [],
+      "pass_filenames": true
+    },
+    {
+      "id": "hook.check-cursor-rules-drift",
+      "category": "lint",
+      "group": "lint",
+      "argv": [
+        "python3",
+        "tools/project_checks/hooks.py",
+        "hook.check-cursor-rules-drift",
+        "--root",
+        "."
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 20,
+      "selection": "project",
+      "tool": "hook.check-cursor-rules-drift",
+      "version": "python=3.14;file:tools/project_checks/hooks.py=0f2bdb531fa16756472ca9d7296df9acf6989974d57e4d65a853a4f7df5efec3",
+      "include_regex": "^(\\.apm/skills/|configs/claude/agents/|configs/claude/agents-devpanel/|configs/claude/config/mcp_servers\\.yml|configs/cursor/(rules|mcp\\.json|agents)/)",
+      "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))",
+      "types": [],
+      "types_or": [],
+      "pass_filenames": false
+    },
+    {
+      "id": "hook.check-stale-repo-paths",
+      "category": "lint",
+      "group": "lint",
+      "argv": [
+        "python3",
+        "tools/project_checks/hooks.py",
+        "hook.check-stale-repo-paths",
+        "--root",
+        "."
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 20,
+      "selection": "changed",
+      "tool": "hook.check-stale-repo-paths",
+      "version": "python=3.14;file:tools/project_checks/hooks.py=0f2bdb531fa16756472ca9d7296df9acf6989974d57e4d65a853a4f7df5efec3",
+      "include_regex": "",
+      "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))|(?:^(\\.pre-commit-config\\.yaml|\\.Jules/|configs/|tests/|\\.claude/|specs/|docs/superpowers/plans/|docs/superpowers/specs/|docs/templates/))",
+      "types": [
+        "markdown"
+      ],
+      "types_or": [],
+      "pass_filenames": true
+    },
+    {
+      "id": "hook.check-yaml",
+      "category": "syntax",
+      "group": "lint",
+      "argv": [
+        "check-yaml",
+        "--unsafe"
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 20,
+      "selection": "changed",
+      "tool": "hook.check-yaml",
+      "version": "python=3.14;distribution:pre-commit-hooks=6.0.0",
+      "include_regex": "",
+      "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))|(?:^(\\.Jules/))",
+      "types": [],
+      "types_or": [],
+      "pass_filenames": true
+    },
+    {
+      "id": "hook.check-json",
+      "category": "syntax",
+      "group": "lint",
+      "argv": [
+        "check-json"
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 20,
+      "selection": "changed",
+      "tool": "hook.check-json",
+      "version": "python=3.14;distribution:pre-commit-hooks=6.0.0",
+      "include_regex": "",
+      "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))|(?:^(\\.Jules/))",
+      "types": [],
+      "types_or": [],
+      "pass_filenames": true
+    },
+    {
+      "id": "hook.check-added-large-files",
+      "category": "lint",
+      "group": "lint",
+      "argv": [
+        "check-added-large-files",
+        "--maxkb=500"
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 20,
+      "selection": "changed",
+      "tool": "hook.check-added-large-files",
+      "version": "python=3.14;distribution:pre-commit-hooks=6.0.0",
+      "include_regex": "",
+      "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))",
+      "types": [],
+      "types_or": [],
+      "pass_filenames": true
+    },
+    {
+      "id": "hook.check-case-conflict",
+      "category": "lint",
+      "group": "lint",
+      "argv": [
+        "check-case-conflict"
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 20,
+      "selection": "changed",
+      "tool": "hook.check-case-conflict",
+      "version": "python=3.14;distribution:pre-commit-hooks=6.0.0",
+      "include_regex": "",
+      "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))",
+      "types": [],
+      "types_or": [],
+      "pass_filenames": true
+    },
+    {
+      "id": "hook.check-merge-conflict",
+      "category": "lint",
+      "group": "lint",
+      "argv": [
+        "check-merge-conflict"
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 20,
+      "selection": "changed",
+      "tool": "hook.check-merge-conflict",
+      "version": "python=3.14;distribution:pre-commit-hooks=6.0.0",
+      "include_regex": "",
+      "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))",
+      "types": [],
+      "types_or": [],
+      "pass_filenames": true
+    },
+    {
+      "id": "hook.check-executables-have-shebangs",
+      "category": "lint",
+      "group": "lint",
+      "argv": [
+        "check-executables-have-shebangs"
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 20,
+      "selection": "changed",
+      "tool": "hook.check-executables-have-shebangs",
+      "version": "python=3.14;distribution:pre-commit-hooks=6.0.0",
+      "include_regex": "",
+      "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))",
+      "types": [],
+      "types_or": [],
+      "pass_filenames": true
+    },
+    {
+      "id": "hook.check-shebang-scripts-are-executable",
+      "category": "lint",
+      "group": "lint",
+      "argv": [
+        "check-shebang-scripts-are-executable"
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 20,
+      "selection": "changed",
+      "tool": "hook.check-shebang-scripts-are-executable",
+      "version": "python=3.14;distribution:pre-commit-hooks=6.0.0",
+      "include_regex": "",
+      "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))|(?:\\.(bats|tmpl)$)",
+      "types": [],
+      "types_or": [],
+      "pass_filenames": true
+    },
+    {
+      "id": "hook.detect-private-key",
+      "category": "lint",
+      "group": "lint",
+      "argv": [
+        "detect-private-key"
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 20,
+      "selection": "changed",
+      "tool": "hook.detect-private-key",
+      "version": "python=3.14;distribution:pre-commit-hooks=6.0.0",
+      "include_regex": "",
+      "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))",
+      "types": [],
+      "types_or": [],
+      "pass_filenames": true
+    },
+    {
+      "id": "hook.check-ast",
+      "category": "syntax",
+      "group": "lint",
+      "argv": [
+        "check-ast"
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 20,
+      "selection": "changed",
+      "tool": "hook.check-ast",
+      "version": "python=3.14;distribution:pre-commit-hooks=6.0.0",
+      "include_regex": "",
+      "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))",
+      "types": [],
+      "types_or": [
+        "python",
+        "pyi"
+      ],
+      "pass_filenames": true
+    },
+    {
+      "id": "hook.debug-statements",
+      "category": "lint",
+      "group": "lint",
+      "argv": [
+        "debug-statement-hook"
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 20,
+      "selection": "changed",
+      "tool": "hook.debug-statements",
+      "version": "python=3.14;distribution:pre-commit-hooks=6.0.0",
+      "include_regex": "",
+      "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))",
+      "types": [],
+      "types_or": [
+        "python",
+        "pyi"
+      ],
+      "pass_filenames": true
+    },
+    {
+      "id": "hook.shellcheck",
+      "category": "lint",
+      "group": "lint",
+      "argv": [
+        "shellcheck",
+        "--severity=warning"
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 20,
+      "selection": "changed",
+      "tool": "hook.shellcheck",
+      "version": "python=3.14;distribution:shellcheck-py=0.11.0.1;command:shellcheck=0.11.0",
+      "include_regex": "",
+      "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))|(?:(^\\.Jules/|\\.bats$))",
+      "types": [],
+      "types_or": [],
+      "pass_filenames": true
+    },
+    {
+      "id": "hook.markdownlint-cli2",
+      "category": "lint",
+      "group": "lint",
+      "argv": [
+        "markdownlint-cli2",
+        "--config",
+        ".markdownlint.jsonc"
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 20,
+      "selection": "changed",
+      "tool": "hook.markdownlint-cli2",
+      "version": "python=3.14;command:markdownlint-cli2=0.23.0",
+      "include_regex": "",
+      "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))|(?:^(\\.Jules/|\\.jules/|specs/|docs/superpowers/|docs/templates/|docs/SHELL_ANALYSIS_REPORT\\.md|docs/VALIDATION_REPORT\\.md|\\.specify/|\\.claude/skills/speckit-[^/]+/|node_modules/|\\.apm/skills/|plugins/stitch-design/|plugins/manifest-i-have-adhd/(skills/|guidance/|devin/)))",
+      "types": [],
+      "types_or": [],
+      "pass_filenames": true
+    },
+    {
+      "id": "hook.yamllint",
+      "category": "lint",
+      "group": "lint",
+      "argv": [
+        "yamllint"
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 20,
+      "selection": "changed",
+      "tool": "hook.yamllint",
+      "version": "python=3.14;distribution:yamllint=1.38.0;command:yamllint=1.38.0",
+      "include_regex": "",
+      "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))|(?:^(\\.Jules/))",
+      "types": [],
+      "types_or": [],
+      "pass_filenames": true
+    },
+    {
+      "id": "hook.ruff",
+      "category": "lint",
+      "group": "lint",
+      "argv": [
+        "ruff",
+        "check"
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 20,
+      "selection": "changed",
+      "tool": "hook.ruff",
+      "version": "python=3.14;distribution:ruff=0.15.20",
+      "include_regex": "",
+      "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))|(?:^plugins/manifest-code-quality/skills/smoke-manage/vendor/yaml/)",
+      "types": [],
+      "types_or": [
+        "python",
+        "pyi"
+      ],
+      "pass_filenames": true
+    },
+    {
+      "id": "hook.ruff-format",
+      "category": "format",
+      "group": "lint",
+      "argv": [
+        "ruff",
+        "format",
+        "--check"
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 20,
+      "selection": "changed",
+      "tool": "hook.ruff-format",
+      "version": "python=3.14;distribution:ruff=0.15.20",
+      "include_regex": "",
+      "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))|(?:^plugins/manifest-code-quality/skills/smoke-manage/vendor/yaml/)",
+      "types": [],
+      "types_or": [
+        "python",
+        "pyi"
+      ],
+      "pass_filenames": true
+    },
+    {
+      "id": "hook.eslint",
+      "category": "lint",
+      "group": "lint",
+      "argv": [
+        "eslint"
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 20,
+      "selection": "changed",
+      "tool": "hook.eslint",
+      "version": "python=3.14;command:eslint=9.18.0",
+      "include_regex": "",
+      "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))|(?:^(templates/|\\.Jules/|\\.apm/skills/|plugins/stitch-design/|plugins/manifest-code-quality/skills/project-scaffold/templates/))",
+      "types": [],
+      "types_or": [
+        "javascript",
+        "jsx",
+        "ts",
+        "tsx"
+      ],
+      "pass_filenames": true
+    },
+    {
+      "id": "hook.gitleaks",
+      "category": "security",
+      "group": "lint",
+      "argv": [
+        "gitleaks",
+        "git",
+        "--pre-commit",
+        "--redact",
+        "--staged",
+        "--verbose"
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 20,
+      "selection": "project",
+      "tool": "hook.gitleaks",
+      "version": "python=3.14;command:gitleaks=8.30.0",
+      "include_regex": "",
+      "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))",
+      "types": [],
+      "types_or": [],
+      "pass_filenames": false
+    },
+    {
+      "id": "hook.constitution-check",
+      "category": "lint",
+      "group": "lint",
+      "argv": [
+        "python3",
+        "configs/claude/scripts/constitution_check.py"
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 20,
+      "selection": "changed",
+      "tool": "hook.constitution-check",
+      "version": "python=3.14;file:configs/claude/scripts/constitution_check.py=5c26fe2b48cb08957cb833d8969526faf9e34e35983c6126b40023a50b77196a",
+      "include_regex": "\\.(py|pyi|sh|bash|go|tf|tfvars|ts|tsx|js|jsx|mjs|cjs)$",
+      "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))|(?:^(\\.Jules/|\\.jules/|node_modules/|templates/scaffold/|specs/|plugins/stitch-design/runtime/dist/|plugins/manifest-code-quality/skills/smoke-manage/vendor/yaml/))",
+      "types": [],
+      "types_or": [],
+      "pass_filenames": true
+    },
+    {
+      "id": "hook.validate-bootstrap",
+      "category": "syntax",
+      "group": "lint",
+      "argv": [
+        "bash",
+        "-n"
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 20,
+      "selection": "changed",
+      "tool": "hook.validate-bootstrap",
+      "version": "python=3.14;command:bash=UNPINNED",
+      "include_regex": "^bootstrap\\.sh$",
+      "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))",
+      "types": [],
+      "types_or": [],
+      "pass_filenames": true
+    },
+    {
+      "id": "hook.check-bats-assertions",
+      "category": "lint",
+      "group": "lint",
+      "argv": [
+        "tests/lint/check_bats_assertions.sh"
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 20,
+      "selection": "changed",
+      "tool": "hook.check-bats-assertions",
+      "version": "python=3.14;file-sha=1d402c5e83b657ef1ecfe38e04b5d053e627b1d5e632e15469dba9b3e65c58d9",
+      "include_regex": "\\.bats$",
+      "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))",
+      "types": [],
+      "types_or": [],
+      "pass_filenames": true
+    },
+    {
+      "id": "hook.check-array-expansion",
+      "category": "lint",
+      "group": "lint",
+      "argv": [
+        "tests/lint/check_array_expansion.sh"
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 20,
+      "selection": "changed",
+      "tool": "hook.check-array-expansion",
+      "version": "python=3.14;file-sha=0b4a3523a5b8f90d4285563843995019e28f53666faf2644323d13085df00677",
+      "include_regex": "",
+      "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))|(?:(^\\.specify/|\\.bats$))",
+      "types": [
+        "shell"
+      ],
+      "types_or": [],
+      "pass_filenames": true
+    },
+    {
+      "id": "hook.cargo-fmt-check",
+      "category": "lint",
+      "group": "lint",
+      "argv": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 20,
+      "selection": "project",
+      "tool": "hook.cargo-fmt-check",
+      "version": "python=3.14;command:cargo=UNPINNED",
+      "include_regex": "",
+      "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))",
+      "types": [],
+      "types_or": [
+        "rust"
+      ],
+      "pass_filenames": false
+    },
+    {
+      "id": "hook.cargo-clippy",
+      "category": "lint",
+      "group": "lint",
+      "argv": [
+        "cargo",
+        "clippy",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 20,
+      "selection": "project",
+      "tool": "hook.cargo-clippy",
+      "version": "python=3.14;command:cargo=UNPINNED",
+      "include_regex": "",
+      "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))",
+      "types": [],
+      "types_or": [
+        "rust"
+      ],
+      "pass_filenames": false
+    },
+    {
+      "id": "hook.pyright",
+      "category": "type",
+      "group": "lint",
+      "argv": [
+        "pyright"
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 20,
+      "selection": "project",
+      "tool": "hook.pyright",
+      "version": "python=3.14;command:pyright=UNPINNED",
+      "include_regex": "",
+      "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))",
+      "types": [],
+      "types_or": [
+        "python",
+        "pyi"
+      ],
+      "pass_filenames": false
+    },
+    {
+      "id": "hook.golangci-lint",
+      "category": "lint",
+      "group": "lint",
+      "argv": [
+        "python3",
+        "tools/project_checks/hooks.py",
+        "hook.golangci-lint",
+        "--root",
+        "."
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 20,
+      "selection": "changed",
+      "tool": "hook.golangci-lint",
+      "version": "python=3.14;file:tools/project_checks/hooks.py=0f2bdb531fa16756472ca9d7296df9acf6989974d57e4d65a853a4f7df5efec3",
+      "include_regex": "",
+      "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))",
+      "types": [],
+      "types_or": [
+        "go"
+      ],
+      "pass_filenames": true
+    },
+    {
+      "id": "hook.terraform_fmt",
+      "category": "format",
+      "group": "lint",
+      "argv": [
+        "python3",
+        "tools/project_checks/hooks.py",
+        "hook.terraform_fmt",
+        "--root",
+        "."
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 20,
+      "selection": "changed",
+      "tool": "hook.terraform_fmt",
+      "version": "python=3.14;file:tools/project_checks/hooks.py=0f2bdb531fa16756472ca9d7296df9acf6989974d57e4d65a853a4f7df5efec3",
+      "include_regex": "",
+      "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))",
+      "types": [],
+      "types_or": [
+        "terraform"
+      ],
+      "pass_filenames": true
+    },
+    {
+      "id": "hook.terraform_validate",
+      "category": "lint",
+      "group": "lint",
+      "argv": [
+        "python3",
+        "tools/project_checks/hooks.py",
+        "hook.terraform_validate",
+        "--root",
+        "."
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 20,
+      "selection": "changed",
+      "tool": "hook.terraform_validate",
+      "version": "python=3.14;file:tools/project_checks/hooks.py=0f2bdb531fa16756472ca9d7296df9acf6989974d57e4d65a853a4f7df5efec3",
+      "include_regex": "",
+      "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))",
+      "types": [],
+      "types_or": [
+        "terraform"
+      ],
+      "pass_filenames": true
+    },
+    {
+      "id": "hook.terraform_tflint",
+      "category": "lint",
+      "group": "lint",
+      "argv": [
+        "python3",
+        "tools/project_checks/hooks.py",
+        "hook.terraform_tflint",
+        "--root",
+        "."
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 20,
+      "selection": "changed",
+      "tool": "hook.terraform_tflint",
+      "version": "python=3.14;file:tools/project_checks/hooks.py=0f2bdb531fa16756472ca9d7296df9acf6989974d57e4d65a853a4f7df5efec3",
+      "include_regex": "",
+      "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))",
+      "types": [],
+      "types_or": [
+        "terraform"
+      ],
+      "pass_filenames": true
+    },
+    {
+      "id": "hook.terraform_trivy",
+      "category": "lint",
+      "group": "lint",
+      "argv": [
+        "python3",
+        "tools/project_checks/hooks.py",
+        "hook.terraform_trivy",
+        "--root",
+        "."
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 20,
+      "selection": "changed",
+      "tool": "hook.terraform_trivy",
+      "version": "python=3.14;file:tools/project_checks/hooks.py=0f2bdb531fa16756472ca9d7296df9acf6989974d57e4d65a853a4f7df5efec3",
+      "include_regex": "",
+      "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))",
+      "types": [],
+      "types_or": [
+        "terraform"
+      ],
+      "pass_filenames": true
+    },
+    {
+      "id": "dependency.lock.config",
+      "category": "dependency",
+      "group": "package",
+      "argv": [
+        "python3",
+        "tools/project_checks/packages.py",
+        "dependency.lock.config",
+        "--root",
+        "."
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 60,
+      "selection": "project",
+      "tool": "dependency.lock.config",
+      "version": "python=3.14;file:tools/project_checks/packages.py=6c413a54dabe2cfa30f0449f08b5db780bbdbf4149ccd1d1117dd4120f7e11bc;command:uv=0.12.6",
+      "pass_filenames": false
+    },
+    {
+      "id": "dependency.lock.delegate",
+      "category": "dependency",
+      "group": "package",
+      "argv": [
+        "python3",
+        "tools/project_checks/packages.py",
+        "dependency.lock.delegate",
+        "--root",
+        "."
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 60,
+      "selection": "project",
+      "tool": "dependency.lock.delegate",
+      "version": "python=3.14;file:tools/project_checks/packages.py=6c413a54dabe2cfa30f0449f08b5db780bbdbf4149ccd1d1117dd4120f7e11bc;command:uv=0.12.6",
+      "pass_filenames": false
+    },
+    {
+      "id": "package.coordinator",
+      "category": "package",
+      "group": "package",
+      "argv": [
+        "python3",
+        "tools/project_checks/packages.py",
+        "package.coordinator",
+        "--root",
+        "."
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 60,
+      "selection": "project",
+      "tool": "package.coordinator",
+      "version": "python=3.14;file:tools/project_checks/packages.py=6c413a54dabe2cfa30f0449f08b5db780bbdbf4149ccd1d1117dd4120f7e11bc;command:uv=0.12.6",
+      "pass_filenames": false
+    },
+    {
+      "id": "package.config",
+      "category": "package",
+      "group": "package",
+      "argv": [
+        "python3",
+        "tools/project_checks/packages.py",
+        "package.config",
+        "--root",
+        "."
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 60,
+      "selection": "project",
+      "tool": "package.config",
+      "version": "python=3.14;file:tools/project_checks/packages.py=6c413a54dabe2cfa30f0449f08b5db780bbdbf4149ccd1d1117dd4120f7e11bc;command:uv=0.12.6",
+      "pass_filenames": false
+    },
+    {
+      "id": "package.release-archive",
+      "category": "package",
+      "group": "package",
+      "argv": [
+        "python3",
+        "tools/project_checks/packages.py",
+        "package.release-archive",
+        "--root",
+        ".",
+        "--archive-base-url",
+        "https://github.com/RB-chrismandich/Manifest/releases/download"
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 60,
+      "selection": "project",
+      "tool": "package.release-archive",
+      "version": "python=3.14;file:tools/project_checks/packages.py=6c413a54dabe2cfa30f0449f08b5db780bbdbf4149ccd1d1117dd4120f7e11bc;command:uv=0.12.6",
+      "pass_filenames": false
+    },
+    {
+      "id": "package.release-manifest",
+      "category": "package",
+      "group": "package",
+      "argv": [
+        "python3",
+        "tools/project_checks/packages.py",
+        "package.release-manifest",
+        "--root",
+        ".",
+        "--archive-base-url",
+        "https://github.com/RB-chrismandich/Manifest/releases/download"
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 60,
+      "selection": "project",
+      "tool": "package.release-manifest",
+      "version": "python=3.14;file:tools/project_checks/packages.py=6c413a54dabe2cfa30f0449f08b5db780bbdbf4149ccd1d1117dd4120f7e11bc;command:uv=0.12.6",
+      "pass_filenames": false
+    }
+  ],
+  "candidate_preparations": [],
+  "profiles": {
+    "quick": [
+      "structure.symlinks",
+      "structure.case-collision",
+      "hook.trailing-whitespace",
+      "hook.end-of-file-fixer",
+      "hook.mixed-line-ending",
+      "hook.shfmt",
+      "hook.validate-yaml-configs",
+      "hook.check-stale-repo-paths",
+      "hook.check-yaml",
+      "hook.check-json",
+      "hook.check-added-large-files",
+      "hook.check-case-conflict",
+      "hook.check-merge-conflict",
+      "hook.check-executables-have-shebangs",
+      "hook.check-shebang-scripts-are-executable",
+      "hook.check-ast",
+      "hook.debug-statements",
+      "hook.shellcheck",
+      "hook.markdownlint-cli2",
+      "hook.yamllint",
+      "hook.ruff",
+      "hook.ruff-format",
+      "hook.eslint",
+      "hook.constitution-check",
+      "hook.validate-bootstrap",
+      "hook.check-bats-assertions",
+      "hook.check-array-expansion",
+      "hook.golangci-lint",
+      "hook.terraform_fmt",
+      "hook.terraform_validate",
+      "hook.terraform_tflint"
+    ],
+    "full": [
+      "structure.symlinks",
+      "syntax.yaml.config",
+      "structure.case-collision",
+      "structure.inventory",
+      "syntax.shell.project",
+      "structure.skill-paths",
+      "lint.shell.scripts",
+      "lint.shell.bootstrap",
+      "lint.yaml.config",
+      "lint.shell.arrays",
+      "lint.bats.assertions",
+      "package.self-contained",
+      "structure.bundle-references",
+      "structure.runtime-paths",
+      "structure.agent-frontmatter",
+      "structure.skill-references",
+      "test.bats",
+      "test.python",
+      "test.hooks",
+      "test.smoke.lite",
+      "lint.markdown.keydocs",
+      "test.bundle-partition",
+      "generated.commands-doc",
+      "generated.plugin-views",
+      "generated.vendor",
+      "generated.capability-inventory",
+      "generated.capability-matrix",
+      "generated.cursor",
+      "hook.trailing-whitespace",
+      "hook.end-of-file-fixer",
+      "hook.mixed-line-ending",
+      "hook.shfmt",
+      "hook.validate-yaml-configs",
+      "hook.check-cursor-rules-drift",
+      "hook.check-stale-repo-paths",
+      "hook.check-yaml",
+      "hook.check-json",
+      "hook.check-added-large-files",
+      "hook.check-case-conflict",
+      "hook.check-merge-conflict",
+      "hook.check-executables-have-shebangs",
+      "hook.check-shebang-scripts-are-executable",
+      "hook.check-ast",
+      "hook.debug-statements",
+      "hook.shellcheck",
+      "hook.markdownlint-cli2",
+      "hook.yamllint",
+      "hook.ruff",
+      "hook.ruff-format",
+      "hook.eslint",
+      "hook.constitution-check",
+      "hook.validate-bootstrap",
+      "hook.check-bats-assertions",
+      "hook.check-array-expansion",
+      "hook.cargo-fmt-check",
+      "hook.cargo-clippy",
+      "hook.pyright",
+      "hook.golangci-lint",
+      "hook.terraform_fmt",
+      "hook.terraform_validate",
+      "hook.terraform_tflint",
+      "dependency.lock.config",
+      "dependency.lock.delegate",
+      "package.coordinator",
+      "package.config"
+    ],
+    "security": [
+      "hook.check-credentials",
+      "hook.detect-private-key",
+      "hook.gitleaks",
+      "hook.terraform_trivy"
+    ],
+    "release": [
+      "structure.symlinks",
+      "syntax.yaml.config",
+      "structure.case-collision",
+      "structure.inventory",
+      "syntax.shell.project",
+      "structure.skill-paths",
+      "lint.shell.scripts",
+      "lint.shell.bootstrap",
+      "lint.yaml.config",
+      "lint.shell.arrays",
+      "lint.bats.assertions",
+      "package.self-contained",
+      "structure.bundle-references",
+      "structure.runtime-paths",
+      "structure.agent-frontmatter",
+      "structure.skill-references",
+      "test.bats",
+      "test.python",
+      "test.hooks",
+      "test.smoke.lite",
+      "lint.markdown.keydocs",
+      "test.bundle-partition",
+      "generated.commands-doc",
+      "generated.plugin-views",
+      "generated.vendor",
+      "generated.capability-inventory",
+      "generated.capability-matrix",
+      "generated.cursor",
+      "hook.trailing-whitespace",
+      "hook.end-of-file-fixer",
+      "hook.mixed-line-ending",
+      "hook.shfmt",
+      "hook.check-credentials",
+      "hook.validate-yaml-configs",
+      "hook.check-cursor-rules-drift",
+      "hook.check-stale-repo-paths",
+      "hook.check-yaml",
+      "hook.check-json",
+      "hook.check-added-large-files",
+      "hook.check-case-conflict",
+      "hook.check-merge-conflict",
+      "hook.check-executables-have-shebangs",
+      "hook.check-shebang-scripts-are-executable",
+      "hook.detect-private-key",
+      "hook.check-ast",
+      "hook.debug-statements",
+      "hook.shellcheck",
+      "hook.markdownlint-cli2",
+      "hook.yamllint",
+      "hook.ruff",
+      "hook.ruff-format",
+      "hook.eslint",
+      "hook.gitleaks",
+      "hook.constitution-check",
+      "hook.validate-bootstrap",
+      "hook.check-bats-assertions",
+      "hook.check-array-expansion",
+      "hook.cargo-fmt-check",
+      "hook.cargo-clippy",
+      "hook.pyright",
+      "hook.golangci-lint",
+      "hook.terraform_fmt",
+      "hook.terraform_validate",
+      "hook.terraform_tflint",
+      "hook.terraform_trivy",
+      "dependency.lock.config",
+      "dependency.lock.delegate",
+      "package.coordinator",
+      "package.config",
+      "package.release-archive",
+      "package.release-manifest"
+    ]
+  },
+  "coverage_pending": {
+    "quick": [
+      "structure.symlinks: deterministic candidate prerequisite provisioning pending Phase 3 for quick",
+      "structure.case-collision: deterministic candidate prerequisite provisioning pending Phase 3 for quick",
+      "hook.trailing-whitespace: deterministic candidate prerequisite provisioning pending Phase 3 for quick",
+      "hook.end-of-file-fixer: deterministic candidate prerequisite provisioning pending Phase 3 for quick",
+      "hook.mixed-line-ending: deterministic candidate prerequisite provisioning pending Phase 3 for quick",
+      "hook.shfmt: deterministic candidate prerequisite provisioning pending Phase 3 for quick",
+      "hook.validate-yaml-configs: deterministic candidate prerequisite provisioning pending Phase 3 for quick",
+      "hook.check-stale-repo-paths: deterministic candidate prerequisite provisioning pending Phase 3 for quick",
+      "hook.check-yaml: deterministic candidate prerequisite provisioning pending Phase 3 for quick",
+      "hook.check-json: deterministic candidate prerequisite provisioning pending Phase 3 for quick",
+      "hook.check-added-large-files: deterministic candidate prerequisite provisioning pending Phase 3 for quick",
+      "hook.check-case-conflict: deterministic candidate prerequisite provisioning pending Phase 3 for quick",
+      "hook.check-merge-conflict: deterministic candidate prerequisite provisioning pending Phase 3 for quick",
+      "hook.check-executables-have-shebangs: deterministic candidate prerequisite provisioning pending Phase 3 for quick",
+      "hook.check-shebang-scripts-are-executable: deterministic candidate prerequisite provisioning pending Phase 3 for quick",
+      "hook.check-ast: deterministic candidate prerequisite provisioning pending Phase 3 for quick",
+      "hook.debug-statements: deterministic candidate prerequisite provisioning pending Phase 3 for quick",
+      "hook.shellcheck: deterministic candidate prerequisite provisioning pending Phase 3 for quick",
+      "hook.markdownlint-cli2: deterministic candidate prerequisite provisioning pending Phase 3 for quick",
+      "hook.yamllint: deterministic candidate prerequisite provisioning pending Phase 3 for quick",
+      "hook.ruff: deterministic candidate prerequisite provisioning pending Phase 3 for quick",
+      "hook.ruff-format: deterministic candidate prerequisite provisioning pending Phase 3 for quick",
+      "hook.eslint: deterministic candidate prerequisite provisioning pending Phase 3 for quick",
+      "hook.constitution-check: deterministic candidate prerequisite provisioning pending Phase 3 for quick",
+      "hook.validate-bootstrap: deterministic candidate prerequisite provisioning pending Phase 3 for quick",
+      "hook.check-bats-assertions: deterministic candidate prerequisite provisioning pending Phase 3 for quick",
+      "hook.check-array-expansion: deterministic candidate prerequisite provisioning pending Phase 3 for quick",
+      "hook.golangci-lint: deterministic candidate prerequisite provisioning pending Phase 3 for quick",
+      "hook.terraform_fmt: deterministic candidate prerequisite provisioning pending Phase 3 for quick",
+      "hook.terraform_validate: deterministic candidate prerequisite provisioning pending Phase 3 for quick",
+      "hook.terraform_tflint: deterministic candidate prerequisite provisioning pending Phase 3 for quick",
+      "hook.shfmt: https://github.com/scop/pre-commit-shfmt@v3.13.1-1 action-to-engine equivalence pending Phase 3",
+      "hook.golangci-lint: https://github.com/golangci/golangci-lint@v2.12.2 direct executable provisioning pending Phase 3",
+      "hook.terraform_fmt: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 wrapper and underlying tool pins pending Phase 3",
+      "hook.terraform_validate: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 wrapper and underlying tool pins pending Phase 3",
+      "hook.terraform_tflint: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 wrapper and underlying tool pins pending Phase 3",
+      "hook.trailing-whitespace: https://github.com/pre-commit/pre-commit-hooks@v6.0.0 action/runtime equivalence pending Phase 3",
+      "hook.end-of-file-fixer: https://github.com/pre-commit/pre-commit-hooks@v6.0.0 action/runtime equivalence pending Phase 3",
+      "hook.mixed-line-ending: https://github.com/pre-commit/pre-commit-hooks@v6.0.0 action/runtime equivalence pending Phase 3",
+      "hook.shfmt: https://github.com/scop/pre-commit-shfmt@v3.13.1-1 action/runtime equivalence pending Phase 3",
+      "hook.golangci-lint: https://github.com/golangci/golangci-lint@v2.12.2 action/runtime equivalence pending Phase 3",
+      "hook.terraform_fmt: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 action/runtime equivalence pending Phase 3",
+      "hook.terraform_validate: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 action/runtime equivalence pending Phase 3",
+      "hook.terraform_tflint: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 action/runtime equivalence pending Phase 3"
+    ],
+    "full": [
+      "structure.symlinks: deterministic candidate prerequisite provisioning pending Phase 3 for full",
+      "syntax.yaml.config: deterministic candidate prerequisite provisioning pending Phase 3 for full",
+      "structure.case-collision: deterministic candidate prerequisite provisioning pending Phase 3 for full",
+      "structure.inventory: deterministic candidate prerequisite provisioning pending Phase 3 for full",
+      "syntax.shell.project: deterministic candidate prerequisite provisioning pending Phase 3 for full",
+      "structure.skill-paths: deterministic candidate prerequisite provisioning pending Phase 3 for full",
+      "lint.shell.scripts: deterministic candidate prerequisite provisioning pending Phase 3 for full",
+      "lint.shell.bootstrap: deterministic candidate prerequisite provisioning pending Phase 3 for full",
+      "lint.yaml.config: deterministic candidate prerequisite provisioning pending Phase 3 for full",
+      "lint.shell.arrays: deterministic candidate prerequisite provisioning pending Phase 3 for full",
+      "lint.bats.assertions: deterministic candidate prerequisite provisioning pending Phase 3 for full",
+      "package.self-contained: deterministic candidate prerequisite provisioning pending Phase 3 for full",
+      "structure.bundle-references: deterministic candidate prerequisite provisioning pending Phase 3 for full",
+      "structure.runtime-paths: deterministic candidate prerequisite provisioning pending Phase 3 for full",
+      "structure.agent-frontmatter: deterministic candidate prerequisite provisioning pending Phase 3 for full",
+      "structure.skill-references: deterministic candidate prerequisite provisioning pending Phase 3 for full",
+      "test.bats: exact pinned npm Bats launcher provenance pending Phase 3 for full",
+      "test.python: deterministic candidate prerequisite provisioning pending Phase 3 for full",
+      "test.hooks: deterministic candidate prerequisite provisioning pending Phase 3 for full",
+      "test.smoke.lite: deterministic candidate prerequisite provisioning pending Phase 3 for full",
+      "lint.markdown.keydocs: deterministic candidate prerequisite provisioning pending Phase 3 for full",
+      "test.bundle-partition: deterministic candidate prerequisite provisioning pending Phase 3 for full",
+      "generated.commands-doc: deterministic candidate prerequisite provisioning pending Phase 3 for full",
+      "generated.plugin-views: deterministic candidate prerequisite provisioning pending Phase 3 for full",
+      "generated.vendor: deterministic candidate prerequisite provisioning pending Phase 3 for full",
+      "generated.capability-inventory: deterministic candidate prerequisite provisioning pending Phase 3 for full",
+      "generated.capability-matrix: deterministic candidate prerequisite provisioning pending Phase 3 for full",
+      "generated.cursor: deterministic candidate prerequisite provisioning pending Phase 3 for full",
+      "hook.trailing-whitespace: deterministic candidate prerequisite provisioning pending Phase 3 for full",
+      "hook.end-of-file-fixer: deterministic candidate prerequisite provisioning pending Phase 3 for full",
+      "hook.mixed-line-ending: deterministic candidate prerequisite provisioning pending Phase 3 for full",
+      "hook.shfmt: deterministic candidate prerequisite provisioning pending Phase 3 for full",
+      "hook.validate-yaml-configs: deterministic candidate prerequisite provisioning pending Phase 3 for full",
+      "hook.check-cursor-rules-drift: deterministic candidate prerequisite provisioning pending Phase 3 for full",
+      "hook.check-stale-repo-paths: deterministic candidate prerequisite provisioning pending Phase 3 for full",
+      "hook.check-yaml: deterministic candidate prerequisite provisioning pending Phase 3 for full",
+      "hook.check-json: deterministic candidate prerequisite provisioning pending Phase 3 for full",
+      "hook.check-added-large-files: deterministic candidate prerequisite provisioning pending Phase 3 for full",
+      "hook.check-case-conflict: deterministic candidate prerequisite provisioning pending Phase 3 for full",
+      "hook.check-merge-conflict: deterministic candidate prerequisite provisioning pending Phase 3 for full",
+      "hook.check-executables-have-shebangs: deterministic candidate prerequisite provisioning pending Phase 3 for full",
+      "hook.check-shebang-scripts-are-executable: deterministic candidate prerequisite provisioning pending Phase 3 for full",
+      "hook.check-ast: deterministic candidate prerequisite provisioning pending Phase 3 for full",
+      "hook.debug-statements: deterministic candidate prerequisite provisioning pending Phase 3 for full",
+      "hook.shellcheck: deterministic candidate prerequisite provisioning pending Phase 3 for full",
+      "hook.markdownlint-cli2: deterministic candidate prerequisite provisioning pending Phase 3 for full",
+      "hook.yamllint: deterministic candidate prerequisite provisioning pending Phase 3 for full",
+      "hook.ruff: deterministic candidate prerequisite provisioning pending Phase 3 for full",
+      "hook.ruff-format: deterministic candidate prerequisite provisioning pending Phase 3 for full",
+      "hook.eslint: deterministic candidate prerequisite provisioning pending Phase 3 for full",
+      "hook.constitution-check: deterministic candidate prerequisite provisioning pending Phase 3 for full",
+      "hook.validate-bootstrap: deterministic candidate prerequisite provisioning pending Phase 3 for full",
+      "hook.check-bats-assertions: deterministic candidate prerequisite provisioning pending Phase 3 for full",
+      "hook.check-array-expansion: deterministic candidate prerequisite provisioning pending Phase 3 for full",
+      "hook.cargo-fmt-check: deterministic candidate prerequisite provisioning pending Phase 3 for full",
+      "hook.cargo-clippy: deterministic candidate prerequisite provisioning pending Phase 3 for full",
+      "hook.pyright: deterministic candidate prerequisite provisioning pending Phase 3 for full",
+      "hook.golangci-lint: deterministic candidate prerequisite provisioning pending Phase 3 for full",
+      "hook.terraform_fmt: deterministic candidate prerequisite provisioning pending Phase 3 for full",
+      "hook.terraform_validate: deterministic candidate prerequisite provisioning pending Phase 3 for full",
+      "hook.terraform_tflint: deterministic candidate prerequisite provisioning pending Phase 3 for full",
+      "dependency.lock.config: deterministic candidate prerequisite provisioning pending Phase 3 for full",
+      "dependency.lock.delegate: deterministic candidate prerequisite provisioning pending Phase 3 for full",
+      "package.coordinator: deterministic candidate prerequisite provisioning pending Phase 3 for full",
+      "package.config: deterministic candidate prerequisite provisioning pending Phase 3 for full",
+      "hook.shfmt: https://github.com/scop/pre-commit-shfmt@v3.13.1-1 action-to-engine equivalence pending Phase 3",
+      "hook.golangci-lint: https://github.com/golangci/golangci-lint@v2.12.2 direct executable provisioning pending Phase 3",
+      "hook.terraform_fmt: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 wrapper and underlying tool pins pending Phase 3",
+      "hook.terraform_validate: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 wrapper and underlying tool pins pending Phase 3",
+      "hook.terraform_tflint: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 wrapper and underlying tool pins pending Phase 3",
+      "hook.trailing-whitespace: https://github.com/pre-commit/pre-commit-hooks@v6.0.0 action/runtime equivalence pending Phase 3",
+      "hook.end-of-file-fixer: https://github.com/pre-commit/pre-commit-hooks@v6.0.0 action/runtime equivalence pending Phase 3",
+      "hook.mixed-line-ending: https://github.com/pre-commit/pre-commit-hooks@v6.0.0 action/runtime equivalence pending Phase 3",
+      "hook.shfmt: https://github.com/scop/pre-commit-shfmt@v3.13.1-1 action/runtime equivalence pending Phase 3",
+      "hook.golangci-lint: https://github.com/golangci/golangci-lint@v2.12.2 action/runtime equivalence pending Phase 3",
+      "hook.terraform_fmt: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 action/runtime equivalence pending Phase 3",
+      "hook.terraform_validate: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 action/runtime equivalence pending Phase 3",
+      "hook.terraform_tflint: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 action/runtime equivalence pending Phase 3",
+      "lint.shell.scripts: shellcheck-py==0.11.0.1 with ShellCheck 0.11.0 inner executable equivalence pending Phase 3",
+      "lint.shell.bootstrap: shellcheck-py==0.11.0.1 with ShellCheck 0.11.0 inner executable equivalence pending Phase 3",
+      "lint.yaml.config: yamllint==1.38.0 console and command provenance equivalence pending Phase 3",
+      "lint.markdown.keydocs: DavidAnson/markdownlint-cli2-action@21c1be1b93ad9ed58fa840aacc3f279cde2a72ff action/runtime equivalence pending Phase 3"
+    ],
+    "security": [
+      "hook.check-credentials: deterministic candidate prerequisite provisioning pending Phase 3 for security",
+      "hook.detect-private-key: deterministic candidate prerequisite provisioning pending Phase 3 for security",
+      "hook.gitleaks: deterministic candidate prerequisite provisioning pending Phase 3 for security",
+      "hook.terraform_trivy: deterministic candidate prerequisite provisioning pending Phase 3 for security",
+      "hook.gitleaks: v8.30.0 hook versus GITLEAKS_VERSION=8.30.1 CI conflict pending Phase 3",
+      "hook.terraform_trivy: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 wrapper and underlying tool pins pending Phase 3",
+      "hook.terraform_trivy: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 action/runtime equivalence pending Phase 3"
+    ],
+    "release": [
+      "structure.symlinks: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "syntax.yaml.config: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "structure.case-collision: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "structure.inventory: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "syntax.shell.project: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "structure.skill-paths: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "lint.shell.scripts: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "lint.shell.bootstrap: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "lint.yaml.config: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "lint.shell.arrays: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "lint.bats.assertions: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "package.self-contained: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "structure.bundle-references: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "structure.runtime-paths: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "structure.agent-frontmatter: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "structure.skill-references: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "test.bats: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "test.python: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "test.hooks: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "test.smoke.lite: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "lint.markdown.keydocs: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "test.bundle-partition: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "generated.commands-doc: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "generated.plugin-views: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "generated.vendor: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "generated.capability-inventory: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "generated.capability-matrix: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "generated.cursor: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "hook.trailing-whitespace: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "hook.end-of-file-fixer: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "hook.mixed-line-ending: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "hook.shfmt: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "hook.check-credentials: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "hook.validate-yaml-configs: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "hook.check-cursor-rules-drift: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "hook.check-stale-repo-paths: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "hook.check-yaml: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "hook.check-json: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "hook.check-added-large-files: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "hook.check-case-conflict: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "hook.check-merge-conflict: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "hook.check-executables-have-shebangs: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "hook.check-shebang-scripts-are-executable: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "hook.detect-private-key: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "hook.check-ast: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "hook.debug-statements: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "hook.shellcheck: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "hook.markdownlint-cli2: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "hook.yamllint: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "hook.ruff: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "hook.ruff-format: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "hook.eslint: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "hook.gitleaks: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "hook.constitution-check: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "hook.validate-bootstrap: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "hook.check-bats-assertions: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "hook.check-array-expansion: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "hook.cargo-fmt-check: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "hook.cargo-clippy: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "hook.pyright: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "hook.golangci-lint: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "hook.terraform_fmt: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "hook.terraform_validate: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "hook.terraform_tflint: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "hook.terraform_trivy: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "dependency.lock.config: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "dependency.lock.delegate: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "package.coordinator: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "package.config: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "package.release-archive: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "package.release-manifest: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "hook.shfmt: https://github.com/scop/pre-commit-shfmt@v3.13.1-1 action-to-engine equivalence pending Phase 3",
+      "hook.gitleaks: v8.30.0 hook versus GITLEAKS_VERSION=8.30.1 CI conflict pending Phase 3",
+      "hook.golangci-lint: https://github.com/golangci/golangci-lint@v2.12.2 direct executable provisioning pending Phase 3",
+      "hook.terraform_fmt: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 wrapper and underlying tool pins pending Phase 3",
+      "hook.terraform_validate: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 wrapper and underlying tool pins pending Phase 3",
+      "hook.terraform_tflint: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 wrapper and underlying tool pins pending Phase 3",
+      "hook.terraform_trivy: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 wrapper and underlying tool pins pending Phase 3",
+      "hook.trailing-whitespace: https://github.com/pre-commit/pre-commit-hooks@v6.0.0 action/runtime equivalence pending Phase 3",
+      "hook.end-of-file-fixer: https://github.com/pre-commit/pre-commit-hooks@v6.0.0 action/runtime equivalence pending Phase 3",
+      "hook.mixed-line-ending: https://github.com/pre-commit/pre-commit-hooks@v6.0.0 action/runtime equivalence pending Phase 3",
+      "hook.shfmt: https://github.com/scop/pre-commit-shfmt@v3.13.1-1 action/runtime equivalence pending Phase 3",
+      "hook.golangci-lint: https://github.com/golangci/golangci-lint@v2.12.2 action/runtime equivalence pending Phase 3",
+      "hook.terraform_fmt: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 action/runtime equivalence pending Phase 3",
+      "hook.terraform_validate: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 action/runtime equivalence pending Phase 3",
+      "hook.terraform_tflint: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 action/runtime equivalence pending Phase 3",
+      "hook.terraform_trivy: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 action/runtime equivalence pending Phase 3",
+      "lint.shell.scripts: shellcheck-py==0.11.0.1 with ShellCheck 0.11.0 inner executable equivalence pending Phase 3",
+      "lint.shell.bootstrap: shellcheck-py==0.11.0.1 with ShellCheck 0.11.0 inner executable equivalence pending Phase 3",
+      "lint.yaml.config: yamllint==1.38.0 console and command provenance equivalence pending Phase 3",
+      "lint.markdown.keydocs: DavidAnson/markdownlint-cli2-action@21c1be1b93ad9ed58fa840aacc3f279cde2a72ff action/runtime equivalence pending Phase 3"
+    ]
+  }
+}

@@ -1,0 +1,52 @@
+{
+  "schema_version": 1,
+  "tools": {
+    "python": {
+      "executable": "python",
+      "version_argv": ["python", "--version"],
+      "expected_version": "3.14.0",
+      "required_modules": []
+    }
+  },
+  "checks": [
+    {
+      "id": "lint.changed",
+      "category": "lint",
+      "group": "lint",
+      "argv": ["python", "-m", "lint.changed"],
+      "cwd": ".",
+      "inputs": ["src"],
+      "dependencies": [],
+      "timeout_seconds": 10,
+      "selection": "changed",
+      "tool": "python",
+      "version": "3.14.0"
+    },
+    {
+      "id": "lint.project",
+      "category": "lint",
+      "group": "lint",
+      "argv": ["python", "-m", "lint.project"],
+      "cwd": ".",
+      "inputs": ["src"],
+      "dependencies": ["lint.changed"],
+      "timeout_seconds": 10,
+      "selection": "project",
+      "tool": "python",
+      "version": "3.14.0"
+    }
+  ],
+  "candidate_preparations": [],
+  "profiles": {
+    "quick": ["lint.changed"],
+    "full": ["lint.project"],
+    "security": ["lint.changed"],
+    "release": ["lint.changed", "lint.project"]
+  },
+  "coverage_pending": {
+    "quick": [],
+    "full": [],
+    "security": [],
+    "release": []
+  }
+}

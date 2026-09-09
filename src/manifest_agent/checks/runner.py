@@ -1,0 +1,492 @@
+"""Execute validated project checks and report honest aggregate outcomes."""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import time
+from collections.abc import Mapping
+from dataclasses import asdict, is_dataclass
+from pathlib import Path
+
+from manifest_agent.process import redact_text
+
+from .candidate import (
+    CandidateBlockedError,
+    _git,
+    _safe_path,
+    _walk,
+    candidate_digest,
+)
+from .models import Candidate, CheckResult, CheckSpec, PreparationSpec
+from .path_filters import filter_inputs, forwarded_paths, has_path_filters, matches
+from .preparation import _prepare_candidate_guarded
+from .process import CAPTURE_LIMIT, TRUNCATION_MARKER, ProcessResult, run_argv
+from .registry import applicable_pending, resolve_checks
+
+ToolOutcome = tuple[ProcessResult, bool, ProcessResult | None]
+ToolKey = tuple[str, Path]
+VERSION_PREFLIGHT_TIMEOUT_SECONDS = 10.0
+
+
+def _diagnostics(result: ProcessResult) -> str:
+    return _bounded_text(result.error + result.stdout + result.stderr)
+
+
+def _bounded_text(value: str) -> str:
+    value = redact_text(value).encode()
+    if len(value) > CAPTURE_LIMIT:
+        value = value[: CAPTURE_LIMIT - len(TRUNCATION_MARKER)] + TRUNCATION_MARKER
+    return value.decode("utf-8", errors="ignore")
+
+
+def _blocked(
+    check: CheckSpec | PreparationSpec, diagnostic: str, result: ProcessResult
+) -> CheckResult:
+    return CheckResult(
+        check.id,
+        "BLOCKED",
+        result.returncode,
+        result.duration_seconds,
+        redact_text(diagnostic),
+        (),
+    )
+
+
+def _identity_error(candidate: Candidate) -> str:
+    try:
+        root = candidate.root
+        source = candidate.source_root
+        if root.is_symlink() or root.resolve(strict=True) != root:
+            return "candidate identity unavailable: unsafe root"
+        git_dir = root / ".git"
+        state_path = git_dir / "candidate-state.json"
+        if git_dir.is_symlink() or state_path.is_symlink():
+            return "candidate identity unavailable: unsafe metadata"
+        state = json.loads(state_path.read_text())
+        if set(state) != {"digest"} or not isinstance(state["digest"], str):
+            return "candidate identity unavailable: invalid state"
+        if candidate_digest(root) != state["digest"]:
+            return "candidate identity changed"
+        if _git(root, "rev-parse", "HEAD").decode().strip() != candidate.head_sha:
+            return "candidate identity changed: HEAD"
+        if _git(root, "write-tree").decode().strip() != candidate.tree_sha:
+            return "candidate identity changed: tree"
+        if source.is_symlink() or source.resolve(strict=True) != source:
+            return "source identity unavailable: unsafe root"
+        if candidate_digest(source) != candidate.source_digest:
+            return "source identity changed"
+    except (CandidateBlockedError, OSError, ValueError, KeyError, TypeError) as error:
+        return "candidate or source identity unavailable: " + redact_text(str(error))
+    return ""
+
+
+def execute_check(
+    check: CheckSpec, candidate: Candidate, env: dict[str, str]
+) -> CheckResult:
+    """Execute one check without treating infrastructure failure as a finding."""
+    identity_error = _identity_error(candidate)
+    if identity_error:
+        return CheckResult(check.id, "BLOCKED", None, 0.0, identity_error, ())
+    try:
+        cwd, before, git_before = _execution_context(candidate, check)
+    except (CandidateBlockedError, OSError) as error:
+        return CheckResult(check.id, "BLOCKED", None, 0.0, redact_text(str(error)), ())
+    names = tuple(before)
+    selected, unavailable = _selection_outcome(check, candidate, names)
+    if unavailable:
+        return unavailable
+    execution_paths = forwarded_paths(candidate.root, cwd, selected)
+    argv = check.argv + execution_paths if check.pass_filenames else check.argv
+    result = run_argv(argv, cwd=cwd, env=env, timeout_seconds=check.timeout_seconds)
+    try:
+        changed = before != _walk(
+            candidate.root, exclude=(".git",)
+        ) or git_before != _walk(candidate.root / ".git")
+        identity_error = _identity_error(candidate)
+    except (CandidateBlockedError, OSError) as error:
+        changed = True
+        identity_error = redact_text(str(error))
+    if changed or identity_error:
+        diagnostic = "candidate identity changed" if changed else identity_error
+        return CheckResult(
+            check.id,
+            "BLOCKED",
+            result.returncode,
+            result.duration_seconds,
+            diagnostic + _diagnostics(result),
+            selected,
+        )
+    if result.error or result.timed_out:
+        diagnostic = result.error or "check timeout"
+        return _blocked(check, diagnostic + _diagnostics(result), result)
+    return CheckResult(
+        check.id,
+        "PASS" if result.returncode == 0 else "FAIL",
+        result.returncode,
+        result.duration_seconds,
+        _diagnostics(result),
+        selected,
+    )
+
+
+def _execution_context(
+    candidate: Candidate, check: CheckSpec
+) -> tuple[Path, dict, dict]:
+    cwd = _effective_cwd(candidate, check.cwd)
+    return (
+        cwd,
+        _walk(candidate.root, exclude=(".git",)),
+        _walk(candidate.root / ".git"),
+    )
+
+
+def _effective_cwd(candidate: Candidate, relative: str) -> Path:
+    cwd = _safe_path(candidate.root, relative)
+    if not cwd.is_dir() or cwd.is_symlink():
+        raise CandidateBlockedError("missing or unsafe execution cwd")
+    return cwd
+
+
+def _selection_outcome(
+    check: CheckSpec, candidate: Candidate, names: tuple[str, ...]
+) -> tuple[tuple[str, ...], CheckResult | None]:
+    selected = _selected_inputs(names, check.inputs, check.selection, candidate)
+    if check.selection == "project" and any(
+        not matches(names, pattern) for pattern in check.inputs
+    ):
+        return selected, CheckResult(
+            check.id, "BLOCKED", None, 0.0, "missing required input", selected
+        )
+    selected = filter_inputs(check, candidate.root, selected)
+    if check.selection == "changed" and not selected:
+        return (), CheckResult(
+            check.id,
+            "NOT_APPLICABLE",
+            None,
+            0.0,
+            "zero applicable changed paths for declared input selector",
+            (),
+        )
+    if check.selection == "project" and has_path_filters(check) and not selected:
+        return (), CheckResult(
+            check.id,
+            "NOT_APPLICABLE",
+            None,
+            0.0,
+            "zero applicable project paths for declared path filters",
+            (),
+        )
+    return selected, None
+
+
+def _selected_inputs(
+    names: tuple[str, ...],
+    patterns: tuple[str, ...],
+    selection: str,
+    candidate: Candidate,
+) -> tuple[str, ...]:
+    available = candidate.changed_paths if selection == "changed" else names
+    return tuple(
+        name
+        for name in available
+        if any(name in matches(names, pattern) for pattern in patterns)
+    )
+
+
+def _module_result(tool: dict, cwd: Path, env: dict[str, str]) -> ProcessResult | None:
+    modules = tool["required_modules"]
+    if not modules:
+        return None
+    program = (
+        "import importlib.util,sys;"
+        "missing=[m for m in sys.argv[1:] if importlib.util.find_spec(m) is None];"
+        "print('missing required Python module: '+','.join(missing) if missing else 'modules available');"
+        "raise SystemExit(bool(missing))"
+    )
+    return run_argv(
+        (tool["executable"], "-c", program, *modules),
+        cwd=cwd,
+        env=env,
+        timeout_seconds=10.0,
+    )
+
+
+def _preflight_tool(
+    tool: dict, cwd: Path, env: dict[str, str]
+) -> tuple[ProcessResult, bool, ProcessResult | None]:
+    version_result = run_argv(
+        tool["version_argv"],
+        cwd=cwd,
+        env=env,
+        timeout_seconds=VERSION_PREFLIGHT_TIMEOUT_SECONDS,
+    )
+    combined = version_result.stdout + version_result.stderr
+    version_matches = tool["expected_version"] in combined.split()
+    module_result = (
+        _module_result(tool, cwd, env)
+        if not version_result.error
+        and not version_result.timed_out
+        and version_result.returncode == 0
+        and version_matches
+        else None
+    )
+    return version_result, version_matches, module_result
+
+
+def _preflight_error(
+    outcome: ToolOutcome,
+) -> str:
+    version_result, version_matches, module_result = outcome
+    if version_result.error:
+        return version_result.error
+    if version_result.timed_out or version_result.returncode != 0:
+        return "tool version probe failed"
+    if not version_matches:
+        return "tool version mismatch"
+    if module_result is not None and (
+        module_result.error or module_result.timed_out or module_result.returncode != 0
+    ):
+        return "required Python module unavailable: " + _diagnostics(module_result)
+    return ""
+
+
+def _jsonable(value: object) -> object:
+    if is_dataclass(value) and not isinstance(value, type):
+        return _jsonable(asdict(value))
+    if isinstance(value, Mapping):
+        return {str(key): _jsonable(item) for key, item in value.items()}
+    if isinstance(value, (tuple, list)):
+        return [_jsonable(item) for item in value]
+    return value
+
+
+def _config_digest(registry: dict) -> str:
+    serialized = json.dumps(
+        _jsonable(registry), sort_keys=True, separators=(",", ":"), ensure_ascii=False
+    ).encode()
+    return hashlib.sha256(serialized).hexdigest()
+
+
+def _result_dict(result: CheckResult) -> dict:
+    value = asdict(result)
+    value["diagnostics"] = _bounded_text(result.diagnostics)
+    value["selected_inputs"] = list(result.selected_inputs)
+    return value
+
+
+def _reported_candidate_digest(candidate: Candidate) -> str:
+    try:
+        state = json.loads((candidate.root / ".git/candidate-state.json").read_text())
+    except (OSError, ValueError, TypeError):
+        return ""
+    digest = state.get("digest") if isinstance(state, dict) else None
+    return digest if isinstance(digest, str) else ""
+
+
+def run_profile(
+    registry: dict,
+    profile: str,
+    group: str | None,
+    candidate: Candidate,
+    env: dict[str, str],
+) -> dict:
+    """Run a resolved profile once; Phase 2 deliberately has no success cache."""
+    start = time.monotonic()
+    checks = resolve_checks(registry, profile, group)
+    results: list[CheckResult] = []
+    initial_identity_error = _identity_error(candidate)
+    if initial_identity_error:
+        results = [
+            CheckResult(check.id, "BLOCKED", None, 0.0, initial_identity_error, ())
+            for check in checks
+        ]
+        return _report(registry, profile, group, candidate, checks, results, start)
+    tool_results, failed_preparations = _prepare_for_checks(
+        registry, checks, candidate, env
+    )
+    results = _run_checks(
+        registry, checks, candidate, env, tool_results, failed_preparations
+    )
+    final_identity_error = _identity_error(candidate)
+    if final_identity_error:
+        results = [
+            _blocked_after_identity(result, final_identity_error)
+            if result.status in {"PASS", "NOT_APPLICABLE"}
+            else result
+            for result in results
+        ]
+    return _report(registry, profile, group, candidate, checks, results, start)
+
+
+def _prepare_for_checks(
+    registry: dict,
+    checks: tuple[CheckSpec, ...],
+    candidate: Candidate,
+    env: dict[str, str],
+) -> tuple[dict[ToolKey, ToolOutcome], dict[str, str]]:
+    selected_groups = {check.group for check in checks}
+    preparations = tuple(
+        preparation
+        for preparation in registry["candidate_preparations"]
+        if selected_groups.intersection(preparation.groups)
+    )
+    tool_results: dict[ToolKey, ToolOutcome] = {}
+    failed_preparation_groups: dict[str, str] = {}
+
+    def preflight(preparation) -> CheckResult | None:
+        try:
+            cwd = _effective_cwd(candidate, preparation.cwd)
+        except (CandidateBlockedError, OSError) as error:
+            return CheckResult(
+                preparation.id, "BLOCKED", None, 0.0, redact_text(str(error)), ()
+            )
+        tool_key = (preparation.tool, cwd)
+        if tool_key not in tool_results:
+            tool_results[tool_key] = _preflight_tool(
+                registry["tools"][preparation.tool], cwd, env
+            )
+        failure = _preflight_error(tool_results[tool_key])
+        if failure:
+            outcome = tool_results[tool_key]
+            process_result = outcome[2] if outcome[2] is not None else outcome[0]
+            return _blocked(preparation, failure, process_result)
+        return None
+
+    preparation_results = _prepare_candidate_guarded(
+        candidate, preparations, env, preflight
+    )
+    for preparation, result in zip(preparations, preparation_results, strict=True):
+        if result.status != "PASS":
+            for check_group in preparation.groups:
+                failed_preparation_groups.setdefault(check_group, result.diagnostics)
+    return tool_results, failed_preparation_groups
+
+
+def _run_checks(
+    registry: dict,
+    checks: tuple[CheckSpec, ...],
+    candidate: Candidate,
+    env: dict[str, str],
+    tool_results: dict[ToolKey, ToolOutcome],
+    failed_preparations: dict[str, str],
+) -> list[CheckResult]:
+    results: list[CheckResult] = []
+    result_by_id: dict[str, CheckResult] = {}
+    for check in checks:
+        result = _run_check(
+            registry,
+            check,
+            candidate,
+            env,
+            tool_results,
+            failed_preparations,
+            result_by_id,
+        )
+        results.append(result)
+        result_by_id[check.id] = result
+    return results
+
+
+def _run_check(
+    registry: dict,
+    check: CheckSpec,
+    candidate: Candidate,
+    env: dict[str, str],
+    tool_results: dict[ToolKey, ToolOutcome],
+    failed_preparations: dict[str, str],
+    prior: dict[str, CheckResult],
+) -> CheckResult:
+    try:
+        cwd = _effective_cwd(candidate, check.cwd)
+        names = tuple(_walk(candidate.root, exclude=(".git",)))
+    except (CandidateBlockedError, OSError) as error:
+        return CheckResult(check.id, "BLOCKED", None, 0.0, redact_text(str(error)), ())
+    _, unavailable = _selection_outcome(check, candidate, names)
+    if check.selection == "changed" and unavailable:
+        return unavailable
+    if check.group in failed_preparations:
+        return CheckResult(
+            check.id,
+            "BLOCKED",
+            None,
+            0.0,
+            "required candidate preparation failed: "
+            + failed_preparations[check.group],
+            (),
+        )
+    failed_dependencies = tuple(
+        dependency
+        for dependency in check.dependencies
+        if dependency in prior and prior[dependency].status != "PASS"
+    )
+    if failed_dependencies:
+        return CheckResult(
+            check.id,
+            "BLOCKED",
+            None,
+            0.0,
+            "prerequisite did not pass: " + ", ".join(failed_dependencies),
+            (),
+        )
+    if unavailable:
+        return unavailable
+    tool_key = (check.tool, cwd)
+    if tool_key not in tool_results:
+        tool_results[tool_key] = _preflight_tool(
+            registry["tools"][check.tool], cwd, env
+        )
+    outcome = tool_results[tool_key]
+    failure = _preflight_error(outcome)
+    if failure:
+        process_result = outcome[2] if outcome[2] is not None else outcome[0]
+        return _blocked(check, failure, process_result)
+    return execute_check(check, candidate, env)
+
+
+def _blocked_after_identity(result: CheckResult, diagnostic: str) -> CheckResult:
+    return CheckResult(
+        result.id,
+        "BLOCKED",
+        result.returncode,
+        result.duration_seconds,
+        diagnostic + result.diagnostics,
+        result.selected_inputs,
+    )
+
+
+def _report(
+    registry: dict,
+    profile: str,
+    group: str | None,
+    candidate: Candidate,
+    checks: tuple[CheckSpec, ...],
+    results: list[CheckResult],
+    start: float,
+) -> dict:
+    statuses = {result.status for result in results}
+    pending = applicable_pending(registry, profile, group, checks)
+    status = (
+        "FAIL"
+        if "FAIL" in statuses
+        else "BLOCKED"
+        if "BLOCKED" in statuses or pending
+        else "PASS"
+    )
+    return {
+        "schema_version": 1,
+        "profile": profile,
+        "group": group,
+        "partial": group is not None,
+        "candidate_digest": _reported_candidate_digest(candidate),
+        "source_digest": candidate.source_digest,
+        "head_sha": candidate.head_sha,
+        "base_sha": candidate.base_sha,
+        "tree_sha": candidate.tree_sha,
+        "config_digest": _config_digest(registry),
+        "coverage_pending": pending,
+        "required_ids": [check.id for check in checks],
+        "results": [_result_dict(result) for result in results],
+        "status": status,
+        "duration_seconds": time.monotonic() - start,
+    }
