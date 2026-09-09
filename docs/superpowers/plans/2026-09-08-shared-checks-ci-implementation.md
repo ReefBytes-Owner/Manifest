@@ -418,6 +418,15 @@ release-workflow control inventory and must not appear in a profile closure.
 - [ ] Quick selects changed authored files; full keeps whole graphs; security
   includes existing secret controls; release unions full/security/package. Keep
   pending Phase 3 coverage machine-readable so incomplete profiles exit 3.
+- [ ] Amendment 2026-09-09 — thin probes only. Delete
+  `tools/project_checks/tool_probe_process.py`, `tool_probe_metadata.py`,
+  `tool_probe_provenance.py` and `tests/python/manifest_agent/test_tool_probe_*.py`
+  (Phase 4 re-derives supervision/provenance from the spec). In `tool_versions.py`
+  replace `_run_probe` with one `subprocess.run(argv, timeout=, start_new_session=True,
+  capture_output=True)`; on timeout `os.killpg` then BLOCKED. Strip `python=<local>`
+  and `file:<script>=<sha>` components from every `expected_version` in
+  `config/project-checks.json`; keep `distribution:<name>=<pin>` resolved from
+  `pyproject.toml`/`.pre-commit-config.yaml`. Green on macOS and Linux.
 
 ## Task 8: Validate CI producer evidence and aggregate results
 

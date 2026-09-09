@@ -218,6 +218,15 @@ for Phase 3's independently reviewed baseline policy; report unavailable tooling
 without installing it absent authorization. The phase is incomplete while any
 required profile or parity assertion is missing or only weakly evidenced.
 
+Amendment 2026-09-09: tool-version probes in this phase are thin. A probe is one
+bounded `subprocess.run` in its own session; timeout or an unsupported platform
+is BLOCKED, never PASS. Process-family supervision, distribution metadata and
+RECORD provenance, and launcher-replacement detection move to Phase 4 with the
+native adapters; they are not partially shipped here. `expected_version` pins
+only components resolved from reviewed configuration (distribution versions,
+project Python minor): no self-hash of the check script and no local-interpreter
+version.
+
 ## Remaining phases and decisions
 
 Phase 3: identity-based debt ratchet compared to protected base; complete Python
