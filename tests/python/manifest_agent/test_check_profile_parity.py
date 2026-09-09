@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import hashlib
+import itertools
 import json
 from copy import deepcopy
 from pathlib import Path
@@ -190,6 +190,13 @@ def _assert_setup_and_publication_contract(
             assert set(control["workflow_control_ids"]).isdisjoint(profile_ids)
 
 
+def _assert_thin_probe_components(expected_version: str) -> None:
+    if expected_version == "ok":
+        return
+    for component in expected_version.split(";"):
+        assert component.startswith(("distribution:", "command:")), component
+
+
 def _assert_version_contract(preservation: dict, registry: dict) -> None:
     by_id = _check_by_id(registry)
     tools = registry["tools"]
@@ -210,16 +217,7 @@ def _assert_version_contract(preservation: dict, registry: dict) -> None:
                 "-I",
                 "tools/project_checks/tool_versions.py",
             ]
-            assert tool["expected_version"].startswith("python=3.14;")
-        probe_argv = tool["version_argv"]
-        if "--file" in probe_argv:
-            relative = probe_argv[probe_argv.index("--file") + 1]
-            digest = hashlib.sha256((ROOT / relative).read_bytes()).hexdigest()
-            assert f"file:{relative}={digest}" in tool["expected_version"]
-        if "file-sha" in probe_argv:
-            relative = probe_argv[probe_argv.index("file-sha") + 1]
-            digest = hashlib.sha256((ROOT / relative).read_bytes()).hexdigest()
-            assert f"file-sha={digest}" in tool["expected_version"]
+        _assert_thin_probe_components(tool["expected_version"])
     for control in retained_controls:
         if not control["tool_pin"]["present"]:
             continue
@@ -311,12 +309,10 @@ def test_shellcheck_and_yamllint_probes_bind_invoked_inner_tools():
         command_pin,
     ) in expected.items():
         tool = registry["tools"][check_id]
-        marker = tool["version_argv"].index("--console-command")
-        assert tool["version_argv"][marker + 1 : marker + 4] == [
-            distribution,
-            command,
-            command,
-        ]
+        argv = tool["version_argv"]
+        flags = list(itertools.pairwise(argv))
+        assert ("--distribution", distribution) in flags
+        assert ("--command", command) in flags
         assert (
             f"distribution:{distribution}={distribution_pin}"
             in tool["expected_version"]
@@ -428,7 +424,7 @@ def test_mutated_registry_cannot_drift_pin_or_fake_version_probe():
     pin_drift = deepcopy(registry)
     check = next(check for check in pin_drift["checks"] if check["id"] == "hook.ruff")
     tool = pin_drift["tools"][check["tool"]]
-    tool["expected_version"] = check["version"] = "python=3.14;command:ruff=0.0.0"
+    tool["expected_version"] = check["version"] = "command:ruff=0.0.0"
     fake_probe = deepcopy(registry)
     check = next(check for check in fake_probe["checks"] if check["id"] == "hook.ruff")
     tool = fake_probe["tools"][check["tool"]]

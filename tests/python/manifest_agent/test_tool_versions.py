@@ -1,8 +1,13 @@
-"""Behavior tests for deterministic project-check tool version probes."""
+"""Behavior tests for deterministic project-check tool version probes.
+
+Thin probes only (spec amendment 2026-09-09): distribution and allowlisted
+command probes, plus a fixed sentinel for tools with no external
+prerequisite. Process-family supervision and RECORD/console provenance
+belong to Phase 4 and are not exercised here.
+"""
 
 from __future__ import annotations
 
-import hashlib
 import importlib.metadata
 import os
 import re
@@ -34,59 +39,23 @@ def _adapter(
     )
 
 
-def _python_token() -> str:
-    return f"python={sys.version_info.major}.{sys.version_info.minor}"
-
-
-def test_tool_version_adapter_probes_wrapper_runtime_and_file_sha(tmp_path: Path):
-    target = tmp_path / "reviewed.py"
-    target.write_text("VALUE = 1\n", encoding="utf-8")
-    expected_sha = hashlib.sha256(target.read_bytes()).hexdigest()
-
-    result = _adapter("file-sha", "reviewed.py", cwd=tmp_path)
-
-    assert result.returncode == 0, result.stderr
-    assert result.stdout.strip() == f"{_python_token()};file-sha={expected_sha}"
-
-
-def test_tool_version_adapter_probes_console_distribution(tmp_path: Path):
+def test_tool_version_adapter_probes_distribution_version(tmp_path: Path):
     expected = importlib.metadata.version("pytest")
 
-    result = _adapter("console-distribution", "pytest", "pytest", cwd=tmp_path)
+    result = _adapter("distribution-version", "pytest", cwd=tmp_path)
 
     assert result.returncode == 0, result.stderr
-    assert result.stdout.strip() == (
-        f"{_python_token()};distribution:pytest={expected}"
-    )
+    assert result.stdout.strip() == f"distribution:pytest={expected}"
 
 
-def test_tool_version_adapter_rejects_shadow_console(tmp_path: Path):
-    shadow = tmp_path / "pytest"
-    shadow.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
-    shadow.chmod(0o755)
+def test_tool_version_adapter_rejects_missing_distribution(tmp_path: Path):
+    result = _adapter("distribution-version", "not-a-real-distribution", cwd=tmp_path)
 
-    result = _adapter(
-        "console-distribution",
-        "pytest",
-        "pytest",
-        cwd=tmp_path,
-        path=f"{tmp_path}{os.pathsep}{os.environ['PATH']}",
-    )
-
-    assert result.returncode != 0
+    assert result.returncode == 3
+    assert "distribution is not installed" in result.stderr
 
 
-def test_tool_version_adapter_probes_python_runtime(tmp_path: Path):
-    result = _adapter("python-runtime", "python3", cwd=tmp_path)
-
-    assert result.returncode == 0, result.stderr
-    assert (
-        result.stdout.strip()
-        == f"{_python_token()};runtime:python={sys.version_info.major}.{sys.version_info.minor}"
-    )
-
-
-def test_tool_version_adapter_probes_allowlisted_command(tmp_path: Path):
+def _bash_version() -> str:
     direct = subprocess.run(
         ["bash", "--version"],
         check=True,
@@ -96,32 +65,33 @@ def test_tool_version_adapter_probes_allowlisted_command(tmp_path: Path):
     )
     match = re.search(r"version\s+(\d+(?:\.\d+)+)", direct.stdout, re.IGNORECASE)
     assert match is not None
+    return match.group(1)
+
+
+def test_tool_version_adapter_probes_allowlisted_command(tmp_path: Path):
+    version = _bash_version()
 
     result = _adapter("command-version", "bash", cwd=tmp_path)
 
     assert result.returncode == 0, result.stderr
-    assert result.stdout.strip() == f"{_python_token()};command:bash={match.group(1)}"
+    assert result.stdout.strip() == f"command:bash={version}"
 
 
-def test_python_wrapper_probe_covers_file_distribution_and_command(tmp_path: Path):
-    target = tmp_path / "reviewed.py"
-    target.write_text("VALUE = 1\n", encoding="utf-8")
-    expected_sha = hashlib.sha256(target.read_bytes()).hexdigest()
+def test_tool_version_adapter_rejects_unknown_command_and_missing_tool(tmp_path: Path):
+    unknown_command = _adapter("command-version", "printf", cwd=tmp_path)
+    missing_tool = _adapter("command-version", "bash", cwd=tmp_path, path=str(tmp_path))
+
+    assert unknown_command.returncode != 0
+    assert missing_tool.returncode == 3
+    assert "command is not installed" in missing_tool.stderr
+
+
+def test_python_wrapper_probe_covers_distribution_and_command(tmp_path: Path):
     distribution_version = importlib.metadata.version("pytest")
-    direct = subprocess.run(
-        ["bash", "--version"],
-        check=True,
-        capture_output=True,
-        text=True,
-        timeout=10,
-    )
-    match = re.search(r"version\s+(\d+(?:\.\d+)+)", direct.stdout, re.IGNORECASE)
-    assert match is not None
+    version = _bash_version()
 
     result = _adapter(
         "python-wrapper",
-        "--file",
-        "reviewed.py",
         "--distribution",
         "pytest",
         "--command",
@@ -131,62 +101,61 @@ def test_python_wrapper_probe_covers_file_distribution_and_command(tmp_path: Pat
 
     assert result.returncode == 0, result.stderr
     assert result.stdout.strip() == (
-        f"{_python_token()};file:reviewed.py={expected_sha};"
-        f"distribution:pytest={distribution_version};command:bash={match.group(1)}"
+        f"distribution:pytest={distribution_version};command:bash={version}"
     )
 
 
-def test_distribution_tokens_use_stable_canonical_names(tmp_path: Path):
-    target = tmp_path / "reviewed.py"
-    target.write_text("VALUE = 1\n", encoding="utf-8")
+def test_python_wrapper_with_no_prerequisites_returns_fixed_sentinel(tmp_path: Path):
+    result = _adapter("python-wrapper", cwd=tmp_path)
 
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "ok"
+
+
+def test_distribution_tokens_use_stable_canonical_names(tmp_path: Path):
     result = _adapter(
         "python-wrapper",
-        "--file",
-        "reviewed.py",
         "--distribution",
         "pytest_asyncio",
         cwd=tmp_path,
     )
 
     assert result.returncode == 0, result.stderr
-    assert ";distribution:pytest-asyncio=" in result.stdout
+    assert result.stdout.strip().startswith("distribution:pytest-asyncio=")
 
 
-def test_tool_version_adapter_rejects_unsafe_files_and_fake_tokens(tmp_path: Path):
-    outside = tmp_path.parent / "outside.py"
-    outside.write_text("VALUE = 1\n", encoding="utf-8")
-
-    traversal = _adapter("file-sha", "../outside.py", cwd=tmp_path)
-    fake = _adapter("file-sha", "missing.py", "9.9.9", cwd=tmp_path)
-    unknown_command = _adapter("command-version", "printf", cwd=tmp_path)
-
-    assert traversal.returncode != 0
-    assert fake.returncode != 0
-    assert unknown_command.returncode != 0
-    assert "9.9.9" not in fake.stdout
-
-
-def test_composite_probe_blocks_wrong_wrapper_runtime_with_correct_inner_pin(
-    tmp_path: Path,
-):
-    distribution_version = importlib.metadata.version("pytest")
-    tool = {
+def _pytest_distribution_tool(expected_version: str) -> dict:
+    return {
         "executable": "pytest",
         "version_argv": (
             sys.executable,
             str(VERSION_ADAPTER),
-            "console-distribution",
-            "pytest",
+            "distribution-version",
             "pytest",
         ),
-        "expected_version": (f"python=0.0;distribution:pytest={distribution_version}"),
+        "expected_version": expected_version,
         "required_modules": (),
     }
+
+
+def test_preflight_tool_matches_expected_version_exactly(tmp_path: Path):
+    distribution_version = importlib.metadata.version("pytest")
+    tool = _pytest_distribution_tool(f"distribution:pytest={distribution_version}")
+
+    outcome = _preflight_tool(tool, cwd=tmp_path, env={"PATH": os.environ["PATH"]})
+
+    assert outcome[0].returncode == 0
+    assert outcome[1] is True
+    assert f"distribution:pytest={distribution_version}" in outcome[0].stdout
+
+
+def test_preflight_tool_blocks_on_pin_drift(tmp_path: Path):
+    distribution_version = importlib.metadata.version("pytest")
+    tool = _pytest_distribution_tool(
+        f"distribution:pytest={distribution_version}.drift"
+    )
 
     outcome = _preflight_tool(tool, cwd=tmp_path, env={"PATH": os.environ["PATH"]})
 
     assert outcome[0].returncode == 0
     assert outcome[1] is False
-    assert f"distribution:pytest={distribution_version}" in outcome[0].stdout
-    assert _python_token() in outcome[0].stdout
