@@ -15,6 +15,7 @@ from typing import Any
 
 import click
 
+from .aggregate import aggregate_results
 from .candidate import CandidateBlockedError, materialize_candidate
 from .registry import (
     VALID_GROUPS,
@@ -84,6 +85,39 @@ def _blocked_report(profile: str, group: str | None, error: Exception) -> dict:
         "status": "BLOCKED",
         "diagnostics": [str(error)],
     }
+
+
+def _aggregate_blocked_report(profile: str, error: Exception) -> dict:
+    return {
+        "schema_version": 1,
+        "profile": profile,
+        "aggregate": True,
+        "status": "BLOCKED",
+        "diagnostics": [str(error)],
+    }
+
+
+def _load_json_object(path: Path, label: str) -> dict:
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError as error:
+        raise ValueError(f"{label} is unavailable: {error}") from error
+    try:
+        value = json.loads(text)
+    except ValueError as error:
+        raise ValueError(f"{label} is not valid JSON: {error}") from error
+    if not isinstance(value, dict):
+        raise ValueError(f"{label} must be a JSON object")
+    return value
+
+
+def _load_receipts(results_dir: Path) -> list[dict]:
+    if not results_dir.is_dir():
+        raise ValueError(f"results directory is unavailable: {results_dir}")
+    entries = sorted(results_dir.glob("*.json"))
+    if not entries:
+        raise ValueError(f"no receipt files found under {results_dir}")
+    return [_load_json_object(entry, f"receipt {entry.name}") for entry in entries]
 
 
 def _require_output_primitives() -> None:
@@ -324,6 +358,63 @@ def check(context: click.Context, **options: Any) -> None:
         except (OSError, OutputBlockedError) as error:
             report = _blocked_report(
                 profile, group, OutputBlockedError(f"output write blocked: {error}")
+            )
+            _emit(report, as_json, None)
+        context.exit(STATUS_EXITS[report["status"]])
+    finally:
+        if output_target is not None:
+            with suppress(OSError):
+                os.close(output_target.parent_fd)
+
+
+@click.command("check-aggregate")
+@click.argument("profile", type=click.Choice(sorted(VALID_PROFILES)))
+@click.option(
+    "--project-config",
+    required=True,
+    type=click.Path(path_type=Path, dir_okay=False),
+    help="Explicit trusted project-check registry.",
+)
+@click.option(
+    "--results-dir",
+    required=True,
+    type=click.Path(path_type=Path, file_okay=False),
+    help="Directory of per-group CI producer `manifest check --json` receipts.",
+)
+@click.option(
+    "--context",
+    "context_path",
+    required=True,
+    type=click.Path(path_type=Path, dir_okay=False),
+    help="Untrusted current-run identity assertion (see tools/project_checks/ci_context.py).",
+)
+@click.option("--json", "as_json", is_flag=True, help="Emit stable JSON.")
+@click.option("--output", type=click.Path(path_type=Path, dir_okay=False))
+@click.pass_context
+def check_aggregate(context: click.Context, **options: Any) -> None:
+    """Validate per-group CI producer receipts and emit one aggregate verdict."""
+    profile = options["profile"]
+    project_config = options["project_config"]
+    results_dir = options["results_dir"]
+    context_path = options["context_path"]
+    as_json = options["as_json"]
+    output = options["output"]
+    source = Path.cwd().resolve()
+    output_target = None
+    try:
+        try:
+            output_target = _output_target(output, source)
+            registry = load_registry(project_config)
+            receipts = _load_receipts(results_dir)
+            run_context = _load_json_object(context_path, "context")
+            report = aggregate_results(registry, profile, receipts, run_context)
+        except (OSError, RuntimeError, ValueError) as error:
+            report = _aggregate_blocked_report(profile, error)
+        try:
+            _emit(report, as_json, output_target)
+        except (OSError, OutputBlockedError) as error:
+            report = _aggregate_blocked_report(
+                profile, OutputBlockedError(f"output write blocked: {error}")
             )
             _emit(report, as_json, None)
         context.exit(STATUS_EXITS[report["status"]])

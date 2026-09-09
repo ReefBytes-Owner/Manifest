@@ -16,12 +16,18 @@ from manifest_agent.service import HARNESS_ORDER, ManifestService, ServiceReport
 from manifest_agent.skill_run import SkillRunExecutionError, execute_skill_command
 
 
-class _LazyCheckCommand(click.Command):
-    def __init__(self) -> None:
-        super().__init__(
-            "check",
-            help="Run or list one explicitly configured project-check PROFILE.",
-        )
+class _LazyChecksCommand(click.Command):
+    """A `checks.cli` command whose module loads only once selected.
+
+    `manifest_agent.checks` pulls in the project-check subsystem, which
+    lifecycle commands (install/migrate/...) never touch; deferring the
+    import keeps their startup path free of it (see
+    test_lifecycle_startup_does_not_import_project_check_subsystem).
+    """
+
+    def __init__(self, name: str, attribute: str, help: str) -> None:
+        super().__init__(name, help=help)
+        self._attribute = attribute
 
     def make_context(
         self,
@@ -30,10 +36,10 @@ class _LazyCheckCommand(click.Command):
         parent: click.Context | None = None,
         **extra: Any,
     ) -> click.Context:
-        """Load project-check implementation only when the command is selected."""
-        from manifest_agent.checks.cli import check
+        import manifest_agent.checks.cli as checks_cli
 
-        return check.make_context(info_name, args, parent=parent, **extra)
+        command = getattr(checks_cli, self._attribute)
+        return command.make_context(info_name, args, parent=parent, **extra)
 
 
 @click.group()
@@ -250,4 +256,17 @@ def main() -> None:
     cli()
 
 
-cli.add_command(_LazyCheckCommand())
+cli.add_command(
+    _LazyChecksCommand(
+        "check",
+        "check",
+        help="Run or list one explicitly configured project-check PROFILE.",
+    )
+)
+cli.add_command(
+    _LazyChecksCommand(
+        "check-aggregate",
+        "check_aggregate",
+        help="Validate per-group CI producer receipts and emit one aggregate verdict.",
+    )
+)

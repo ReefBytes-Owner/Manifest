@@ -1,5 +1,6 @@
 """Declarative project-check registry and execution records."""
 
+from .aggregate import aggregate_results
 from .candidate import (
     CandidateBlockedError,
     candidate_digest,
@@ -16,6 +17,7 @@ __all__ = [
     "CheckResult",
     "CheckSpec",
     "PreparationSpec",
+    "aggregate_results",
     "candidate_digest",
     "execute_check",
     "load_registry",
