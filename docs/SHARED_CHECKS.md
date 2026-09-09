@@ -77,10 +77,26 @@ as an explicit failure), then builds the current-run context
 (`tools/project_checks/ci_context_cli.py`, read-only via `gh api`) and calls
 `manifest check-aggregate`.
 
-Every shadow job and the aggregate job set `continue-on-error: true` (or run
-in `always()` mode) and hold read-only `permissions:` — the shadow path is
-**never a required status** and cannot gate a merge. Branch protection is
-untouched; that is a separate, later phase (Phase 5).
+All four jobs (`shadow-checks-structure`, `shadow-checks-lint`,
+`shadow-checks-test`, `shadow-checks-aggregate`) set job-level
+`continue-on-error: true`. This is deliberately at the **job** level, not
+just on individual steps: a step-only `continue-on-error` still lets an
+unrelated step (checkout, `uv` install, context build, receipt download)
+fail and redden the whole job — and therefore the workflow's overall
+conclusion — which job-level `continue-on-error` prevents. Combined with the
+aggregate job's `if: always()` and read-only `permissions:`, the shadow path
+is **never a required status** and cannot gate a merge, and it cannot turn
+the workflow conclusion red either. Branch protection is untouched; that is
+a separate, later phase (Phase 5).
+
+`manifest check-aggregate full` itself is also expected to report `BLOCKED`
+today for a second, independent reason beyond `coverage_pending`: `full`'s
+registry closure spans five groups (`structure`, `lint`, `test`, `security`,
+`package`), but only three (`structure`, `lint`, `test`) have a shadow
+producer job — `security` and `package` have none. `check-aggregate` reports
+missing producer groups as `BLOCKED`, so a `BLOCKED` aggregate report is the
+expected shape until a producer exists for every group `full` requires, not
+just until `coverage_pending` clears.
 
 ## Coverage limits
 

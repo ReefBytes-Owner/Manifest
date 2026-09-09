@@ -155,6 +155,16 @@ class TestShadowGroupJobShape:
                 f"{job_name!r} — the shadow path must never gate the merge"
             )
 
+    def test_job_level_continue_on_error(self, job_name: str, group: str) -> None:
+        # JOB-level, not just step-level: a step-only continue-on-error
+        # still lets an unrelated step (checkout, uv install, upload)
+        # redden the whole job and thus the workflow conclusion.
+        job = _jobs()[job_name]
+        assert job.get("continue-on-error") is True, (
+            f"{job_name}: must set job-level `continue-on-error: true` so "
+            f"the shadow path can never turn the overall workflow red"
+        )
+
 
 class TestShadowAggregateJob:
     def test_runs_always(self) -> None:
@@ -183,6 +193,26 @@ class TestShadowAggregateJob:
             "are all rejected, not just a hardcoded 'failure' case)"
         )
 
+    def test_rejection_step_is_not_step_level_continue_on_error(self) -> None:
+        # The rejection text alone proves nothing if the step that runs it
+        # is itself `continue-on-error: true` at STEP level — a failing
+        # `sys.exit(1)` would then be swallowed before it can short-circuit
+        # the remaining steps (context build, receipt download, aggregate).
+        # Job-level continue-on-error (tested separately) is what keeps the
+        # overall workflow green; this step must still surface its own
+        # failure so later steps in the same job do not run on bad evidence.
+        job = _jobs()[SHADOW_AGGREGATE_JOB]
+        (reject_step,) = [
+            step
+            for step in job.get("steps", [])
+            if re.search(r'!=\s*["\']success["\']', step.get("run", ""))
+        ]
+        assert reject_step.get("continue-on-error") is not True, (
+            "the producer-rejection step must not itself be "
+            "`continue-on-error: true` at step level, or its failure would "
+            "never short-circuit the remaining aggregate steps"
+        )
+
     def test_credentials_are_read_only(self) -> None:
         job = _jobs()[SHADOW_AGGREGATE_JOB]
         permissions = job.get("permissions")
@@ -192,6 +222,13 @@ class TestShadowAggregateJob:
                 f"aggregate job permission {scope!r} must not grant write "
                 f"access, got {level!r}"
             )
+
+    def test_job_level_continue_on_error(self) -> None:
+        job = _jobs()[SHADOW_AGGREGATE_JOB]
+        assert job.get("continue-on-error") is True, (
+            "aggregate job must set job-level `continue-on-error: true` so "
+            "the shadow path can never turn the overall workflow red"
+        )
 
     def test_not_in_legacy_needs(self) -> None:
         jobs = _jobs()

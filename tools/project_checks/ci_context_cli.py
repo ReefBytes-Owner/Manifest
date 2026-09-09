@@ -14,6 +14,14 @@ Never installs, never mutates repository or run state; the only side effect
 is writing the requested --output file.
 """
 
+# Job-name recognition is intentionally an exact-match allowlist, not a
+# suffix search: a loose `\(<group>\)\s*$` pattern also matches the
+# aggregate job's OWN name ("Shadow Checks Aggregate (non-blocking)"),
+# fabricating a bogus "non-blocking" producer group that
+# `aggregate.py` then rejects as unexpected -- self-invalidating every real
+# run before receipts are even read. See test_ci_context_cli.py's aggregate-
+# job fixture, which pins this as a regression test.
+
 from __future__ import annotations
 
 import argparse
@@ -38,7 +46,11 @@ except ModuleNotFoundError:  # direct script execution from this directory
 PASS = 0
 BLOCKED = 3
 
-_GROUP_SUFFIX = re.compile(r"\(([a-z][a-z-]*)\)\s*$")
+# Exact-match allowlist of the shadow-group job names ci.yml declares
+# ("Shadow Checks (structure|lint|test)"). Deliberately NOT a loose suffix
+# regex -- see the module docstring note above.
+_SHADOW_GROUPS = ("structure", "lint", "test")
+_GROUP_JOB_NAME = re.compile(r"^Shadow Checks \((" + "|".join(_SHADOW_GROUPS) + r")\)$")
 
 
 def _gh_api(url: str) -> dict:
@@ -53,14 +65,14 @@ def _gh_api(url: str) -> dict:
 
 
 def _artifact_ids_by_name(gh_api, repository: str, run_id: str) -> dict[str, str]:
-    payload = gh_api(f"repos/{repository}/actions/runs/{run_id}/artifacts")
+    payload = gh_api(f"repos/{repository}/actions/runs/{run_id}/artifacts?per_page=100")
     return {entry["name"]: str(entry["id"]) for entry in payload.get("artifacts", [])}
 
 
-def _shadow_group_jobs(payload: dict, run_attempt: str) -> list[tuple[str, dict]]:
+def _shadow_group_jobs(payload: dict) -> list[tuple[str, dict]]:
     found = []
     for entry in payload.get("jobs", []):
-        match = _GROUP_SUFFIX.search(str(entry.get("name", "")))
+        match = _GROUP_JOB_NAME.match(str(entry.get("name", "")).strip())
         if match:
             found.append((match.group(1), entry))
     return found
@@ -77,11 +89,12 @@ def make_fetch_jobs(gh_api: GhApi | None = None):
     def _fetch_jobs(repository: str, run_id: str, run_attempt: str) -> list[dict]:
         api = gh_api if gh_api is not None else _gh_api
         payload = api(
-            f"repos/{repository}/actions/runs/{run_id}/attempts/{run_attempt}/jobs"
+            f"repos/{repository}/actions/runs/{run_id}/attempts/{run_attempt}"
+            f"/jobs?per_page=100"
         )
         artifacts = _artifact_ids_by_name(api, repository, run_id)
         jobs = []
-        for group, entry in _shadow_group_jobs(payload, run_attempt):
+        for group, entry in _shadow_group_jobs(payload):
             artifact_name = f"shadow-receipt-{group}-{run_attempt}"
             jobs.append(
                 {

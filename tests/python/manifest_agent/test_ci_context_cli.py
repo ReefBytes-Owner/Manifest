@@ -21,6 +21,17 @@ def _fake_jobs_payload() -> dict:
             {"id": 111, "name": "Shadow Checks (structure)", "conclusion": "success"},
             {"id": 222, "name": "Shadow Checks (lint)", "conclusion": "failure"},
             {"id": 333, "name": "Lint & Validate", "conclusion": "success"},
+            # Regression fixture: the aggregate job's OWN name ends in a
+            # parenthesized word too. A loose suffix regex on `(<group>)`
+            # would misclassify this as a producer for group "non-blocking",
+            # which `aggregate.py` then rejects as unexpected -- silently
+            # self-invalidating every real run. Must never appear in the
+            # selected jobs below.
+            {
+                "id": 444,
+                "name": "Shadow Checks Aggregate (non-blocking)",
+                "conclusion": "success",
+            },
         ]
     }
 

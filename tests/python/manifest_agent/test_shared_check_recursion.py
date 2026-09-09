@@ -2,25 +2,41 @@
 
 Task 9 forbids calling `pre-commit` from inside a hook that pre-commit itself
 runs — recursion would either hang the hook or silently no-op depending on
-pre-commit's own re-entrancy guard, either way defeating the gate. This test
-proves the invariant statically (no subprocess is executed) by counting every
-place a shared-check command could invoke a real executable and asserting
-none of them is `pre-commit`:
+pre-commit's own re-entrancy guard, either way defeating the gate.
+
+`TestDynamicRecursionInvocationCount` is the load-bearing proof: it runs the
+REAL `manifest check` CLI against the REAL registry
+(`config/project-checks.json`, `--group structure`, all-Python checks so no
+external tool install is needed) with a PATH-shimmed `pre-commit` that
+records every invocation to a file, then asserts the recorded invocation
+count is exactly zero. A purely static/regex scan over source text (as the
+rest of this module also does, for defense in depth) cannot see a
+dynamically constructed argv such as `["python", "-m", "pre_commit"]` or
+`["uv", "run", "pre-commit"]` — only actually exercising the real command
+resolution proves those don't exist either.
+
+The static tests below are the fast, no-execution complement: they count
+every place a shared-check command COULD invoke a real executable and assert
+none of them literally spells `pre-commit`:
 
 1. Every `argv` in the registry (`config/project-checks.json`) — these are
    the exact command vectors `manifest check` executes.
 2. Every hardcoded command table in the check-body modules
    (`tools/project_checks/*.py`) that construct an argv at runtime.
-
-A count of zero is the recursion guarantee; a nonzero count means a future
-edit introduced a call back into pre-commit and must fail this test.
 """
 
 from __future__ import annotations
 
 import json
+import os
 import re
+import stat
 from pathlib import Path
+
+import pytest
+from click.testing import CliRunner
+
+from manifest_agent.cli import cli
 
 ROOT = Path(__file__).resolve().parents[3]
 REGISTRY_PATH = ROOT / "config/project-checks.json"
@@ -91,3 +107,66 @@ def test_recursion_invocation_count_is_zero() -> None:
         for source in sources
     )
     assert registry_hits + source_hits == 0
+
+
+_SHIM_SCRIPT = """#!/bin/sh
+echo "invoked: $*" >> "{recorder}"
+exit 0
+"""
+
+
+def _install_pre_commit_shim(bin_dir: Path, recorder: Path) -> None:
+    shim = bin_dir / "pre-commit"
+    shim.write_text(_SHIM_SCRIPT.format(recorder=recorder), encoding="utf-8")
+    shim.chmod(shim.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+
+
+class TestDynamicRecursionInvocationCount:
+    def test_manifest_check_never_shells_out_to_pre_commit_shim(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        bin_dir = tmp_path / "shim-bin"
+        bin_dir.mkdir()
+        recorder = tmp_path / "pre-commit-invocations.log"
+        _install_pre_commit_shim(bin_dir, recorder)
+
+        # Prepend the shim dir so any PATH-based resolution of `pre-commit`
+        # hits the recorder first, ahead of a real pre-commit if one happens
+        # to be installed. process.py forwards PATH straight through to
+        # every check subprocess (see cli.py's ENVIRONMENT_KEYS), so this is
+        # exactly the PATH each real check body actually resolves against.
+        monkeypatch.setenv("PATH", f"{bin_dir}{os.pathsep}{os.environ['PATH']}")
+        monkeypatch.chdir(ROOT)
+
+        runner = CliRunner()
+        result = runner.invoke(
+            cli,
+            [
+                "check",
+                "full",
+                "--project-config",
+                str(REGISTRY_PATH),
+                "--group",
+                "structure",
+                "--base",
+                "HEAD",
+                "--json",
+            ],
+        )
+
+        # Sanity check this actually ran real check subprocesses (not a
+        # vacuously-passing no-op): the report must carry >0 executed
+        # results, whatever their PASS/FAIL/BLOCKED status.
+        payload = json.loads(result.output)
+        assert payload["results"], (
+            f"expected the real `structure` group to execute checks; got no "
+            f"results (report status {payload.get('status')!r}) -- a run "
+            f"that never executes anything cannot prove non-recursion"
+        )
+
+        assert not recorder.exists(), (
+            f"the shared check entry invoked `pre-commit` "
+            f"{recorder.read_text(encoding='utf-8').count(chr(10))} time(s) "
+            f"while running group 'structure' -- this would recurse when "
+            f"called from inside a pre-commit hook"
+        )

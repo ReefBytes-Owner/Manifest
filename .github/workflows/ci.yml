@@ -569,10 +569,15 @@ jobs:
   #
   # Non-blocking mirror of the legacy lint/test/validate jobs above, run
   # through the shared `manifest check` entry (config/project-checks.json)
-  # instead of each job's own inline steps. `continue-on-error: true` keeps
-  # every shadow job green regardless of the check outcome so it can never
-  # become a de-facto required status by accident; branch protection is
-  # untouched (Phase 5), and every legacy job above is retained verbatim.
+  # instead of each job's own inline steps. `continue-on-error: true` at
+  # JOB level (not just on the check/aggregate steps) keeps every shadow job
+  # green regardless of outcome -- a step-only continue-on-error still lets
+  # an unrelated step (checkout, uv install, context build, receipt
+  # download) redden the whole job and thus the workflow conclusion, and a
+  # shadow path that can turn the workflow red will be ignored or reverted
+  # before Phase 3 ever lands. It can never become a de-facto required
+  # status by accident; branch protection is untouched (Phase 5), and every
+  # legacy job above is retained verbatim.
   #
   # Every group here is still `coverage_pending` in config/project-checks.json
   # (Phase 3 has not run) so `manifest check` reports BLOCKED, not PASS, for
@@ -581,6 +586,7 @@ jobs:
     name: Shadow Checks (structure)
     timeout-minutes: 15
     runs-on: ubuntu-latest
+    continue-on-error: true
     permissions:
       contents: read
     outputs:
@@ -614,6 +620,7 @@ jobs:
     name: Shadow Checks (lint)
     timeout-minutes: 20
     runs-on: ubuntu-latest
+    continue-on-error: true
     permissions:
       contents: read
     outputs:
@@ -647,6 +654,7 @@ jobs:
     name: Shadow Checks (test)
     timeout-minutes: 30
     runs-on: ubuntu-latest
+    continue-on-error: true
     permissions:
       contents: read
     outputs:
@@ -682,6 +690,7 @@ jobs:
     needs: [shadow-checks-structure, shadow-checks-lint, shadow-checks-test]
     if: always()
     runs-on: ubuntu-latest
+    continue-on-error: true
     permissions:
       contents: read
       actions: read
