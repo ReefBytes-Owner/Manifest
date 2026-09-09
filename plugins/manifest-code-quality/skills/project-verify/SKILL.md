@@ -13,6 +13,22 @@ and produces a unified report.
 
 - `$ARGUMENTS` -- Path to a project directory (default: current working directory).
 
+## Scope: portable subset, not a registry closure
+
+This skill's Phase 1-2 tool selection is a **standalone portable subset**: it
+detects language by indicator file and picks a generic, commonly-available
+tool per category (`ruff`, `golangci-lint`, `eslint`, `tflint`, ...) for
+*any* target project, with no repository-specific configuration. That is
+different from an **explicitly selected project-check closure** such as
+Manifest's own `manifest check <profile> [--group G]` (the repository's
+`project-checks.json` registry; see its `SHARED_CHECKS.md` for commands and
+status vocabulary), which runs a fixed, versioned, per-repository registry of
+checks rather than auto-detected generic tools. Do not conflate the two:
+when the target project is this Manifest repository itself and an explicit,
+versioned check closure is what's wanted, prefer `manifest check` (currently
+shadow-only, non-blocking, pending Phase 3 coverage) over this skill's
+generic detection.
+
 ---
 
 ## Phase 0: Consult Knowledge Base

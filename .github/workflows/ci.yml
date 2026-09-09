@@ -564,3 +564,181 @@ jobs:
             exit 1
           fi
           echo "Cursor rules, mcp.json, and agents are up-to-date"
+
+  # --- Shadow shared-check migration path (spec 2026-09-08, Task 9) ---
+  #
+  # Non-blocking mirror of the legacy lint/test/validate jobs above, run
+  # through the shared `manifest check` entry (config/project-checks.json)
+  # instead of each job's own inline steps. `continue-on-error: true` keeps
+  # every shadow job green regardless of the check outcome so it can never
+  # become a de-facto required status by accident; branch protection is
+  # untouched (Phase 5), and every legacy job above is retained verbatim.
+  #
+  # Every group here is still `coverage_pending` in config/project-checks.json
+  # (Phase 3 has not run) so `manifest check` reports BLOCKED, not PASS, for
+  # now -- that is expected and is exactly why this path is shadow-only.
+  shadow-checks-structure:
+    name: Shadow Checks (structure)
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      artifact_id: ${{ steps.upload.outputs.artifact-id }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
+        with:
+          fetch-depth: 0
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Run shared checks (shadow, non-blocking)
+        id: shadow
+        continue-on-error: true
+        run: |
+          uv run manifest check full --group structure --json --output shadow-structure.json
+
+      - name: Upload shadow receipt (current attempt)
+        if: always()
+        id: upload
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: shadow-receipt-structure-${{ github.run_attempt }}
+          path: shadow-structure.json
+          retention-days: 7
+          if-no-files-found: warn
+
+  shadow-checks-lint:
+    name: Shadow Checks (lint)
+    timeout-minutes: 20
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      artifact_id: ${{ steps.upload.outputs.artifact-id }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
+        with:
+          fetch-depth: 0
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Run shared checks (shadow, non-blocking)
+        id: shadow
+        continue-on-error: true
+        run: |
+          uv run manifest check full --group lint --json --output shadow-lint.json
+
+      - name: Upload shadow receipt (current attempt)
+        if: always()
+        id: upload
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: shadow-receipt-lint-${{ github.run_attempt }}
+          path: shadow-lint.json
+          retention-days: 7
+          if-no-files-found: warn
+
+  shadow-checks-test:
+    name: Shadow Checks (test)
+    timeout-minutes: 30
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      artifact_id: ${{ steps.upload.outputs.artifact-id }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
+        with:
+          submodules: true
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Run shared checks (shadow, non-blocking)
+        id: shadow
+        continue-on-error: true
+        run: |
+          uv run manifest check full --group test --json --output shadow-test.json
+
+      - name: Upload shadow receipt (current attempt)
+        if: always()
+        id: upload
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: shadow-receipt-test-${{ github.run_attempt }}
+          path: shadow-test.json
+          retention-days: 7
+          if-no-files-found: warn
+
+  shadow-checks-aggregate:
+    name: Shadow Checks Aggregate (non-blocking)
+    timeout-minutes: 10
+    needs: [shadow-checks-structure, shadow-checks-lint, shadow-checks-test]
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
+
+      - name: Reject unsuccessful shadow producers
+        # An allow-list check (`!= "success"`) so a skipped or cancelled
+        # producer is rejected the same as an explicit failure -- a deny-list
+        # of specific bad values would silently treat any unanticipated
+        # conclusion as a pass.
+        env:
+          RESULT_STRUCTURE: ${{ needs.shadow-checks-structure.result }}
+          RESULT_LINT: ${{ needs.shadow-checks-lint.result }}
+          RESULT_TEST: ${{ needs.shadow-checks-test.result }}
+        run: |
+          python3 -c "
+          import os, sys
+          results = {
+              'structure': os.environ['RESULT_STRUCTURE'],
+              'lint': os.environ['RESULT_LINT'],
+              'test': os.environ['RESULT_TEST'],
+          }
+          bad = {group: result for group, result in results.items() if result != 'success'}
+          if bad:
+              print(f'shadow producer(s) not successful: {bad}', file=sys.stderr)
+              sys.exit(1)
+          print('all shadow producers succeeded:', results)
+          "
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Build current-run context (read-only)
+        id: context
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: uv run python tools/project_checks/ci_context_cli.py --output shadow-context.json
+
+      - name: Download shadow receipts (current attempt)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p shadow-results
+          for group in structure lint test; do
+            gh run download "${GITHUB_RUN_ID}" \
+              --name "shadow-receipt-${group}-${GITHUB_RUN_ATTEMPT}" \
+              --dir shadow-results
+          done
+
+      - name: Aggregate shadow checks (informational only)
+        continue-on-error: true
+        run: |
+          uv run manifest check-aggregate full \
+            --project-config config/project-checks.json \
+            --results-dir shadow-results \
+            --context shadow-context.json \
+            --json
