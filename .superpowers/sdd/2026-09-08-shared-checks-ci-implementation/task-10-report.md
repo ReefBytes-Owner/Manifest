@@ -401,3 +401,26 @@ Per `.superpowers/sdd/2026-09-08-shared-checks-ci-implementation/progress.md`:
 - No installation, network access, or host/branch-protection mutation was performed. No file
   under `config/check-preservation.json` was modified. This report and its containing directory
   are the only new/changed paths produced by this task.
+
+## Addendum (final fix wave, head `e3a52ffb`) — superseded observations
+
+The per-profile table above (["Per-profile status"](#per-profile-status-candidate-registry---base-head-real-execution--not---list)),
+and the "FAIL rather than BLOCKED" observations that follow it, describe
+commit `6eae412c` and were true at the time they were written. They are
+**not rewritten here** — they remain an accurate record of that commit's
+behavior. Head `e3a52ffb` (see
+[`task-10-fix-report.md`](task-10-fix-report.md)) changed the FAIL/BLOCKED
+mapping so that repo-owned `honors_status_contract` bodies exiting 3 are
+correctly recorded as BLOCKED instead of FAIL, which eliminated every FAIL
+in the `full` profile reproduction:
+
+> Before/after Counter (reproduction command, caches cleared): `profile
+> BLOCKED; Counter({'BLOCKED': 39, 'PASS': 15, 'NOT_APPLICABLE': 11})` — zero
+> `FAIL`, controller-verified.
+> — [`task-10-fix-report.md`](task-10-fix-report.md), "Before/after Counter"
+
+The `full` profile now reports **BLOCKED** (not FAIL) with `BLOCKED=39,
+PASS=15, NOT_APPLICABLE=11`. Treat the original table's `full FAIL 4` and
+the "FAIL rather than BLOCKED" prose above as describing pre-fix behavior
+only; consult `task-10-fix-report.md` for the current mapping and root
+cause.

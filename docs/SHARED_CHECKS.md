@@ -66,16 +66,31 @@ is always partial and cannot certify a whole profile.
 
 `.github/workflows/ci.yml` runs `shadow-checks-structure`,
 `shadow-checks-lint`, and `shadow-checks-test` alongside (never instead of)
-the pre-existing `lint`/`test`/`validate` jobs. Each shadow job invokes the
-shared command exactly once (`uv run manifest check full --group <group>
---json --output ...`) and uploads its report as a run-attempt-scoped artifact
+the pre-existing `lint`/`test`/`validate` jobs. Each shadow job first resolves
+a base revision (the PR base SHA for `pull_request` events, or a merge-base
+against the default branch for `push` events) then invokes the shared command
+exactly once (`uv run manifest check full --group <group> --project-config
+config/project-checks.json --base <resolved-sha> --json --output ...`) and
+uploads its report as a run-attempt-scoped artifact
 (`shadow-receipt-<group>-${{ github.run_attempt }}`) so a workflow re-run
 cannot mix evidence from a prior attempt. `shadow-checks-aggregate` runs with
-`if: always()`, rejects any producer whose result is not exactly `"success"`
-(an allow-list check, so a skipped or cancelled producer is rejected the same
-as an explicit failure), then builds the current-run context
-(`tools/project_checks/ci_context_cli.py`, read-only via `gh api`) and calls
-`manifest check-aggregate`.
+`if: always()`, rejects any producer whose per-step outcome is not exactly
+`"success"` (an allow-list check, so a skipped or cancelled producer is
+rejected the same as an explicit failure), then builds the current-run
+context (`tools/project_checks/ci_context_cli.py`, read-only via `gh api`)
+and calls `manifest check-aggregate`, writing its own receipt
+(`shadow-receipt-aggregate-${{ github.run_attempt }}`) and publishing the
+verdict to the job summary (`$GITHUB_STEP_SUMMARY`) so it is visible without
+opening step logs.
+
+The rejection step reads each producer's `steps.shadow.outcome` **job
+output**, not `needs.<job>.result`. All three producer jobs set job-level
+`continue-on-error: true`, and GitHub reports a job that failed only because
+of that job-level setting as `result: "success"` in the `needs` context of a
+downstream job — so a `needs.*.result` check can never observe a failed
+producer. Each producer job therefore exports its check step's `outcome`
+(which continue-on-error does not rewrite) as a job output, and the aggregate
+job reads that instead.
 
 All four jobs (`shadow-checks-structure`, `shadow-checks-lint`,
 `shadow-checks-test`, `shadow-checks-aggregate`) set job-level

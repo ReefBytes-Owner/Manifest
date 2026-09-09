@@ -22,6 +22,7 @@ import re
 from pathlib import Path
 from typing import Any
 
+import click
 import pytest
 import yaml
 
@@ -89,6 +90,53 @@ class TestShadowGroupJobShape:
         assert f"--group {group}" in command, (
             f"{job_name}: shared-check step must select group {group!r}: {command!r}"
         )
+        # `--project-config` and `--base` are both `required=True` on the
+        # `manifest check` CLI (src/manifest_agent/checks/cli.py) -- a
+        # command missing either one exits 2 (UsageError) before running a
+        # single check, so the shadow producer never writes a receipt.
+        # Verify each flag is present and followed by a real, non-empty
+        # value token (not just the bare substring somewhere in the line).
+        assert re.search(r"--project-config\s+\S+", command), (
+            f"{job_name}: shared-check step must pass a non-empty "
+            f"--project-config, or the CLI exits 2 before running any "
+            f"check: {command!r}"
+        )
+        assert re.search(r"--base\s+\S+", command), (
+            f"{job_name}: shared-check step must pass a non-empty --base, "
+            f"or the CLI raises UsageError before running any check: "
+            f"{command!r}"
+        )
+
+    def test_command_parses_with_the_real_cli(self, job_name: str, group: str) -> None:
+        # The strongest available check without a network call: feed the
+        # extracted argv into the real Click command's argument parser
+        # (`make_context`) and confirm it does not raise `UsageError` (e.g.
+        # missing `--project-config`/`--base`). This deliberately stops at
+        # parsing -- it never invokes the command callback, so it exercises
+        # no check body, performs no candidate materialization, and writes
+        # no files -- while still proving today's command (missing both
+        # required options) fails this exact assertion.
+        from manifest_agent.checks.cli import check as check_command
+
+        job = _jobs()[job_name]
+        (command,) = [
+            run for run in _run_texts(job) if re.search(r"\bmanifest\s+check\b", run)
+        ]
+        command = command.strip()
+        assert command.startswith("uv run manifest check ")
+        argv = command[len("uv run manifest check ") :].split()
+        # BASE_SHA is populated at runtime from a prior step's output via
+        # `env:`, not interpolated into the script body; substitute a
+        # syntactically valid placeholder revision for this parse-only check.
+        argv = ["HEAD" if token == '"${BASE_SHA}"' else token for token in argv]
+
+        try:
+            check_command.make_context("check", list(argv), resilient_parsing=False)
+        except click.UsageError as error:
+            pytest.fail(
+                f"{job_name}: extracted invocation does not parse against "
+                f"the real CLI: {argv!r}\n{error.format_message()}"
+            )
 
     def test_no_drifted_duplicate_check_logic(self, job_name: str, group: str) -> None:
         # None of the OTHER run steps in a shadow job may re-implement check

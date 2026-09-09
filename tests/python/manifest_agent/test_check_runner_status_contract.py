@@ -22,6 +22,7 @@ source = source_fixture
 @pytest.fixture
 def candidate(source, tmp_path):
     (source[0] / "exit-three.py").write_text("raise SystemExit(3)\n")
+    (source[0] / "exit-one.py").write_text("raise SystemExit(1)\n")
     return materialize(source, tmp_path)
 
 
@@ -61,3 +62,28 @@ def test_third_party_tool_exiting_three_is_still_recorded_fail(
 
     assert result.status == "FAIL"
     assert result.returncode == 3
+
+
+def test_contract_honoring_body_exiting_outside_0_2_3_is_blocked_not_fail(
+    exit_three_check, candidate
+):
+    # A body that declares `honors_status_contract` but exits 1 (e.g. an
+    # uncaught traceback) has violated its own contract: exit 1 carries no
+    # agreed meaning under the 0/2/3 vocabulary, so it cannot be honestly
+    # recorded as FAIL ("ran and found problems") -- that would fabricate a
+    # finding the check never made. It must read as BLOCKED instead, with a
+    # diagnostic naming the observed exit code.
+    check = replace(
+        exit_three_check,
+        id="check.exit-one",
+        argv=(sys.executable, "exit-one.py"),
+        inputs=("exit-one.py",),
+        honors_status_contract=True,
+    )
+
+    result = execute_check(check, candidate, {})
+
+    assert result.status == "BLOCKED"
+    assert result.returncode == 1
+    assert "contract violation" in result.diagnostics
+    assert "1" in result.diagnostics

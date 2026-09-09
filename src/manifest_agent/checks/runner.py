@@ -22,7 +22,6 @@ from .models import (
     Candidate,
     CheckResult,
     CheckSpec,
-    PreparationSpec,
     ProfileSelector,
     RunContext,
     ToolKey,
@@ -30,34 +29,14 @@ from .models import (
 )
 from .path_filters import filter_inputs, forwarded_paths, has_path_filters, matches
 from .preparation import _prepare_candidate_guarded
-from .process import CAPTURE_LIMIT, TRUNCATION_MARKER, ProcessResult, run_argv
+from .process import ProcessResult, run_argv
 from .registry import applicable_pending, resolve_checks
+from .status import blocked as _blocked
+from .status import bounded_text as _bounded_text
+from .status import diagnostics as _diagnostics
+from .status import executed_status as _executed_status
 
 VERSION_PREFLIGHT_TIMEOUT_SECONDS = 10.0
-
-
-def _diagnostics(result: ProcessResult) -> str:
-    return _bounded_text(result.error + result.stdout + result.stderr)
-
-
-def _bounded_text(value: str) -> str:
-    value = redact_text(value).encode()
-    if len(value) > CAPTURE_LIMIT:
-        value = value[: CAPTURE_LIMIT - len(TRUNCATION_MARKER)] + TRUNCATION_MARKER
-    return value.decode("utf-8", errors="ignore")
-
-
-def _blocked(
-    check: CheckSpec | PreparationSpec, diagnostic: str, result: ProcessResult
-) -> CheckResult:
-    return CheckResult(
-        check.id,
-        "BLOCKED",
-        result.returncode,
-        result.duration_seconds,
-        redact_text(diagnostic),
-        (),
-    )
 
 
 def _identity_error(candidate: Candidate) -> str:
@@ -127,30 +106,18 @@ def execute_check(
     if result.error or result.timed_out:
         diagnostic = result.error or "check timeout"
         return _blocked(check, diagnostic + _diagnostics(result), result)
+    status, contract_note = _executed_status(check, result)
+    diagnostic = _diagnostics(result)
+    if contract_note:
+        diagnostic = f"{contract_note}\n{diagnostic}" if diagnostic else contract_note
     return CheckResult(
         check.id,
-        _executed_status(check, result),
+        status,
         result.returncode,
         result.duration_seconds,
-        _diagnostics(result),
+        diagnostic,
         selected,
     )
-
-
-def _executed_status(check: CheckSpec, result: ProcessResult) -> str:
-    """Map an executed process's exit code to PASS/FAIL/BLOCKED.
-
-    Repo-owned check bodies (``tools/project_checks/*.py``) deliberately
-    implement this project's 0/2/3 status contract; only those checks, as
-    declared by ``honors_status_contract`` in the registry, get exit 3
-    honored as BLOCKED. Third-party tool exit codes carry no such meaning
-    and stay FAIL whenever the process actually ran.
-    """
-    if result.returncode == 0:
-        return "PASS"
-    if check.honors_status_contract and result.returncode == 3:
-        return "BLOCKED"
-    return "FAIL"
 
 
 def _execution_context(

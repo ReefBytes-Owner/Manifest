@@ -80,16 +80,22 @@ UNSAFE_PREPARATION_EXECUTABLES = frozenset(
 
 
 REPO_OWNED_CHECK_ARGV = re.compile(r"^tools/project_checks/[^/]+\.py$")
+REPO_OWNED_INTERPRETER = re.compile(r"^python3?(\.\d+)?$")
 
 
 def _validate_status_contract(check: dict[str, Any], label: str) -> None:
-    """Only checks invoking tools/project_checks/*.py may honor 0/2/3."""
+    # argv[0] or argv[0:2] only -- matching anywhere would let e.g.
+    # ["markdownlint-cli2", "tools/project_checks/x.py"] falsely qualify.
     if not check.get("honors_status_contract", False):
         return
-    if not any(REPO_OWNED_CHECK_ARGV.match(argument) for argument in check["argv"]):
+    argv = check["argv"]
+    direct = bool(argv) and bool(REPO_OWNED_CHECK_ARGV.match(argv[0]))
+    interp = len(argv) >= 2 and bool(REPO_OWNED_INTERPRETER.match(Path(argv[0]).name))
+    if not (direct or (interp and REPO_OWNED_CHECK_ARGV.match(argv[1]))):
         raise ValueError(
             f"{label} honors_status_contract requires argv invoking "
-            "tools/project_checks/*.py"
+            "tools/project_checks/*.py as argv[0], or argv[1] behind a "
+            "python interpreter"
         )
 
 

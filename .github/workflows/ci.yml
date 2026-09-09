@@ -591,6 +591,7 @@ jobs:
       contents: read
     outputs:
       artifact_id: ${{ steps.upload.outputs.artifact-id }}
+      shadow_outcome: ${{ steps.shadow.outcome }}
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
@@ -600,11 +601,28 @@ jobs:
       - name: Install uv
         run: pip install uv
 
+      - name: Resolve base revision
+        id: base
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          if [ "${EVENT_NAME}" = "pull_request" ]; then
+            base_sha="${PR_BASE_SHA}"
+          else
+            base_sha="$(git merge-base HEAD "origin/${DEFAULT_BRANCH}")"
+          fi
+          echo "sha=${base_sha}" >> "${GITHUB_OUTPUT}"
+
       - name: Run shared checks (shadow, non-blocking)
         id: shadow
         continue-on-error: true
+        env:
+          BASE_SHA: ${{ steps.base.outputs.sha }}
         run: |
-          uv run manifest check full --group structure --json --output shadow-structure.json
+          uv run manifest check full --group structure --project-config config/project-checks.json --base "${BASE_SHA}" --json --output shadow-structure.json
 
       - name: Upload shadow receipt (current attempt)
         if: always()
@@ -625,6 +643,7 @@ jobs:
       contents: read
     outputs:
       artifact_id: ${{ steps.upload.outputs.artifact-id }}
+      shadow_outcome: ${{ steps.shadow.outcome }}
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
@@ -634,11 +653,28 @@ jobs:
       - name: Install uv
         run: pip install uv
 
+      - name: Resolve base revision
+        id: base
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          if [ "${EVENT_NAME}" = "pull_request" ]; then
+            base_sha="${PR_BASE_SHA}"
+          else
+            base_sha="$(git merge-base HEAD "origin/${DEFAULT_BRANCH}")"
+          fi
+          echo "sha=${base_sha}" >> "${GITHUB_OUTPUT}"
+
       - name: Run shared checks (shadow, non-blocking)
         id: shadow
         continue-on-error: true
+        env:
+          BASE_SHA: ${{ steps.base.outputs.sha }}
         run: |
-          uv run manifest check full --group lint --json --output shadow-lint.json
+          uv run manifest check full --group lint --project-config config/project-checks.json --base "${BASE_SHA}" --json --output shadow-lint.json
 
       - name: Upload shadow receipt (current attempt)
         if: always()
@@ -659,20 +695,39 @@ jobs:
       contents: read
     outputs:
       artifact_id: ${{ steps.upload.outputs.artifact-id }}
+      shadow_outcome: ${{ steps.shadow.outcome }}
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
         with:
+          fetch-depth: 0
           submodules: true
 
       - name: Install uv
         run: pip install uv
 
+      - name: Resolve base revision
+        id: base
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          set -euo pipefail
+          if [ "${EVENT_NAME}" = "pull_request" ]; then
+            base_sha="${PR_BASE_SHA}"
+          else
+            base_sha="$(git merge-base HEAD "origin/${DEFAULT_BRANCH}")"
+          fi
+          echo "sha=${base_sha}" >> "${GITHUB_OUTPUT}"
+
       - name: Run shared checks (shadow, non-blocking)
         id: shadow
         continue-on-error: true
+        env:
+          BASE_SHA: ${{ steps.base.outputs.sha }}
         run: |
-          uv run manifest check full --group test --json --output shadow-test.json
+          uv run manifest check full --group test --project-config config/project-checks.json --base "${BASE_SHA}" --json --output shadow-test.json
 
       - name: Upload shadow receipt (current attempt)
         if: always()
@@ -703,10 +758,19 @@ jobs:
         # producer is rejected the same as an explicit failure -- a deny-list
         # of specific bad values would silently treat any unanticipated
         # conclusion as a pass.
+        #
+        # NOTE: these read each producer's `steps.shadow.outcome` job output,
+        # not `needs.<job>.result`. The producer jobs set job-level
+        # `continue-on-error: true`, which makes GitHub report a *failed*
+        # producer as `result: success` in the `needs` context (only the
+        # workflow-visible conclusion is swallowed, not the step outcome) --
+        # so a `needs.*.result` check here would never fire. The per-step
+        # `outcome` output is unaffected by continue-on-error and reflects
+        # whether the check command itself actually passed.
         env:
-          RESULT_STRUCTURE: ${{ needs.shadow-checks-structure.result }}
-          RESULT_LINT: ${{ needs.shadow-checks-lint.result }}
-          RESULT_TEST: ${{ needs.shadow-checks-test.result }}
+          RESULT_STRUCTURE: ${{ needs.shadow-checks-structure.outputs.shadow_outcome }}
+          RESULT_LINT: ${{ needs.shadow-checks-lint.outputs.shadow_outcome }}
+          RESULT_TEST: ${{ needs.shadow-checks-test.outputs.shadow_outcome }}
         run: |
           python3 -c "
           import os, sys
@@ -744,10 +808,35 @@ jobs:
           done
 
       - name: Aggregate shadow checks (informational only)
+        id: aggregate
         continue-on-error: true
         run: |
           uv run manifest check-aggregate full \
             --project-config config/project-checks.json \
             --results-dir shadow-results \
             --context shadow-context.json \
-            --json
+            --json \
+            --output shadow-aggregate.json
+
+      - name: Upload shadow aggregate receipt (current attempt)
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: shadow-receipt-aggregate-${{ github.run_attempt }}
+          path: shadow-aggregate.json
+          retention-days: 7
+          if-no-files-found: warn
+
+      - name: Publish aggregate verdict to job summary
+        if: always()
+        run: |
+          set -euo pipefail
+          {
+            echo "### Shadow shared-check aggregate (non-blocking, informational)"
+            if [ -s shadow-aggregate.json ]; then
+              status="$(python3 -c "import json; print(json.load(open('shadow-aggregate.json')).get('status', 'UNKNOWN'))")"
+              echo "Status: \`${status}\`"
+            else
+              echo "Status: \`UNKNOWN\` (no aggregate receipt was written)"
+            fi
+          } >> "${GITHUB_STEP_SUMMARY}"
