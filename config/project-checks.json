@@ -849,6 +849,17 @@
       ],
       "expected_version": "command:uv=0.12.6",
       "required_modules": []
+    },
+    "prepare.skill-mirror": {
+      "executable": "bash",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "python-wrapper"
+      ],
+      "expected_version": "ok",
+      "required_modules": []
     }
   },
   "checks": [
@@ -872,7 +883,8 @@
       "selection": "project",
       "tool": "structure.symlinks",
       "version": "ok",
-      "pass_filenames": false
+      "pass_filenames": false,
+      "honors_status_contract": true
     },
     {
       "id": "syntax.yaml.config",
@@ -894,7 +906,8 @@
       "selection": "project",
       "tool": "syntax.yaml.config",
       "version": "distribution:pyyaml=6.0.2",
-      "pass_filenames": false
+      "pass_filenames": false,
+      "honors_status_contract": true
     },
     {
       "id": "structure.case-collision",
@@ -916,7 +929,8 @@
       "selection": "project",
       "tool": "structure.case-collision",
       "version": "ok",
-      "pass_filenames": false
+      "pass_filenames": false,
+      "honors_status_contract": true
     },
     {
       "id": "structure.inventory",
@@ -938,7 +952,8 @@
       "selection": "project",
       "tool": "structure.inventory",
       "version": "ok",
-      "pass_filenames": false
+      "pass_filenames": false,
+      "honors_status_contract": true
     },
     {
       "id": "syntax.shell.project",
@@ -960,7 +975,8 @@
       "selection": "project",
       "tool": "syntax.shell.project",
       "version": "ok",
-      "pass_filenames": false
+      "pass_filenames": false,
+      "honors_status_contract": true
     },
     {
       "id": "structure.skill-paths",
@@ -982,7 +998,8 @@
       "selection": "project",
       "tool": "structure.skill-paths",
       "version": "ok",
-      "pass_filenames": false
+      "pass_filenames": false,
+      "honors_status_contract": true
     },
     {
       "id": "lint.shell.scripts",
@@ -1004,7 +1021,8 @@
       "selection": "project",
       "tool": "lint.shell.scripts",
       "version": "distribution:shellcheck-py=0.11.0.1;command:shellcheck=0.11.0",
-      "pass_filenames": false
+      "pass_filenames": false,
+      "honors_status_contract": true
     },
     {
       "id": "lint.shell.bootstrap",
@@ -1026,7 +1044,8 @@
       "selection": "project",
       "tool": "lint.shell.bootstrap",
       "version": "distribution:shellcheck-py=0.11.0.1;command:shellcheck=0.11.0",
-      "pass_filenames": false
+      "pass_filenames": false,
+      "honors_status_contract": true
     },
     {
       "id": "lint.yaml.config",
@@ -1048,7 +1067,8 @@
       "selection": "project",
       "tool": "lint.yaml.config",
       "version": "distribution:pyyaml=6.0.2;distribution:yamllint=1.38.0;command:yamllint=1.38.0",
-      "pass_filenames": false
+      "pass_filenames": false,
+      "honors_status_contract": true
     },
     {
       "id": "lint.shell.arrays",
@@ -1292,7 +1312,8 @@
       "selection": "project",
       "tool": "lint.markdown.keydocs",
       "version": "ok",
-      "pass_filenames": false
+      "pass_filenames": false,
+      "honors_status_contract": true
     },
     {
       "id": "test.bundle-partition",
@@ -1314,7 +1335,8 @@
       "selection": "project",
       "tool": "test.bundle-partition",
       "version": "ok",
-      "pass_filenames": false
+      "pass_filenames": false,
+      "honors_status_contract": true
     },
     {
       "id": "generated.commands-doc",
@@ -1336,7 +1358,8 @@
       "selection": "project",
       "tool": "generated.commands-doc",
       "version": "ok",
-      "pass_filenames": false
+      "pass_filenames": false,
+      "honors_status_contract": true
     },
     {
       "id": "generated.plugin-views",
@@ -1358,7 +1381,8 @@
       "selection": "project",
       "tool": "generated.plugin-views",
       "version": "ok",
-      "pass_filenames": false
+      "pass_filenames": false,
+      "honors_status_contract": true
     },
     {
       "id": "generated.vendor",
@@ -1380,7 +1404,8 @@
       "selection": "project",
       "tool": "generated.vendor",
       "version": "ok",
-      "pass_filenames": false
+      "pass_filenames": false,
+      "honors_status_contract": true
     },
     {
       "id": "generated.capability-inventory",
@@ -1402,7 +1427,8 @@
       "selection": "project",
       "tool": "generated.capability-inventory",
       "version": "ok",
-      "pass_filenames": false
+      "pass_filenames": false,
+      "honors_status_contract": true
     },
     {
       "id": "generated.capability-matrix",
@@ -1424,7 +1450,8 @@
       "selection": "project",
       "tool": "generated.capability-matrix",
       "version": "ok",
-      "pass_filenames": false
+      "pass_filenames": false,
+      "honors_status_contract": true
     },
     {
       "id": "generated.cursor",
@@ -1446,7 +1473,8 @@
       "selection": "project",
       "tool": "generated.cursor",
       "version": "ok",
-      "pass_filenames": false
+      "pass_filenames": false,
+      "honors_status_contract": true
     },
     {
       "id": "hook.trailing-whitespace",
@@ -1472,7 +1500,8 @@
       "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))|(?:^(\\.Jules/|docs/templates/|plugins/manifest-code-quality/skills/smoke-manage/vendor/(LICENSE\\.PyYAML|yaml/)|plugins/manifest-i-have-adhd/(skills/|guidance/|devin/|LICENSE\\.upstream))|\\.patch$)",
       "types": [],
       "types_or": [],
-      "pass_filenames": true
+      "pass_filenames": true,
+      "honors_status_contract": true
     },
     {
       "id": "hook.end-of-file-fixer",
@@ -1498,7 +1527,8 @@
       "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))|(?:^(\\.Jules/|docs/templates/|configs/cursor/rules/|plugins/manifest-code-quality/skills/smoke-manage/vendor/(LICENSE\\.PyYAML|yaml/)|plugins/manifest-i-have-adhd/(skills/|guidance/|devin/|LICENSE\\.upstream)))",
       "types": [],
       "types_or": [],
-      "pass_filenames": true
+      "pass_filenames": true,
+      "honors_status_contract": true
     },
     {
       "id": "hook.mixed-line-ending",
@@ -1524,7 +1554,8 @@
       "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))|(?:^(plugins/manifest-code-quality/skills/smoke-manage/vendor/(LICENSE\\.PyYAML|yaml/)|plugins/manifest-i-have-adhd/(skills/|guidance/|devin/|LICENSE\\.upstream)))",
       "types": [],
       "types_or": [],
-      "pass_filenames": true
+      "pass_filenames": true,
+      "honors_status_contract": true
     },
     {
       "id": "hook.shfmt",
@@ -1550,7 +1581,8 @@
       "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))|(?:(^\\.Jules/|\\.bats$))",
       "types": [],
       "types_or": [],
-      "pass_filenames": true
+      "pass_filenames": true,
+      "honors_status_contract": true
     },
     {
       "id": "hook.check-credentials",
@@ -1576,7 +1608,8 @@
       "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))",
       "types": [],
       "types_or": [],
-      "pass_filenames": false
+      "pass_filenames": false,
+      "honors_status_contract": true
     },
     {
       "id": "hook.validate-yaml-configs",
@@ -1602,7 +1635,8 @@
       "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))",
       "types": [],
       "types_or": [],
-      "pass_filenames": true
+      "pass_filenames": true,
+      "honors_status_contract": true
     },
     {
       "id": "hook.check-cursor-rules-drift",
@@ -1628,7 +1662,8 @@
       "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))",
       "types": [],
       "types_or": [],
-      "pass_filenames": false
+      "pass_filenames": false,
+      "honors_status_contract": true
     },
     {
       "id": "hook.check-stale-repo-paths",
@@ -1656,7 +1691,8 @@
         "markdown"
       ],
       "types_or": [],
-      "pass_filenames": true
+      "pass_filenames": true,
+      "honors_status_contract": true
     },
     {
       "id": "hook.check-yaml",
@@ -2262,7 +2298,8 @@
       "types_or": [
         "go"
       ],
-      "pass_filenames": true
+      "pass_filenames": true,
+      "honors_status_contract": true
     },
     {
       "id": "hook.terraform_fmt",
@@ -2290,7 +2327,8 @@
       "types_or": [
         "terraform"
       ],
-      "pass_filenames": true
+      "pass_filenames": true,
+      "honors_status_contract": true
     },
     {
       "id": "hook.terraform_validate",
@@ -2318,7 +2356,8 @@
       "types_or": [
         "terraform"
       ],
-      "pass_filenames": true
+      "pass_filenames": true,
+      "honors_status_contract": true
     },
     {
       "id": "hook.terraform_tflint",
@@ -2346,7 +2385,8 @@
       "types_or": [
         "terraform"
       ],
-      "pass_filenames": true
+      "pass_filenames": true,
+      "honors_status_contract": true
     },
     {
       "id": "hook.terraform_trivy",
@@ -2374,7 +2414,8 @@
       "types_or": [
         "terraform"
       ],
-      "pass_filenames": true
+      "pass_filenames": true,
+      "honors_status_contract": true
     },
     {
       "id": "dependency.lock.config",
@@ -2396,7 +2437,8 @@
       "selection": "project",
       "tool": "dependency.lock.config",
       "version": "command:uv=0.12.6",
-      "pass_filenames": false
+      "pass_filenames": false,
+      "honors_status_contract": true
     },
     {
       "id": "dependency.lock.delegate",
@@ -2418,7 +2460,8 @@
       "selection": "project",
       "tool": "dependency.lock.delegate",
       "version": "command:uv=0.12.6",
-      "pass_filenames": false
+      "pass_filenames": false,
+      "honors_status_contract": true
     },
     {
       "id": "package.coordinator",
@@ -2440,7 +2483,8 @@
       "selection": "project",
       "tool": "package.coordinator",
       "version": "command:uv=0.12.6",
-      "pass_filenames": false
+      "pass_filenames": false,
+      "honors_status_contract": true
     },
     {
       "id": "package.config",
@@ -2462,7 +2506,8 @@
       "selection": "project",
       "tool": "package.config",
       "version": "command:uv=0.12.6",
-      "pass_filenames": false
+      "pass_filenames": false,
+      "honors_status_contract": true
     },
     {
       "id": "package.release-archive",
@@ -2486,7 +2531,8 @@
       "selection": "project",
       "tool": "package.release-archive",
       "version": "command:uv=0.12.6",
-      "pass_filenames": false
+      "pass_filenames": false,
+      "honors_status_contract": true
     },
     {
       "id": "package.release-manifest",
@@ -2510,10 +2556,39 @@
       "selection": "project",
       "tool": "package.release-manifest",
       "version": "command:uv=0.12.6",
-      "pass_filenames": false
+      "pass_filenames": false,
+      "honors_status_contract": true
     }
   ],
-  "candidate_preparations": [],
+  "candidate_preparations": [
+    {
+      "id": "prepare.skill-mirror",
+      "argv": [
+        "bash",
+        "configs/claude/scripts/generate_skill_mirror.sh",
+        "--root",
+        "."
+      ],
+      "cwd": ".",
+      "inputs": [
+        "plugins",
+        "configs/claude/scripts/generate_skill_mirror.sh",
+        "configs/claude/config/skill_policies.yml"
+      ],
+      "outputs": [
+        ".apm/skills"
+      ],
+      "groups": [
+        "structure",
+        "lint"
+      ],
+      "timeout_seconds": 60,
+      "tool": "prepare.skill-mirror",
+      "version": "ok",
+      "network": false,
+      "installs_dependencies": false
+    }
+  ],
   "profiles": {
     "quick": [
       "structure.symlinks",

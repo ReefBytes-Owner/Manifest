@@ -26,6 +26,7 @@ class CheckSpec:
     types: tuple[str, ...] = ()
     types_or: tuple[str, ...] = ()
     pass_filenames: bool | None = None
+    honors_status_contract: bool = False
 
     def __post_init__(self) -> None:
         if self.pass_filenames is None:

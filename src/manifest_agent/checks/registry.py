@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import re
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any
 
@@ -76,6 +77,20 @@ UNSAFE_PREPARATION_EXECUTABLES = frozenset(
         "yarn",
     }
 )
+
+
+REPO_OWNED_CHECK_ARGV = re.compile(r"^tools/project_checks/[^/]+\.py$")
+
+
+def _validate_status_contract(check: dict[str, Any], label: str) -> None:
+    """Only checks invoking tools/project_checks/*.py may honor 0/2/3."""
+    if not check.get("honors_status_contract", False):
+        return
+    if not any(REPO_OWNED_CHECK_ARGV.match(argument) for argument in check["argv"]):
+        raise ValueError(
+            f"{label} honors_status_contract requires argv invoking "
+            "tools/project_checks/*.py"
+        )
 
 
 def _validate_argv(argv: list[str], label: str) -> None:
@@ -235,6 +250,7 @@ def _validate_checks(
             _validate_candidate_path(input_path, f"{label} input")
         validate_path_filters(check, label)
         _validate_tool_reference(check, tools, label)
+        _validate_status_contract(check, label)
         if check["selection"] == "changed" and not (
             check["group"] == "lint" and check["category"] in CHANGED_CATEGORIES
         ):
@@ -348,6 +364,7 @@ def _normalize(document: dict[str, Any]) -> dict[str, Any]:
             types=tuple(check.get("types", ())),
             types_or=tuple(check.get("types_or", ())),
             pass_filenames=check.get("pass_filenames", check["selection"] == "changed"),
+            honors_status_contract=check.get("honors_status_contract", False),
         )
         for check in document["checks"]
     )

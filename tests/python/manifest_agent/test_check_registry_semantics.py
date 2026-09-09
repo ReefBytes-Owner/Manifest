@@ -96,6 +96,37 @@ def test_windows_anchored_or_drive_paths_are_rejected(
         load_registry(registry_file(**kwargs))
 
 
+def test_honors_status_contract_requires_repo_owned_check_body(registry_file):
+    check = _check("lint.a")
+    check["honors_status_contract"] = True
+    check["argv"] = ["python", "-m", "not_repo_owned"]
+    profiles = {
+        "quick": ["lint.a"],
+        "full": ["lint.a"],
+        "security": ["lint.a"],
+        "release": ["lint.a"],
+    }
+
+    with pytest.raises(ValueError, match="honors_status_contract"):
+        load_registry(registry_file(checks=[check], profiles=profiles))
+
+
+def test_honors_status_contract_is_accepted_for_repo_owned_check_body(registry_file):
+    check = _check("lint.a")
+    check["honors_status_contract"] = True
+    check["argv"] = ["python", "tools/project_checks/structure.py"]
+    profiles = {
+        "quick": ["lint.a"],
+        "full": ["lint.a"],
+        "security": ["lint.a"],
+        "release": ["lint.a"],
+    }
+
+    registry = load_registry(registry_file(checks=[check], profiles=profiles))
+
+    assert registry["checks"][0].honors_status_contract is True
+
+
 @pytest.mark.parametrize("category", ["arbitrary", "integration", "lock"])
 def test_unknown_check_categories_are_rejected(registry_file, category):
     check = _check("lint.a", category=category)

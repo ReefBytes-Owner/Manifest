@@ -129,12 +129,28 @@ def execute_check(
         return _blocked(check, diagnostic + _diagnostics(result), result)
     return CheckResult(
         check.id,
-        "PASS" if result.returncode == 0 else "FAIL",
+        _executed_status(check, result),
         result.returncode,
         result.duration_seconds,
         _diagnostics(result),
         selected,
     )
+
+
+def _executed_status(check: CheckSpec, result: ProcessResult) -> str:
+    """Map an executed process's exit code to PASS/FAIL/BLOCKED.
+
+    Repo-owned check bodies (``tools/project_checks/*.py``) deliberately
+    implement this project's 0/2/3 status contract; only those checks, as
+    declared by ``honors_status_contract`` in the registry, get exit 3
+    honored as BLOCKED. Third-party tool exit codes carry no such meaning
+    and stay FAIL whenever the process actually ran.
+    """
+    if result.returncode == 0:
+        return "PASS"
+    if check.honors_status_contract and result.returncode == 3:
+        return "BLOCKED"
+    return "FAIL"
 
 
 def _execution_context(
