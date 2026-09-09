@@ -248,3 +248,31 @@ def test_receipt_head_sha_must_match_tested_sha_not_just_be_consistent(
         )
         == 2
     )
+
+
+def test_not_applicable_on_changed_selection_check_aggregates_cleanly(registry, digest):
+    """`lint.a` is a `changed`-selection check: NOT_APPLICABLE is legitimate
+    when its selector matched zero inputs, and must not block the verdict."""
+    receipts, run_context = clean_pair(digest)
+    receipts[0]["results"] = [result("lint.a", status="NOT_APPLICABLE")]
+    receipts[0]["results"][0]["returncode"] = None
+
+    report = aggregate_results(registry, "full", receipts, run_context)
+
+    assert report["status"] == "PASS"
+    assert report["diagnostics"] == []
+
+
+def test_not_applicable_on_project_selection_check_is_blocked(registry, digest):
+    """`test.a` is a whole-project (`project`-selection, no path filters)
+    check: it can never be legitimately NOT_APPLICABLE, so a receipt
+    reporting it that way must BLOCK the aggregate verdict, not pass
+    through silently."""
+    receipts, run_context = clean_pair(digest)
+    receipts[1]["results"] = [result("test.a", status="NOT_APPLICABLE")]
+    receipts[1]["results"][0]["returncode"] = None
+
+    report = aggregate_results(registry, "full", receipts, run_context)
+
+    assert report["status"] == "BLOCKED"
+    assert any("test.a" in d and "NOT_APPLICABLE" in d for d in report["diagnostics"])

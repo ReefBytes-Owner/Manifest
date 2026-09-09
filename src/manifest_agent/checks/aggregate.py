@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from .models import CheckSpec
+from .path_filters import has_path_filters
 from .registry import VALID_GROUPS, applicable_pending, resolve_checks
 from .runner import _config_digest
 
@@ -70,6 +71,7 @@ class _Trust:
     expected_config_digest: str
     tested_sha: str | None
     id_to_group: dict[str, str]
+    id_to_spec: dict[str, CheckSpec]
 
 
 def _expected(
@@ -77,6 +79,13 @@ def _expected(
 ) -> tuple[tuple[CheckSpec, ...], dict[str, str]]:
     checks = resolve_checks(registry, profile, None)
     return checks, {check.id: check.group for check in checks}
+
+
+def _not_applicable_allowed(check: CheckSpec) -> bool:
+    """Whole-project checks can never be NOT_APPLICABLE; only a check whose
+    selection is scoped to changed files (directly, or via project-selection
+    path filters) can legitimately match zero inputs."""
+    return check.selection == "changed" or has_path_filters(check)
 
 
 def _context_errors(context: Any) -> list[str]:
@@ -209,7 +218,7 @@ def _receipt_local_field_errors(receipt: dict[str, Any]) -> list[str]:
 
 
 def _result_errors(
-    result: Any, group: str, id_to_group: dict[str, str]
+    result: Any, group: str, trust: _Trust
 ) -> tuple[list[str], dict[str, Any] | None]:
     if not isinstance(result, dict):
         return ["result entry must be a JSON object"], None
@@ -228,11 +237,20 @@ def _result_errors(
         errors.append(
             f"result {check_id!r} has unrecognized status {result['status']!r}"
         )
-    owner_group = id_to_group.get(check_id)
+    owner_group = trust.id_to_group.get(check_id)
     if owner_group is None:
         errors.append(f"result {check_id!r} is not a check required by this profile")
     elif owner_group != group:
         errors.append(f"result {check_id!r} does not belong to receipt group {group!r}")
+    spec = trust.id_to_spec.get(check_id)
+    if (
+        result["status"] == "NOT_APPLICABLE"
+        and spec is not None
+        and not _not_applicable_allowed(spec)
+    ):
+        errors.append(
+            f"result {check_id!r} is a whole-project check and cannot be NOT_APPLICABLE"
+        )
     return errors, (None if errors else result)
 
 
@@ -244,7 +262,7 @@ def _receipt_results(
     errors: list[str] = []
     valid: list[dict[str, Any]] = []
     for result in receipt["results"]:
-        result_errors, parsed = _result_errors(result, group, trust.id_to_group)
+        result_errors, parsed = _result_errors(result, group, trust)
         errors.extend(result_errors)
         if parsed is not None:
             valid.append(parsed)
@@ -328,6 +346,7 @@ def aggregate_results(
     """
     full_checks, id_to_group = _expected(registry, profile)
     expected_groups = frozenset(id_to_group.values())
+    id_to_spec = {check.id: check for check in full_checks}
 
     diagnostics = _context_errors(context)
     confirmed_job_groups: frozenset[str] = frozenset()
@@ -344,6 +363,7 @@ def aggregate_results(
         expected_config_digest=_config_digest(registry),
         tested_sha=tested_sha,
         id_to_group=id_to_group,
+        id_to_spec=id_to_spec,
     )
     receipt_errors, results, received_groups = _merge_receipts(receipts, trust)
     diagnostics.extend(receipt_errors)

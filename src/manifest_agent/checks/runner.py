@@ -18,14 +18,21 @@ from .candidate import (
     _walk,
     candidate_digest,
 )
-from .models import Candidate, CheckResult, CheckSpec, PreparationSpec
+from .models import (
+    Candidate,
+    CheckResult,
+    CheckSpec,
+    PreparationSpec,
+    ProfileSelector,
+    RunContext,
+    ToolKey,
+    ToolOutcome,
+)
 from .path_filters import filter_inputs, forwarded_paths, has_path_filters, matches
 from .preparation import _prepare_candidate_guarded
 from .process import CAPTURE_LIMIT, TRUNCATION_MARKER, ProcessResult, run_argv
 from .registry import applicable_pending, resolve_checks
 
-ToolOutcome = tuple[ProcessResult, bool, ProcessResult | None]
-ToolKey = tuple[str, Path]
 VERSION_PREFLIGHT_TIMEOUT_SECONDS = 10.0
 
 
@@ -293,6 +300,7 @@ def run_profile(
 ) -> dict:
     """Run a resolved profile once; Phase 2 deliberately has no success cache."""
     start = time.monotonic()
+    selector = ProfileSelector(profile, group)
     checks = resolve_checks(registry, profile, group)
     results: list[CheckResult] = []
     initial_identity_error = _identity_error(candidate)
@@ -301,13 +309,13 @@ def run_profile(
             CheckResult(check.id, "BLOCKED", None, 0.0, initial_identity_error, ())
             for check in checks
         ]
-        return _report(registry, profile, group, candidate, checks, results, start)
+        context = RunContext(registry, candidate, env, {}, {})
+        return _report(context, selector, checks, results, start)
     tool_results, failed_preparations = _prepare_for_checks(
         registry, checks, candidate, env
     )
-    results = _run_checks(
-        registry, checks, candidate, env, tool_results, failed_preparations
-    )
+    context = RunContext(registry, candidate, env, tool_results, failed_preparations)
+    results = _run_checks(context, checks)
     final_identity_error = _identity_error(candidate)
     if final_identity_error:
         results = [
@@ -316,7 +324,7 @@ def run_profile(
             else result
             for result in results
         ]
-    return _report(registry, profile, group, candidate, checks, results, start)
+    return _report(context, selector, checks, results, start)
 
 
 def _prepare_for_checks(
@@ -364,39 +372,21 @@ def _prepare_for_checks(
 
 
 def _run_checks(
-    registry: dict,
-    checks: tuple[CheckSpec, ...],
-    candidate: Candidate,
-    env: dict[str, str],
-    tool_results: dict[ToolKey, ToolOutcome],
-    failed_preparations: dict[str, str],
+    context: RunContext, checks: tuple[CheckSpec, ...]
 ) -> list[CheckResult]:
     results: list[CheckResult] = []
     result_by_id: dict[str, CheckResult] = {}
     for check in checks:
-        result = _run_check(
-            registry,
-            check,
-            candidate,
-            env,
-            tool_results,
-            failed_preparations,
-            result_by_id,
-        )
+        result = _run_check(context, check, result_by_id)
         results.append(result)
         result_by_id[check.id] = result
     return results
 
 
 def _run_check(
-    registry: dict,
-    check: CheckSpec,
-    candidate: Candidate,
-    env: dict[str, str],
-    tool_results: dict[ToolKey, ToolOutcome],
-    failed_preparations: dict[str, str],
-    prior: dict[str, CheckResult],
+    context: RunContext, check: CheckSpec, prior: dict[str, CheckResult]
 ) -> CheckResult:
+    candidate, env = context.candidate, context.env
     try:
         cwd = _effective_cwd(candidate, check.cwd)
         names = tuple(_walk(candidate.root, exclude=(".git",)))
@@ -405,14 +395,14 @@ def _run_check(
     _, unavailable = _selection_outcome(check, candidate, names)
     if check.selection == "changed" and unavailable:
         return unavailable
-    if check.group in failed_preparations:
+    if check.group in context.failed_preparations:
         return CheckResult(
             check.id,
             "BLOCKED",
             None,
             0.0,
             "required candidate preparation failed: "
-            + failed_preparations[check.group],
+            + context.failed_preparations[check.group],
             (),
         )
     failed_dependencies = tuple(
@@ -432,11 +422,11 @@ def _run_check(
     if unavailable:
         return unavailable
     tool_key = (check.tool, cwd)
-    if tool_key not in tool_results:
-        tool_results[tool_key] = _preflight_tool(
-            registry["tools"][check.tool], cwd, env
+    if tool_key not in context.tool_results:
+        context.tool_results[tool_key] = _preflight_tool(
+            context.registry["tools"][check.tool], cwd, env
         )
-    outcome = tool_results[tool_key]
+    outcome = context.tool_results[tool_key]
     failure = _preflight_error(outcome)
     if failure:
         process_result = outcome[2] if outcome[2] is not None else outcome[0]
@@ -456,16 +446,15 @@ def _blocked_after_identity(result: CheckResult, diagnostic: str) -> CheckResult
 
 
 def _report(
-    registry: dict,
-    profile: str,
-    group: str | None,
-    candidate: Candidate,
+    context: RunContext,
+    selector: ProfileSelector,
     checks: tuple[CheckSpec, ...],
     results: list[CheckResult],
     start: float,
 ) -> dict:
+    registry, candidate = context.registry, context.candidate
     statuses = {result.status for result in results}
-    pending = applicable_pending(registry, profile, group, checks)
+    pending = applicable_pending(registry, selector.profile, selector.group, checks)
     status = (
         "FAIL"
         if "FAIL" in statuses
@@ -475,9 +464,9 @@ def _report(
     )
     return {
         "schema_version": 1,
-        "profile": profile,
-        "group": group,
-        "partial": group is not None,
+        "profile": selector.profile,
+        "group": selector.group,
+        "partial": selector.group is not None,
         "candidate_digest": _reported_candidate_digest(candidate),
         "source_digest": candidate.source_digest,
         "head_sha": candidate.head_sha,

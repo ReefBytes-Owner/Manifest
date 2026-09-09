@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from .process import ProcessResult
+
 
 @dataclass(frozen=True)
 class CheckSpec:
@@ -67,3 +69,28 @@ class Candidate:
     source_digest: str
     changed_paths: tuple[str, ...]
     preparation_receipt: Path
+
+
+ToolKey = tuple[str, Path]
+ToolOutcome = tuple[ProcessResult, bool, ProcessResult | None]
+
+
+@dataclass(frozen=True)
+class RunContext:
+    """Per-run state that travels together through check execution: the
+    loaded registry, the disposable candidate, its execution environment,
+    the memoized tool preflight cache, and groups whose preparation failed."""
+
+    registry: dict
+    candidate: Candidate
+    env: dict[str, str]
+    tool_results: dict[ToolKey, ToolOutcome]
+    failed_preparations: dict[str, str]
+
+
+@dataclass(frozen=True)
+class ProfileSelector:
+    """The (profile, group) pair a run/report is generated for."""
+
+    profile: str
+    group: str | None

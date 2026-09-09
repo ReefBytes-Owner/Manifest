@@ -7,6 +7,14 @@ process-family supervision, RECORD/tamper detection, or console-provenance
 verification; that hardened supervision layer moves to Phase 4. Pins come
 from reviewed config (pyproject.toml, .pre-commit-config.yaml), never from
 whatever happens to be installed locally.
+
+Trust boundary: the registry's `version_argv` entries are candidate-relative
+and run with the candidate as cwd, so this probe is itself candidate-controlled
+— the same trust class as the check bodies and the workflow file (see the
+threat-model note in `ci_context.py`). A version pin verified here is
+therefore a drift control (catching accidental skew from the reviewed
+config), not a security control: a compromised candidate can supply a probe
+that reports whatever version it likes.
 """
 
 from __future__ import annotations
