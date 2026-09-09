@@ -171,8 +171,7 @@ if [[ "$QUICK" -eq 0 ]]; then
         required_gate 'ShellCheck Manifest scripts' shellcheck \
             shellcheck -S warning "$manifest_scripts_dir"/*.sh
     fi
-    required_path_gate 'empty-array expansion lint' \
-        tests/lint/check_array_expansion.sh
+    required_path_gate 'empty-array expansion lint' tests/lint/check_array_expansion.sh
     required_path_gate 'Bats assertion lint' tests/lint/check_bats_assertions.sh
     required_gate 'Markdown lint' markdownlint-cli2 \
         markdownlint-cli2 AGENTS.md CLAUDE.md README.md docs/*.md

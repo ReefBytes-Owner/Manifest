@@ -92,14 +92,24 @@ def _preflight(root: Path, check_id: str) -> None:
     missing = [str(path.relative_to(root)) for path in required if not path.is_file()]
     if missing:
         raise BlockedError(f"verifier inputs unavailable: {', '.join(missing)}")
+    # generated.capability-inventory and generated.capability-matrix target
+    # verifiers that bootstrap their own `sys.path` (``sys.path.insert(0,
+    # ROOT / "src")``) instead of requiring manifest_agent to be pre-installed
+    # in the running interpreter. The preflight probe must mirror that
+    # bootstrap; otherwise it BLOCKs on environments where manifest_agent
+    # isn't globally installed even though the real verifier would run fine.
     imports = {
         "generated.commands-doc": "import command_catalog",
         "generated.plugin-views": (
             "import yaml, manifest_model_policy, manifest_agent.command_catalog, "
             "manifest_agent.contracts, manifest_agent.plugin_view_renderers"
         ),
-        "generated.capability-inventory": "import manifest_agent.migration",
-        "generated.capability-matrix": "import manifest_agent.contracts",
+        "generated.capability-inventory": (
+            "import sys; sys.path.insert(0, 'src'); import manifest_agent.migration"
+        ),
+        "generated.capability-matrix": (
+            "import sys; sys.path.insert(0, 'src'); import manifest_agent.contracts"
+        ),
     }.get(check_id)
     if imports is None:
         return
