@@ -369,13 +369,13 @@ instead of silently resolving whatever happens to be on `PATH`. Test:
 
 | Check(s) | Old identity | New identity | Store-resolved? |
 |---|---|---|---|
-| `lint.shell.scripts`, `lint.shell.bootstrap`, `hook.shellcheck` | `distribution:shellcheck-py=0.11.0.1;command:shellcheck=0.11.0` | `command:shellcheck=0.11.0` | **Yes — BLOCKED unattested until C7.** Body resolves `store:shellcheck/bin/shellcheck` via `tools/project_checks/toolchain_resolve.py`; the registry-level version probe (drift detection only, not a security control) is unchanged. |
+| `lint.shell.scripts`, `lint.shell.bootstrap`, `hook.shellcheck` | `distribution:shellcheck-py=0.11.0.1;command:shellcheck=0.11.0` | `command:shellcheck=0.11.0` | **Attested for `darwin-arm64` (C7-partial); still BLOCKED unattested for `linux-x64` (CI) until a real C7 download.** Body resolves `store:shellcheck/bin/shellcheck` via `tools/project_checks/toolchain_resolve.py`; the registry-level version probe (drift detection only, not a security control) is unchanged. |
 | `hook.shfmt` | `"ok"` (unpinned placeholder) | `command:shfmt=3.13.1`; body argv is `-d` (check-only), never `-w` | **Yes — BLOCKED unattested until C7.** Body resolves `store:shfmt/bin/shfmt`. |
 | `lint.yaml.config`, `hook.yamllint` | `distribution:pyyaml=6.0.2;distribution:yamllint=1.38.0;command:yamllint=1.38.0` | `distribution:yamllint=1.38.0` | **Yes — BLOCKED unattested until C7 (twice over: `python-env` is also not yet an implemented provision kind).** Body resolves `store:python-env/bin/yamllint`. |
 | `hook.markdownlint-cli2` | already `command:markdownlint-cli2=0.23.0` | unchanged | **Yes — BLOCKED unattested until C7.** Direct-argv check; registry `tool.executable` and `check.argv[0]` are both `store:node-env/bin/markdownlint-cli2` (same generic runner rewrite `test.bats` already used — no wrapper body needed). |
 | `test.bats` | `./node_modules/.bin/bats` | `command:bats=1.11.1`; argv is `store:node-env/bin/bats` | Yes (unchanged from before this chunk). |
 | `test.bundle-partition` | `"ok"` + hardcoded BLOCKED (`npx` control) | `command:bats=1.11.1`; runs `tests/bats/bundle_partition.bats` | **Yes — BLOCKED unattested until C7.** Body resolves `store:node-env/bin/bats`. |
-| `hook.gitleaks` | `command:gitleaks=8.30.0` | `command:gitleaks=8.30.1` | **Yes (C2c) — BLOCKED unattested until C7.** Body resolves `store:gitleaks/bin/gitleaks` via `tools/project_checks/toolchain_resolve.py`; C2b left this on `shutil.which("gitleaks")` (out of that chunk's explicit scope, created by C6b afterwards), which C2c's audit caught and closed. |
+| `hook.gitleaks` | `command:gitleaks=8.30.0` | `command:gitleaks=8.30.1` | **Attested for `darwin-arm64` (C7-partial); still BLOCKED unattested for `linux-x64` (CI) until a real C7 download.** Body resolves `store:gitleaks/bin/gitleaks` via `tools/project_checks/toolchain_resolve.py`; C2b left this on `shutil.which("gitleaks")` (out of that chunk's explicit scope, created by C6b afterwards), which C2c's audit caught and closed. |
 | `dependency.lock.config`, `dependency.lock.delegate`, `dependency.lock.root`, `package.coordinator`, `package.config` | `command:uv=0.12.6` | unchanged | **Yes — BLOCKED unattested until C7.** Body resolves `store:uv/bin/uv` via `packages.py::_uv`. |
 | `dependency.lock.node`, `package.node-runtime` | `"ok"` | unchanged | **Yes — BLOCKED unavailable until C7 (twice over: the `binary`-kind provisioner records only `bin/node`, not `bin/npm`, so `npm` needs a provisioner extension too).** Body resolves `store:node/bin/node` / `store:node/bin/npm` via `dependency_checks.py`. |
 | `hook.ruff`, `hook.ruff-format` | `distribution:ruff=0.15.20` | unchanged | **Yes (C2c) — BLOCKED unattested until C7 (twice over: `python-env` is also not yet an implemented provision kind).** Direct-argv checks; `tool.executable`/`check.argv[0]` are `store:python-env/bin/ruff`. |
@@ -399,6 +399,26 @@ for the provisioner-kind gaps above) until C7 fills in real hashes and
 implements the `python-env`/`node-env` kinds — that is the intended, honest
 result: a receipt that used to say PASS about an unverified tool now says
 BLOCKED about the same tool, truthfully.
+
+**C7-partial (offline-reachable slice): `gitleaks` and `shellcheck` are now
+attested for `darwin-arm64` only.** A locally installed `gitleaks 8.30.1`
+(`/opt/homebrew/bin/gitleaks`) and `shellcheck 0.11.0`
+(`/opt/homebrew/bin/shellcheck`) were verified to exactly match their
+reviewed lock pins, hashed, recorded as the `darwin-arm64` `sha256`/
+`exe_sha256` pair in `config/toolchain.lock.json`, and adopted into a store
+via `manifest provision --import gitleaks=<path> --platform darwin-arm64`
+(same for `shellcheck`) — the reviewed-pin route from
+`docs/superpowers/specs/2026-09-08-...` "phase-3-5-decisions.md" 3a, not a
+pin change. **`linux-x64` (the CI platform) is untouched and stays fully
+unattested** — every `linux-x64` entry, for every tool including these two,
+is still `sha256: null` / `exe_sha256: null`, so CI continues to BLOCK on
+`hook.gitleaks`/`hook.shellcheck` (and everything downstream of them) until a
+real network-enabled `manifest provision --from-lock` run on Linux (C7,
+full). Nothing else in the lock changed: `node`, `bats`, `shfmt`,
+`markdownlint-cli2`, `uv`, `python-env`, `node-env` remain unattested on
+every platform — the local host's `node`/`bats` versions do not match their
+reviewed pins (24.15.0 vs 24.9.0; 1.13.0 vs 1.11.1), and pinning to whatever
+happens to be installed is exactly what 3b forbids.
 
 **C2c's registry guard (non-reopenable).**
 `tests/python/manifest_agent/test_toolchain_registry_guards.py` now asserts

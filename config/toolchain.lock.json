@@ -13,8 +13,8 @@
         },
         "darwin-arm64": {
           "url": "https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_darwin_arm64.tar.gz",
-          "sha256": null,
-          "exe_sha256": null,
+          "sha256": "f414bc2fb952be6c9072b75cb411e3368614ef4b16d48dbd9ad238034afd2302",
+          "exe_sha256": "f414bc2fb952be6c9072b75cb411e3368614ef4b16d48dbd9ad238034afd2302",
           "path_in_archive": "gitleaks"
         }
       }
@@ -49,8 +49,8 @@
         },
         "darwin-arm64": {
           "url": "https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.darwin.aarch64.tar.xz",
-          "sha256": null,
-          "exe_sha256": null,
+          "sha256": "29dca91c54b8bb41ad841bff1c941a9d5dec714242c3ab69ca05594bd69a9020",
+          "exe_sha256": "29dca91c54b8bb41ad841bff1c941a9d5dec714242c3ab69ca05594bd69a9020",
           "path_in_archive": "shellcheck-v0.11.0/shellcheck"
         }
       }
