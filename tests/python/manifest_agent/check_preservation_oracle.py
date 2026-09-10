@@ -308,6 +308,13 @@ def workflow_entries():
 _EQUIVALENCE_ENTRY_SHAPE = {
     "hook_id": "",
     "wrapper_rev": "",
+    # The wrapper repo's `.pre-commit-hooks.yaml` blob SHA at `wrapper_rev`
+    # (3b item 1: "the wrapper repo's .pre-commit-hooks.yaml entry at that
+    # rev (blob SHA recorded) invokes the engine with argv identical to the
+    # registry argv"). Empty string means unconfirmed -- reading it needs a
+    # network fetch of the wrapper repo, which is C7's job, not this
+    # offline chunk's.
+    "wrapper_hooks_yaml_blob_sha": "",
     "engine": "",
     "engine_version": "",
     "wrapper_entry_argv": [""],

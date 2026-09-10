@@ -8511,6 +8511,7 @@
     {
       "hook_id": "hook.shellcheck",
       "wrapper_rev": "https://github.com/shellcheck-py/shellcheck-py@v0.11.0.1",
+      "wrapper_hooks_yaml_blob_sha": "",
       "engine": "shellcheck",
       "engine_version": "0.11.0",
       "wrapper_entry_argv": [
@@ -8523,6 +8524,7 @@
     {
       "hook_id": "hook.shfmt",
       "wrapper_rev": "https://github.com/scop/pre-commit-shfmt@v3.13.1-1",
+      "wrapper_hooks_yaml_blob_sha": "",
       "engine": "shfmt",
       "engine_version": "3.13.1",
       "wrapper_entry_argv": [
@@ -8541,17 +8543,19 @@
     {
       "hook_id": "hook.yamllint",
       "wrapper_rev": "https://github.com/adrienverge/yamllint@v1.38.0",
+      "wrapper_hooks_yaml_blob_sha": "",
       "engine": "yamllint",
       "engine_version": "1.38.0",
       "wrapper_entry_argv": [
         "yamllint"
       ],
-      "evidence": "yamllint is a pure-Python distribution; the pre-commit hook's entry IS the same `yamllint` console script the registry now resolves via store:python-env/bin/yamllint (config/toolchain.lock.json python-env console_scripts). There is exactly one code path, so the prior distribution:pyyaml + distribution:yamllint + command:yamllint triple identity collapsed to the single distribution:yamllint=1.38.0 pin (lint.yaml.config's PyYAML dependency is unrelated: structure.py's _yamllint_project never imports PyYAML directly, it only invokes the yamllint CLI). Confirmed locally: `yamllint --version` reports 1.38.0, matching the pin exactly.",
+      "evidence": "yamllint is a pure-Python distribution; the pre-commit hook's entry IS the same `yamllint` console script the registry probes for identity. There is exactly one code path, so the prior distribution:pyyaml + distribution:yamllint + command:yamllint triple identity collapsed to the single distribution:yamllint=1.38.0 pin (lint.yaml.config's PyYAML dependency is unrelated: structure.py's _yamllint_project never imports PyYAML directly, it only invokes the yamllint CLI). Confirmed locally: `yamllint --version` reports 1.38.0, matching the pin exactly. CORRECTION (C2 review): the engine is still resolved via `shutil.which(\"yamllint\")` against the ambient PATH inside tools/project_checks/hook_lint.py, NOT through the hash-verified toolchain store -- the tool.executable field is \"python3\" (hook_lint.py is a wrapper script), not store:python-env/bin/yamllint. A PATH binary that reports the right version string still passes preflight today. Routing this through the store is deferred to a later chunk (see 'Toolchain store coverage' in docs/SHARED_CHECKS.md).",
       "fixture_corpus": "tests/fixtures/equivalence/yamllint/"
     },
     {
       "hook_id": "hook.markdownlint-cli2",
       "wrapper_rev": "https://github.com/DavidAnson/markdownlint-cli2@v0.23.0",
+      "wrapper_hooks_yaml_blob_sha": "",
       "engine": "markdownlint-cli2",
       "engine_version": "0.23.0",
       "wrapper_entry_argv": [
@@ -8566,18 +8570,20 @@
     {
       "hook_id": "test.bats",
       "wrapper_rev": "npx bats (unpinned, auto-installs bats-core on first use)",
+      "wrapper_hooks_yaml_blob_sha": "",
       "engine": "bats",
       "engine_version": "1.11.1",
       "wrapper_entry_argv": [
         "npx",
         "bats"
       ],
-      "evidence": "The npm/npx bats launcher this entry replaces (`./node_modules/.bin/bats` or a bare `npx bats` auto-install) runs the identical upstream bats-core distribution with no argv transformation; there is no separate wrapper engine. The registry now resolves bats via store:node-env/bin/bats (config/toolchain.lock.json node-env console_scripts) for both test.bats and test.bundle-partition, removing the npx auto-install network step the parent spec requires eliminated. Confirmed locally with bats 1.13.0 (the ambient host version, not yet the provisioned 1.11.1 pin) that the pass/fail semantics the fixture corpus exercises are launcher-independent. Hashing the actual provisioned 1.11.1 binary is pending Phase 3 (C7).",
+      "evidence": "The npm/npx bats launcher this entry replaces (`./node_modules/.bin/bats` or a bare `npx bats` auto-install) runs the identical upstream bats-core distribution with no argv transformation; there is no separate wrapper engine. The registry now resolves bats via store:node-env/bin/bats (config/toolchain.lock.json node-env console_scripts) for test.bats specifically, removing the npx auto-install network step the parent spec requires eliminated. CORRECTION (C2 review): test.bundle-partition does NOT share this store resolution -- its tool.executable is \"python3\" and its body (structure.py::_bundle_partition) still resolves bats via `shutil.which(\"bats\")` against the ambient PATH, unchanged from before this chunk except for gaining a real check body (it was previously a hardcoded BLOCKED stub). Confirmed locally with bats 1.13.0 (the ambient host version, not yet the provisioned 1.11.1 pin) that the pass/fail semantics the fixture corpus exercises are launcher-independent. Hashing the actual provisioned 1.11.1 binary, and routing test.bundle-partition through the store, are both pending Phase 3 (C7).",
       "fixture_corpus": "tests/fixtures/equivalence/bats/"
     },
     {
       "hook_id": "hook.gitleaks",
       "wrapper_rev": "https://github.com/gitleaks/gitleaks@v8.30.1",
+      "wrapper_hooks_yaml_blob_sha": "",
       "engine": "gitleaks",
       "engine_version": "8.30.1",
       "wrapper_entry_argv": [
@@ -8594,6 +8600,7 @@
     {
       "hook_id": "lint.shell.scripts",
       "wrapper_rev": "https://github.com/shellcheck-py/shellcheck-py@v0.11.0.1",
+      "wrapper_hooks_yaml_blob_sha": "",
       "engine": "shellcheck",
       "engine_version": "0.11.0",
       "wrapper_entry_argv": [
@@ -8606,6 +8613,7 @@
     {
       "hook_id": "lint.shell.bootstrap",
       "wrapper_rev": "https://github.com/shellcheck-py/shellcheck-py@v0.11.0.1",
+      "wrapper_hooks_yaml_blob_sha": "",
       "engine": "shellcheck",
       "engine_version": "0.11.0",
       "wrapper_entry_argv": [
@@ -8614,6 +8622,18 @@
       ],
       "evidence": "the `bootstrap.sh`/`bootstrap/lib/*.sh` shellcheck sweep probes the same shellcheck 0.11.0 engine identity as hook.shellcheck (see that entry for the full equivalence rationale); this check invokes shellcheck directly on its own project-selected file set rather than on pre-commit's changed-file selection, but the engine identity and version pin are identical.",
       "fixture_corpus": "tests/fixtures/equivalence/shellcheck/"
+    },
+    {
+      "hook_id": "lint.yaml.config",
+      "wrapper_rev": "https://github.com/adrienverge/yamllint@v1.38.0",
+      "wrapper_hooks_yaml_blob_sha": "",
+      "engine": "yamllint",
+      "engine_version": "1.38.0",
+      "wrapper_entry_argv": [
+        "yamllint"
+      ],
+      "evidence": "The project-wide `configs/claude/config/*.yml` yamllint sweep (structure.py::_yamllint_project) probes the same yamllint 1.38.0 engine identity as hook.yamllint (see that entry for the full shellcheck-vs-wrapper rationale, shared by yamllint); this check invokes yamllint directly on its own project-selected file set rather than on pre-commit's changed-file selection, but the engine identity and version pin are identical. Like hook.yamllint, the engine is resolved via `shutil.which(\"yamllint\")` against the ambient PATH (structure.py's tool.executable is \"python3\", a wrapper script), not the hash-verified toolchain store.",
+      "fixture_corpus": "tests/fixtures/equivalence/yamllint/"
     }
   ]
 }

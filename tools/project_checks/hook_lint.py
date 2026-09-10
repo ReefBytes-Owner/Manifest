@@ -20,7 +20,6 @@ its own module because `hooks.py` is already at the 500-line ceiling.
 from __future__ import annotations
 
 import argparse
-import os
 import re
 import shutil
 import subprocess
@@ -49,6 +48,40 @@ _TYPE_FILTERS = {
     "hook.yamllint": (re.compile(r"\.ya?ml$"), "yamllint", ()),
 }
 CHECK_IDS = tuple(_TYPE_FILTERS)
+# Extension-only misses two real shapes: shell scripts without a .sh/.bash
+# suffix (e.g. *.sh.tmpl -- still a #!/bin/bash script pre-commit's real
+# shellcheck-py hook would lint) and yamllint's own no-extension config
+# filenames. Checked only after the extension pattern misses, and only for
+# real, non-symlink files (shebang reads touch the file; basenames do not).
+_SHEBANG_SHELLS = frozenset({"bash", "sh", "dash", "ksh", "zsh", "ash"})
+_YAML_BASENAMES = frozenset({".yamllint", ".yamllintrc"})
+
+
+def _shebang_interpreter(path: Path) -> str:
+    try:
+        with path.open("rb") as stream:
+            first_line = stream.readline(256).decode("utf-8", errors="ignore")
+    except OSError:
+        return ""
+    if not first_line.startswith("#!"):
+        return ""
+    words = first_line[2:].strip().split()
+    if not words:
+        return ""
+    interpreter = Path(words[0]).name
+    if interpreter != "env":
+        return interpreter
+    rest = words[1:]
+    if rest[:1] == ["-S"]:
+        rest = rest[1:]
+    return Path(rest[0]).name if rest else ""
+
+
+def _matches_shape_fallback(check_id: str, path: Path, normalized: str) -> bool:
+    """Called only when the extension pattern already missed."""
+    if check_id == "hook.shellcheck":
+        return _shebang_interpreter(path) in _SHEBANG_SHELLS
+    return Path(normalized).name in _YAML_BASENAMES
 
 
 class BlockedError(RuntimeError):
@@ -65,49 +98,39 @@ def _context(arguments: argparse.Namespace) -> Path:
     return root
 
 
-def _git_paths(root: Path) -> list[str]:
-    try:
-        result = subprocess.run(
-            (
-                "git",
-                "-c",
-                "core.hooksPath=/dev/null",
-                "-C",
-                str(root),
-                "ls-files",
-                "--cached",
-                "--others",
-                "--exclude-standard",
-                "-z",
-            ),
-            check=False,
-            capture_output=True,
-            timeout=120,
-        )
-    except (OSError, subprocess.TimeoutExpired) as error:
-        raise BlockedError(f"candidate path inventory unavailable: {error}") from error
-    if result.returncode:
-        raise BlockedError("candidate path inventory unavailable")
-    return [os.fsdecode(item) for item in result.stdout.split(b"\0") if item]
-
-
 def _select(
     root: Path, check_id: str, arguments: list[str]
 ) -> tuple[list[Path], list[str]]:
+    """Select this check's real, on-shape inputs from an explicit path list.
+
+    Both registered checks are "changed" selection: the runner always
+    forwards an explicit, already-changed-file-filtered path list (never an
+    empty one -- zero changed inputs is NOT_APPLICABLE upstream, before this
+    body ever runs). No `_git_paths(root)` repo-sweep fallback: an empty
+    `arguments` here means zero inputs, not "list the whole repository".
+    """
     shape, _, _ = _TYPE_FILTERS[check_id]
-    names = arguments or _git_paths(root)
     selected: list[Path] = []
     blocked: list[str] = []
-    for name in names:
+    for name in arguments:
         relative = Path(name)
         if relative.is_absolute() or ".." in relative.parts or ".git" in relative.parts:
             blocked.append(f"unsafe input path: {name!r}")
             continue
         normalized = relative.as_posix()
-        if _GLOBAL_EXCLUDE.search(normalized) or not shape.search(normalized):
+        if _GLOBAL_EXCLUDE.search(normalized):
             continue
         path = root / relative
-        if not path.is_file() or path.is_symlink():
+        is_real = path.is_file() and not path.is_symlink()
+        if shape.search(normalized):
+            matched = True
+        elif is_real:
+            matched = _matches_shape_fallback(check_id, path, normalized)
+        else:
+            matched = False
+        if not matched:
+            continue
+        if not is_real:
             blocked.append(f"input unavailable or unsafe: {name!r}")
             continue
         selected.append(path)

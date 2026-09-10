@@ -286,24 +286,51 @@ instead of silently resolving whatever happens to be on `PATH`. Test:
 
 **Engine pins landed this chunk:**
 
-| Check(s) | Old identity | New identity | Store-migrated? |
+| Check(s) | Old identity | New identity | Store-resolved? |
 |---|---|---|---|
-| `lint.shell.scripts`, `lint.shell.bootstrap`, `hook.shellcheck` | `distribution:shellcheck-py=0.11.0.1;command:shellcheck=0.11.0` | `command:shellcheck=0.11.0` | No — argv[0] is the wrapper script (`structure.py`) or must match the frozen pre-commit hook oracle exactly; `store:` wiring stays a later chunk. |
-| `hook.shfmt` | `"ok"` (unpinned placeholder) | `command:shfmt=3.13.1`; body argv is `-d` (check-only), never `-w` | No (wrapped via `hooks.py`) |
-| `lint.yaml.config`, `hook.yamllint` | `distribution:pyyaml=6.0.2;distribution:yamllint=1.38.0;command:yamllint=1.38.0` | `distribution:yamllint=1.38.0` | No |
-| `hook.markdownlint-cli2` | already `command:markdownlint-cli2=0.23.0` | unchanged (already engine-only) | No |
-| `test.bats`, `test.bundle-partition` | `./node_modules/.bin/bats` / `"ok"` + hardcoded BLOCKED (`npx` control) | `command:bats=1.11.1`; `test.bats` argv is `store:node-env/bin/bats`; `test.bundle-partition` runs `tests/bats/bundle_partition.bats` via `shutil.which("bats")`, no more `npx` | `test.bats` yes (direct argv); `test.bundle-partition` no (wrapped via `structure.py`) |
-| `hook.gitleaks` | `command:gitleaks=8.30.0` | `command:gitleaks=8.30.1` (unified with CI's checksum-verified install and the lock's `binary` entry) | No |
+| `lint.shell.scripts`, `lint.shell.bootstrap`, `hook.shellcheck` | `distribution:shellcheck-py=0.11.0.1;command:shellcheck=0.11.0` | `command:shellcheck=0.11.0` | No — `shutil.which("shellcheck")` against ambient `PATH`. |
+| `hook.shfmt` | `"ok"` (unpinned placeholder) | `command:shfmt=3.13.1`; body argv is `-d` (check-only), never `-w` | No — `shutil.which("shfmt")` against ambient `PATH`. |
+| `lint.yaml.config`, `hook.yamllint` | `distribution:pyyaml=6.0.2;distribution:yamllint=1.38.0;command:yamllint=1.38.0` | `distribution:yamllint=1.38.0` | No — `shutil.which("yamllint")` against ambient `PATH`. |
+| `hook.markdownlint-cli2` | already `command:markdownlint-cli2=0.23.0` | unchanged (already engine-only, not touched this chunk) | No — `shutil.which("markdownlint-cli2")` against ambient `PATH`. |
+| `test.bats` | `./node_modules/.bin/bats` | `command:bats=1.11.1`; argv is `store:node-env/bin/bats` | **Yes** — the only one of these checks whose executable is a `store:` reference. |
+| `test.bundle-partition` | `"ok"` + hardcoded BLOCKED (`npx` control) | `command:bats=1.11.1`; runs `tests/bats/bundle_partition.bats` via `shutil.which("bats")`, no more `npx` | No — `shutil.which("bats")` against ambient `PATH`, unchanged trust class from before this chunk (it gained a real body, not store resolution). |
+| `hook.gitleaks` | `command:gitleaks=8.30.0` | `command:gitleaks=8.30.1` (unified with CI's checksum-verified install and the lock's `binary` entry) | No — `shutil.which("gitleaks")` against ambient `PATH`. |
 
-`store:` migration only applies where a check's own `argv[0]` **is** the
-literal engine name (no `python3 tools/project_checks/*.py` wrapper in
-between) — `lint.shell.scripts`/`lint.shell.bootstrap`/`lint.yaml.config`/
-`hook.shfmt`/`test.bundle-partition` invoke a wrapper script whose own
-`argv[0]` is `python3`, and `registry.py`'s `_validate_tool_reference`
-requires `check["argv"][0] == tool["executable"]` exactly — so these stay
-plain names for now (PATH-resolved by the wrapper script's own `shutil.which`)
-and migrate to `store:` together with `hooks.py`/`structure.py` gaining a
-resolved-executable argument, a later chunk.
+**Honesty caveat**: of the 9 engine-bearing checks this chunk's engine-pin
+table touches, only **`test.bats`** actually resolves its engine through the
+hash-verified toolchain store (3a). The other 8 still trust whatever
+`shutil.which(...)` finds on `PATH`, gated only by the version-string probe
+(exactly the pre-3a trust model — a launcher swapped for one that reports the
+same version string still passes). This is not new, more `PATH` reliance:
+these checks trusted `PATH` before this chunk too. It is disclosed here
+because the engine-pin table above could otherwise read as "these checks are
+now store-verified," which is true for exactly one of them.
+
+**Why the other 8 are not `store:`-wired yet — the real blockers, not an
+architecture limit.** Two things, both fixable, neither insurmountable:
+
+1. `registry.py`'s `_validate_tool_reference` requires
+   `check["argv"][0] == tool["executable"]` exactly. Checks wrapped through
+   `python3 tools/project_checks/{structure,hooks}.py <id> --root .` have
+   `argv[0] == "python3"`; migrating only `tool.executable` to `store:...`
+   breaks that invariant (caught immediately by `test_check_registry.py`).
+   For the direct-argv checks (`hook.shellcheck`, `hook.yamllint`,
+   `hook.markdownlint-cli2`, `hook.gitleaks`) this is not a hard blocker —
+   their argv is compared against `hooks.py`'s own `TASK7_DISPOSITIONS`
+   table (a live Python dict this codebase owns and edits every chunk, most
+   recently by this one for `hook.shellcheck`/`hook.yamllint` — see below),
+   not against `config/check-preservation.json`'s frozen oracle. Rewiring
+   them to `store:` form was mechanically possible within this chunk; it was
+   deferred, not architecturally prevented.
+2. **The deferral is deliberate, not an oversight**: every entry in
+   `config/toolchain.lock.json` currently has `exe_sha256: null`
+   (unattested — real hashes are C7, needs network). Routing a check through
+   `toolchain.resolve()` against an unattested lock entry makes it
+   `BLOCKED: toolchain: <tool> unattested for <platform>` unconditionally —
+   converting a check that works today (PATH + version string) into one that
+   can never pass until C7 lands. Store-wiring these 8 checks now would
+   verify nothing while breaking them; it becomes meaningful the moment C7
+   fills in real hashes. Tracked for that chunk, not this one.
 
 **`.gitleaks.toml` default-ruleset defect**: before this chunk, supplying
 `[[rules]]` without `[extend] useDefault = true` **replaced** gitleaks' ~150

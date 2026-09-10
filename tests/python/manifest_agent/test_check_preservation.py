@@ -16,10 +16,12 @@ import json
 
 import pytest
 
+from manifest_agent.checks.registry import load_registry
 from tests.python.manifest_agent.check_preservation_oracle import (
     CI,
     HOOK_FIELDS,
     HOOKS,
+    ROOT,
     Preservation,
     assert_shape,
     expected_inventory,
@@ -30,6 +32,7 @@ from tests.python.manifest_agent.check_preservation_oracle import (
 )
 
 preservation = preservation_fixture
+REGISTRY_PATH = ROOT / "config/project-checks.json"
 
 
 def test_inventory_matches_immutable_observed_sources(preservation):
@@ -203,3 +206,29 @@ def test_duplicate_json_fields_are_rejected():
             '{"schema_version": 1, "schema_version": 2}',
             object_pairs_hook=reject_duplicate_keys,
         )
+
+
+def test_equivalence_entries_reference_real_checks_with_matching_version_and_fixtures(
+    preservation,
+):
+    """Beyond the closed field-shape assert_shape() enforces, each recorded
+    equivalence must be real: hook_id names an actual registered check,
+    engine_version is the same version the registry pins for it, and
+    fixture_corpus exists with both a passing and a failing input."""
+    registry = load_registry(REGISTRY_PATH)
+    checks_by_id = {check.id: check for check in registry["checks"]}
+    entries = preservation.data["equivalence"]
+    assert entries, "no equivalence entries recorded"
+    for entry in entries:
+        check = checks_by_id.get(entry["hook_id"])
+        assert check is not None, f"{entry['hook_id']} is not a registered check"
+        assert entry["engine_version"] in check.version, (
+            entry["hook_id"],
+            entry["engine_version"],
+            check.version,
+        )
+        corpus = ROOT / entry["fixture_corpus"]
+        assert corpus.is_dir(), corpus
+        names = {path.stem for path in corpus.iterdir()}
+        assert "valid" in names, f"{corpus} has no valid.* fixture"
+        assert "invalid" in names, f"{corpus} has no invalid.* fixture"

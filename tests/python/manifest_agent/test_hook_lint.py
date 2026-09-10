@@ -90,6 +90,54 @@ def test_select_drops_deliberately_invalid_equivalence_fixtures(repo):
     assert blocked == []
 
 
+def test_select_matches_shell_script_by_shebang_without_sh_extension(repo):
+    # *.sh.tmpl (real files in this repo under .apm/skills/ai-hooks-integration
+    # and plugins/manifest-workspace/skills/ai-hooks-integration) are
+    # #!/bin/bash scripts the extension pattern alone would miss.
+    (repo / "wrapper.sh.tmpl").write_text("#!/bin/bash\necho hi\n")
+    (repo / "notes.toml").write_text("[extend]\nuseDefault = true\n")
+    selected, blocked = hook_lint._select(
+        repo, "hook.shellcheck", ["wrapper.sh.tmpl", "notes.toml"]
+    )
+    assert [path.name for path in selected] == ["wrapper.sh.tmpl"]
+    assert blocked == []
+
+
+def test_select_matches_yamllint_config_by_basename_without_yaml_extension(repo):
+    # .yamllint (this repo's own root config) is real YAML with no
+    # .yaml/.yml suffix.
+    (repo / ".yamllint").write_text("extends: default\n")
+    (repo / "notes.toml").write_text("[extend]\nuseDefault = true\n")
+    selected, blocked = hook_lint._select(
+        repo, "hook.yamllint", [".yamllint", "notes.toml"]
+    )
+    assert [path.name for path in selected] == [".yamllint"]
+    assert blocked == []
+
+
+def test_select_ignores_a_non_shell_file_even_with_executable_bit(repo):
+    # A file with no shebang and the wrong extension must still be dropped,
+    # not swept in just because the fallback path reads it.
+    target = repo / "data.bin"
+    target.write_bytes(b"\x00\x01binary")
+    target.chmod(0o755)
+    selected, blocked = hook_lint._select(repo, "hook.shellcheck", ["data.bin"])
+    assert selected == []
+    assert blocked == []
+
+
+def test_select_on_empty_arguments_never_sweeps_the_repository(repo):
+    # Regression: `arguments or _git_paths(root)` used to fall back to
+    # listing every tracked file when the "changed" set was empty. Both
+    # registered checks are "changed" selection -- the runner never actually
+    # calls this with an empty list (zero changed inputs is NOT_APPLICABLE
+    # upstream), but the body itself must not repo-sweep if it ever is.
+    (repo / "build.sh").write_text("#!/usr/bin/env bash\necho hi\n")
+    selected, blocked = hook_lint._select(repo, "hook.shellcheck", [])
+    assert selected == []
+    assert blocked == []
+
+
 def test_run_returns_pass_when_selection_is_empty_never_invokes_engine(repo):
     # A "changed" set that is entirely non-shell (e.g. this repo's own
     # .gitleaks.toml edit) must PASS -- there is nothing for shellcheck to

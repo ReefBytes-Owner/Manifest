@@ -328,7 +328,10 @@ def _yamllint_project(root: Path) -> int:
 def _bundle_partition(root: Path) -> int:
     executable = shutil.which("bats")
     if executable is None:
-        raise BlockedError("pinned bats 1.11.1 is unavailable")
+        # Version pin (1.11.1) is verified separately by the registry's own
+        # preflight (test.bundle-partition's tool version_argv); this is only
+        # "no bats binary resolved on PATH at all".
+        raise BlockedError("bats is unavailable on PATH")
     target = root / "tests/bats/bundle_partition.bats"
     if target.is_symlink() or not target.is_file():
         raise BlockedError(
