@@ -297,3 +297,27 @@ cli.add_command(
         help="Populate the content-addressed toolchain store from a reviewed lock.",
     )
 )
+
+
+class _LazyHookCommand(click.Command):
+    """`hooks.cli.hook`, imported only once selected (same reasoning as
+    `_LazyChecksCommand`: keep lifecycle commands free of the check
+    subsystem the hook adapters call into)."""
+
+    def make_context(
+        self,
+        info_name: str | None,
+        args: list[str],
+        parent: click.Context | None = None,
+        **extra: Any,
+    ) -> click.Context:
+        import manifest_agent.hooks.cli as hooks_cli
+
+        return hooks_cli.hook.make_context(info_name, args, parent=parent, **extra)
+
+
+cli.add_command(
+    _LazyHookCommand(
+        "hook", help="Run a thin native hook adapter: manifest hook <client> <event>."
+    )
+)

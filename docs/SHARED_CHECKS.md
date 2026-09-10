@@ -571,6 +571,7 @@ promotion has happened.
 
 ## Related Documents
 
+- [SHARED_CHECKS_HOOKS.md](SHARED_CHECKS_HOOKS.md) — native hook adapters (`manifest hook <client> <event>`), split out here since this file is already over its line cap
 - [config/project-checks.json](../config/project-checks.json) — the check registry
 - [config/check-preservation.json](../config/check-preservation.json) — the immutable Task 1 oracle
 - [.github/workflows/ci.yml](../.github/workflows/ci.yml) — legacy jobs + shadow path

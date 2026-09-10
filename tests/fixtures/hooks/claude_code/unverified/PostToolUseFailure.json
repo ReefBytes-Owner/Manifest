@@ -1,0 +1,11 @@
+{
+  "session_id": "fixture-session",
+  "transcript_path": "/tmp/fixture-transcript.jsonl",
+  "cwd": "__REPO_ROOT__",
+  "permission_mode": "default",
+  "hook_event_name": "PostToolUseFailure",
+  "tool_name": "Write",
+  "tool_input": {"file_path": "a.txt", "content": "hi"},
+  "tool_response": {"error": "fixture failure"},
+  "tool_use_id": "toolu_fixture"
+}

@@ -1,0 +1,4 @@
+{
+  "command": "echo hi",
+  "cwd": "__REPO_ROOT__"
+}
