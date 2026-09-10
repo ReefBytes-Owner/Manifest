@@ -25,7 +25,7 @@ import sys
 from collections.abc import Mapping
 from pathlib import Path
 
-from . import toolchain_env
+from . import toolchain_cache, toolchain_env
 
 STORE_ENV_VAR = "MANIFEST_TOOLCHAIN_STORE"
 XDG_CACHE_ENV_VAR = "XDG_CACHE_HOME"
@@ -320,6 +320,12 @@ def resolved_env(env: Mapping[str, str], resolved: ResolvedTool) -> dict[str, st
     result = dict(env)
     result["PATH"] = os.pathsep.join(str(entry) for entry in resolved.path_entries)
     return result
+
+
+# Re-exported from toolchain_cache (moved there to keep this file under the
+# Code Constitution's 500-line ceiling -- see that module's docstring).
+run_cache_directory = toolchain_cache.run_cache_directory
+cache_environment = toolchain_cache.cache_environment
 
 
 def fingerprint(store: Path, resolved: Mapping[str, ResolvedTool]) -> dict[str, str]:

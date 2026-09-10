@@ -539,6 +539,57 @@ always runs inside whatever PATH the caller already restricted). A check
 body added later that imports `shutil` and calls `.which("some-new-engine")`
 fails test (2) immediately, by name, without needing any registry knowledge.
 
+**C7d (`python3` means the runner's interpreter; caches redirected outside
+the candidate).** C7c's honest child PATH (store bin dirs + `os.defpath`)
+exposed two latent defects once a real store let bodies actually run: (1) a
+bare `python3` token resolved to whatever interpreter `os.defpath` found
+first (macOS system Python 3.9), not the interpreter running `manifest
+check` itself (the project's 3.11+ venv) — bodies importing `manifest_agent`
+died on a missing stdlib symbol (`datetime.UTC`); (2) CPython wrote
+`__pycache__` into the candidate for every body that imported a module from
+it, and the runner's strict identity check correctly reported "candidate
+identity changed" for the resulting mutation. Fix, in `toolchain.py` /
+`toolchain_cache.py`: `resolve_interpreter_argv` rewrites every literal
+`python3` token (in a tool's `executable`, a check's `argv[0]`, or any
+`version_argv` token) to `sys.executable` — never a `PATH` search; `bash`
+is unaffected. `run_profile` wraps every run in `run_cache_directory()`, one
+`tempfile.mkdtemp()`-created directory outside the candidate and the
+repository checkout, removed unconditionally (`try`/`finally`) even if a
+check raises; `cache_environment` overrides (never merely forwards)
+`PYTHONDONTWRITEBYTECODE`, `PYTHONPYCACHEPREFIX`, `XDG_CACHE_HOME`,
+`RUFF_CACHE_DIR`, `UV_CACHE_DIR`, `npm_config_cache`, and appends
+`-p no:cacheprovider` to `PYTEST_ADDOPTS` — the caller's own values for these
+keys are never honored, because the identity check must not depend on
+whatever the caller's ambient environment happened to forward. The identity
+check itself is untouched and stays strict: a body that writes a real file
+into the candidate still BLOCKs "candidate identity changed"
+(`tests/python/manifest_agent/test_toolchain_c7d_interpreter_and_cache.py`).
+
+Measured (`manifest check full --base HEAD~1`): without a store,
+`Counter({'BLOCKED': 41, 'PASS': 22, 'NOT_APPLICABLE': 12})`, zero FAIL,
+zero identity-changed (previously 5–9 on this same tree). With a freshly
+provisioned `darwin-arm64` store, `lint.shell.*` and the other C7c-fixed
+checks PASS cleanly and identity-changed is 0 across every group *except*
+`test.bats`: that check's own body runs `git status`/`git diff` inside the
+candidate as part of the bats suite, which causes git to rewrite
+`.git/index`'s stat-cache bytes (same length, different content) with no
+logical change — a pre-existing flake (documented in the C7d ledger entry as
+the same mechanism as an earlier 5–9-count flake) that predates this chunk
+and was simply never reachable before, because `test.bats` was BLOCKED
+"unattested" until C7 provisioned a store. It is out of C7d's scope
+(interpreter + cache redirection only) and is reported here rather than
+silently fixed. Excluding `test.bats`, a full store-backed run reports
+`Counter({'PASS': 45, 'NOT_APPLICABLE': 12, 'FAIL': 9, 'BLOCKED': 8})`: the
+FAILs are real tool findings now reachable for the first time
+(`types.python`, `security.semgrep`, `hook.shfmt`/`hook.check-yaml`/
+`hook.check-json`/`hook.check-executables-have-shebangs`/
+`hook.markdownlint-cli2` all flagging real issues in `docs/SHARED_CHECKS.md`
+and elsewhere), and the BLOCKEDs are separately-scoped provisioning gaps
+(`package.node-runtime`/`dependency.lock.node` need a `bin/npm` store entry
+noted under C7b; `lint.markdown.keydocs` needs the action-pin confirmation;
+`test.smoke.lite`/`generated.cursor`/`hook.check-cursor-rules-drift` are
+unrelated pre-existing gaps).
+
 **Why the other 8 were not `store:`-wired at first — the original C2
 deferral, now reversed.** `phase-3-5-decisions.md` "Corrections 2026-09-10" >
 "Correction 2" overturns this section's original reasoning. It is kept

@@ -1,0 +1,73 @@
+"""Per-run cache-directory lifecycle for check/probe child environments.
+
+Split out of `toolchain.py` to keep it under the Code Constitution's 500-line
+ceiling (Correction 4 / C7d). A check body that imports the candidate's own
+`src/` writes CPython's `__pycache__` into the candidate by default; the
+runner's strict identity check then (correctly) reports "candidate identity
+changed" for a body that did nothing wrong except run under an interpreter
+that caches bytecode where it happens to find the importing module. The fix
+is not to weaken the identity check -- it is to make sure every cache a body
+or probe might write lands outside the candidate, in one per-run temp
+directory the runner owns, before the check ever runs.
+"""
+
+from __future__ import annotations
+
+import shutil
+import tempfile
+from collections.abc import Mapping
+from contextlib import contextmanager
+from pathlib import Path
+
+
+@contextmanager
+def run_cache_directory():
+    """One per-`manifest check` run temp directory for every cache-env
+    override `cache_environment` writes below -- created outside the
+    candidate and the repository checkout (`tempfile.mkdtemp` always makes a
+    fresh sibling directory, never a path nested inside a directory the
+    caller already controls) and removed unconditionally, even if a check
+    raises."""
+    run_tmp = Path(tempfile.mkdtemp(prefix="manifest-check-cache-"))
+    try:
+        yield run_tmp
+    finally:
+        shutil.rmtree(run_tmp, ignore_errors=True)
+
+
+def cache_environment(env: Mapping[str, str], run_tmp: Path) -> dict[str, str]:
+    """Every body/probe child env, with all cache locations redirected into
+    `run_tmp` -- outside the candidate.
+
+    The runner sets these, not the caller: the candidate-identity check must
+    not depend on whatever the caller's ambient environment happened to
+    forward. A caller that forgot `XDG_CACHE_HOME` (or set it to something
+    that resolves inside the candidate) must never be able to make a check
+    body write a cache file into the candidate -- that is a real defect the
+    identity check exists to catch, and it must be reachable from exactly one
+    place. Values here always override the caller's, they are never merged
+    with or deferred to them (except `PYTEST_ADDOPTS`, which is appended to
+    so a caller's own pytest options keep working).
+    """
+    result = dict(env)
+    pycache_dir = run_tmp / "pycache"
+    xdg_dir = run_tmp / "xdg"
+    ruff_dir = run_tmp / "ruff"
+    uv_dir = run_tmp / "uv"
+    npm_dir = run_tmp / "npm"
+    for directory in (pycache_dir, xdg_dir, ruff_dir, uv_dir, npm_dir):
+        directory.mkdir(parents=True, exist_ok=True)
+    result["PYTHONDONTWRITEBYTECODE"] = "1"
+    result["PYTHONPYCACHEPREFIX"] = str(pycache_dir)
+    result["XDG_CACHE_HOME"] = str(xdg_dir)
+    result["RUFF_CACHE_DIR"] = str(ruff_dir)
+    result["UV_CACHE_DIR"] = str(uv_dir)
+    result["npm_config_cache"] = str(npm_dir)
+    existing_addopts = result.get("PYTEST_ADDOPTS", "")
+    no_cacheprovider = "-p no:cacheprovider"
+    result["PYTEST_ADDOPTS"] = (
+        f"{existing_addopts} {no_cacheprovider}"
+        if existing_addopts
+        else no_cacheprovider
+    )
+    return result

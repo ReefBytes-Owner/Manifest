@@ -295,34 +295,45 @@ def run_profile(
     candidate: Candidate,
     env: dict[str, str],
 ) -> dict:
-    """Run a resolved profile once; Phase 2 deliberately has no success cache."""
+    """Run a resolved profile once; Phase 2 deliberately has no success cache.
+
+    Every body/probe child env gets its caches redirected into one per-run
+    temp directory, outside the candidate (Correction 4 / C7d): a body that
+    imports the candidate's own source must never be able to satisfy the
+    strict identity check below by writing `__pycache__` (or any other
+    cache) into the candidate itself.
+    """
     start = time.monotonic()
     selector = ProfileSelector(profile, group)
     checks = resolve_checks(registry, profile, group)
     guard_nonempty_group(profile, group, checks)
-    results: list[CheckResult] = []
-    initial_identity_error = _identity_error(candidate)
-    if initial_identity_error:
-        results = [
-            CheckResult(check.id, "BLOCKED", None, 0.0, initial_identity_error, ())
-            for check in checks
-        ]
-        context = RunContext(registry, candidate, env, {}, {})
+    with toolchain.run_cache_directory() as run_tmp:
+        env = toolchain.cache_environment(env, run_tmp)
+        results: list[CheckResult] = []
+        initial_identity_error = _identity_error(candidate)
+        if initial_identity_error:
+            results = [
+                CheckResult(check.id, "BLOCKED", None, 0.0, initial_identity_error, ())
+                for check in checks
+            ]
+            context = RunContext(registry, candidate, env, {}, {})
+            return _report(context, selector, checks, results, start)
+        tool_results, failed_preparations = _prepare_for_checks(
+            registry, checks, candidate, env
+        )
+        context = RunContext(
+            registry, candidate, env, tool_results, failed_preparations
+        )
+        results = _run_checks(context, checks)
+        final_identity_error = _identity_error(candidate)
+        if final_identity_error:
+            results = [
+                _blocked_after_identity(result, final_identity_error)
+                if result.status in {"PASS", "NOT_APPLICABLE"}
+                else result
+                for result in results
+            ]
         return _report(context, selector, checks, results, start)
-    tool_results, failed_preparations = _prepare_for_checks(
-        registry, checks, candidate, env
-    )
-    context = RunContext(registry, candidate, env, tool_results, failed_preparations)
-    results = _run_checks(context, checks)
-    final_identity_error = _identity_error(candidate)
-    if final_identity_error:
-        results = [
-            _blocked_after_identity(result, final_identity_error)
-            if result.status in {"PASS", "NOT_APPLICABLE"}
-            else result
-            for result in results
-        ]
-    return _report(context, selector, checks, results, start)
 
 
 def _prepare_for_checks(
