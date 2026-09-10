@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://manifest.local/schemas/toolchain.lock.schema.json",
   "title": "Manifest toolchain lock",
-  "description": "Content-addressed provisioning lock for manifest provision. Every tool entry names the artifact kind, its per-platform source, a sha256 that a real download must satisfy, and an exe_sha256 that is the sole trust anchor toolchain.resolve() verifies the materialized executable against (never the store's own manifest.json). An entry with sha256 or exe_sha256: null is unattested and must resolve to BLOCKED, never PASS.",
+  "description": "Content-addressed provisioning lock for manifest provision. Every tool entry names the artifact kind (binary, python-env, node-env), its per-platform source, a sha256 that a real download/lockfile must satisfy, and an exe_sha256 that is the sole trust anchor toolchain.resolve() verifies against (never the store's own manifest.json) -- see exe_sha256 for its per-kind meaning. An entry with sha256 or exe_sha256: null is unattested and must resolve to BLOCKED, never PASS.",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema_version", "tools"],
@@ -55,11 +55,11 @@
         },
         "exe_sha256": {
           "$ref": "#/$defs/sha256OrNull",
-          "description": "Hash of the materialized executable itself -- the trust anchor `toolchain.resolve()` verifies at every preflight. Null is unattested and must resolve to BLOCKED, never PASS; the store's own manifest.json is never trusted for this value."
+          "description": "The trust anchor `toolchain.resolve()` verifies at every preflight; null is unattested and must resolve to BLOCKED, never PASS, and the store's own manifest.json is never trusted for this value. Meaning depends on `kind` (Correction 3, phase-3-5-decisions.md): for `binary`, the sha256 of the materialized executable's bytes. For `python-env`/`node-env`, the sha256 of the installed DISTRIBUTION SET (every dist-info RECORD, or the node_modules/.package-lock.json packages object) -- never of one console script's bytes, which embed an absolute, store-location-dependent interpreter/launcher path and can never match a committed lock."
         },
         "path_in_archive": { "$ref": "#/$defs/nonEmptyString" },
         "console_scripts": {
-          "description": "python-env / node-env only: console-script relative paths hashed after materialization.",
+          "description": "python-env / node-env only: every console-script relative path (under the materialized env's bin/) a registry check resolves through `store:<bundle>/<relative>`. Not individually hashed -- verified collectively via the bundle's single `exe_sha256` distribution-set digest, plus a per-script existence and launcher-provenance (inside-store) check.",
           "type": "array",
           "uniqueItems": true,
           "items": { "$ref": "#/$defs/nonEmptyString" }
