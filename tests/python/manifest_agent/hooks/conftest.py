@@ -71,11 +71,7 @@ class HookHarness:
     def invoke(
         self, client: str, event: str, payload: dict | bytes | str, **env_overrides: str
     ) -> subprocess.CompletedProcess:
-        data = (
-            payload
-            if isinstance(payload, (bytes, str))
-            else json.dumps(payload)
-        )
+        data = payload if isinstance(payload, (bytes, str)) else json.dumps(payload)
         return subprocess.run(
             [sys.executable, "-B", "-m", "manifest_agent", "hook", client, event],
             input=data if isinstance(data, bytes) else data.encode("utf-8"),
@@ -145,4 +141,11 @@ def hook_harness(tmp_path: Path) -> HookHarness:
     _write_project_checks(config, marker)
     state_home = tmp_path / "xdg-state"
     state_home.mkdir()
-    return HookHarness(root=root, project_config=config, state_home=state_home, marker=marker)
+    return HookHarness(
+        root=root, project_config=config, state_home=state_home, marker=marker
+    )
+
+
+from ._verify_support import (
+    verify_env,  # noqa: F401  (shared `manifest hook verify` fixture)
+)
