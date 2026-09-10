@@ -1,0 +1,57 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Manifest hook client verification matrix",
+  "description": "One entry per `manifest hook <client>` adapter, keyed by the adapter's own CLIENT constant. Every entry ships verified_version/verified_at null and protocol_probe_argv null until `manifest hook verify <client> --write` records a real verification (see docs/SHARED_CHECKS_HOOKS.md).",
+  "type": "object",
+  "required": ["schema_version", "model_labels_status", "clients"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"const": 1},
+    "model_labels_status": {
+      "type": "string",
+      "description": "Explicit marker that the Fable/Astra/Opus/Sol -> client mapping is unresolved and needs repository-owner input; never inferred here."
+    },
+    "clients": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "name",
+          "executable_candidates",
+          "version_argv",
+          "version_pattern",
+          "verified_version",
+          "verified_at",
+          "fixture_dir",
+          "model_labels"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "name": {"type": "string", "minLength": 1},
+          "executable_candidates": {
+            "type": "array",
+            "items": {"type": "string", "minLength": 1},
+            "minItems": 1
+          },
+          "version_argv": {
+            "type": "array",
+            "items": {"type": "string"}
+          },
+          "version_pattern": {"type": "string", "minLength": 1},
+          "protocol_probe_argv": {
+            "type": ["array", "null"],
+            "items": {"type": "string"}
+          },
+          "verified_version": {"type": ["string", "null"]},
+          "verified_at": {"type": ["string", "null"]},
+          "fixture_dir": {"type": "string", "minLength": 1},
+          "model_labels": {
+            "type": "array",
+            "items": {"type": "string"}
+          }
+        }
+      }
+    }
+  }
+}

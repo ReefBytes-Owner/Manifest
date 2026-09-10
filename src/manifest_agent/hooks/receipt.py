@@ -22,7 +22,21 @@ class ReceiptInput:
     diagnostics: str
 
 
-def build_receipt(info: ReceiptInput) -> dict:
+def build_receipt(info: ReceiptInput, *, client_version: str | None = None) -> dict:
+    """`client_version_verified` is `False` unless `client_version` is given
+    AND `verify.is_promotion_recorded(info.client, client_version, ...)` says
+    a real verification (see hooks/verify.py) was recorded for exactly that
+    client+version -- see docs/SHARED_CHECKS_HOOKS.md.
+
+    No caller passes `client_version` yet: no adapter's live payload carries
+    the calling client's own software version today, so this parameter is a
+    reachable path with nothing yet flowing through it (C10 builds the
+    mechanism; wiring a real per-event version channel is future work)."""
+    verified = False
+    if client_version is not None:
+        from .verify import VerifyConfig, is_promotion_recorded
+
+        verified = is_promotion_recorded(info.client, client_version, VerifyConfig())
     return {
         "schema_version": 1,
         "client": info.client,
@@ -31,7 +45,7 @@ def build_receipt(info: ReceiptInput) -> dict:
         "status": info.status,
         "candidate_digest": info.digest,
         "diagnostics": info.diagnostics,
-        "client_version_verified": False,
+        "client_version_verified": verified,
     }
 
 

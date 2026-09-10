@@ -318,6 +318,7 @@ class _LazyHookCommand(click.Command):
 
 cli.add_command(
     _LazyHookCommand(
-        "hook", help="Run a thin native hook adapter: manifest hook <client> <event>."
+        "hook",
+        help="Run a native hook adapter (manifest hook <client> <event>) or verify one (manifest hook verify <client>).",
     )
 )
