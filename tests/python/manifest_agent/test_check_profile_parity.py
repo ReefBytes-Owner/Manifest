@@ -3,26 +3,27 @@
 from __future__ import annotations
 
 import itertools
-import json
 from copy import deepcopy
-from pathlib import Path
 
 import pytest
 
 from manifest_agent.checks.registry import load_registry, resolve_checks
 from tests.python.manifest_agent import _c5_ids
-from tools.project_checks.generated import TASK7_DISPOSITIONS as GENERATED
-from tools.project_checks.gitleaks_check import TASK7_DISPOSITIONS as GITLEAKS
+from tests.python.manifest_agent._check_profile_oracle import (
+    DISPOSITIONS,
+    REGISTRY_PATH,
+    ROOT,
+    SUPERSEDED,
+    _check_by_id,
+    _raw_documents,
+)
+from tests.python.manifest_agent.test_check_profile_hook_contract import (
+    _assert_hook_contract,
+)
 from tools.project_checks.hook_lint import TASK7_DISPOSITIONS as HOOK_LINT
 from tools.project_checks.hooks import TASK7_DISPOSITIONS as HOOKS
-from tools.project_checks.packages import TASK7_DISPOSITIONS as PACKAGES
-from tools.project_checks.structure import TASK7_DISPOSITIONS as STRUCTURE
 
-ROOT = Path(__file__).resolve().parents[3]
 VERSION_ADAPTER = ROOT / "tools/project_checks/tool_versions.py"
-REGISTRY_PATH = ROOT / "config/project-checks.json"
-PRESERVATION_PATH = ROOT / "config/check-preservation.json"
-DISPOSITIONS = STRUCTURE | GENERATED | HOOKS | HOOK_LINT | PACKAGES | GITLEAKS
 SECURITY_IDS = _c5_ids.SECURITY_IDS
 RELEASE_ONLY_IDS = frozenset({"package.release-archive", "package.release-manifest"})
 FILENAMELESS_HOOK_IDS = frozenset(
@@ -56,7 +57,6 @@ DEBT_RELEASE_IDS = frozenset({"debt.constitution.release", "debt.bundle-links.re
 C5_FULL = _c5_ids.C5_FULL_RELEASE_IDS
 C5_SEC = _c5_ids.C5_SECURITY_RELEASE_IDS
 C5_DECLARED_ONLY_IDS = _c5_ids.C5_DECLARED_ONLY_IDS
-SUPERSEDED = _c5_ids.SUPERSEDED_IDS
 LIVE_RETAINED_IDS = RETAINED_IDS - SUPERSEDED
 EXPECTED_PROFILES = {
     "quick": QUICK_IDS,
@@ -75,17 +75,6 @@ GRAPH_CATEGORIES = frozenset(
 )
 
 
-def _raw_documents() -> tuple[dict, dict]:
-    return (
-        json.loads(PRESERVATION_PATH.read_text(encoding="utf-8")),
-        json.loads(REGISTRY_PATH.read_text(encoding="utf-8")),
-    )
-
-
-def _check_by_id(registry: dict) -> dict[str, dict]:
-    return {check["id"]: check for check in registry["checks"]}
-
-
 def _expected_group(check_id: str) -> str:
     if check_id in _c5_ids.GROUP_OVERRIDES:
         return _c5_ids.GROUP_OVERRIDES[check_id]
@@ -100,27 +89,6 @@ def _expected_group(check_id: str) -> str:
 
 def _expected_pass_filenames(check_id: str) -> bool:
     return check_id.startswith("hook.") and check_id not in FILENAMELESS_HOOK_IDS
-
-
-def _hook_sources(preservation: dict) -> dict[str, dict]:
-    sources = {}
-    for entry in preservation["source_entries"]:
-        if entry["kind"] != "hook":
-            continue
-        check_id = entry["component_ids"][0]
-        assert check_id not in sources
-        sources[check_id] = entry["value"]
-    return sources
-
-
-def _expected_exclude(source: dict) -> str:
-    patterns = []
-    for boundary in (source["global"]["exclude"], source["hook"]["exclude"]):
-        if boundary["present"]:
-            patterns.append(boundary["value"])
-    if not patterns:
-        return r"$^"
-    return "|".join(f"(?:{pattern})" for pattern in patterns)
 
 
 def _assert_retained_contract(preservation: dict, registry: dict) -> None:
@@ -150,26 +118,6 @@ def _assert_retained_contract(preservation: dict, registry: dict) -> None:
         assert by_id[check_id]["selection"] == selection
         assert by_id[check_id]["group"] == _expected_group(check_id)
         assert by_id[check_id]["pass_filenames"] is _expected_pass_filenames(check_id)
-
-
-def _assert_hook_contract(preservation: dict, registry: dict) -> None:
-    by_id = _check_by_id(registry)
-    for check_id, source in _hook_sources(preservation).items():
-        if check_id in SUPERSEDED:  # hook.pyright: oracle-only, see _c5_ids.py
-            continue
-        hook = source["hook"]
-        check = by_id[check_id]
-        expected_files = hook["files"]["value"] if hook["files"]["present"] else ""
-        expected_types = hook["types"]["value"] if hook["types"]["present"] else []
-        expected_types_or = (
-            hook["types_or"]["value"] if hook["types_or"]["present"] else []
-        )
-        assert check["inputs"] == ["."]
-        assert check.get("include_regex", "") == expected_files
-        assert check.get("exclude_regex", r"$^") == _expected_exclude(source)
-        assert check.get("types", []) == expected_types
-        assert check.get("types_or", []) == expected_types_or
-        assert tuple(check["argv"]) == tuple(DISPOSITIONS[check_id][0])
 
 
 def _assert_profile_contract(registry: dict) -> None:
@@ -317,12 +265,6 @@ def test_registry_schema_loads_and_exactly_closes_retained_profiles():
                 for check_id in expected_ids
                 if _expected_group(check_id) == group
             }
-
-
-def test_hook_args_and_path_filters_exactly_match_frozen_oracle():
-    preservation, registry = _raw_documents()
-
-    _assert_hook_contract(preservation, registry)
 
 
 def test_tools_use_real_composite_probes_and_reviewed_pins():

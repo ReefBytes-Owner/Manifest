@@ -194,8 +194,10 @@
       "uniqueItems": true,
       "items": {
         "enum": [
+          "executable",
           "go",
           "javascript",
+          "json",
           "jsx",
           "markdown",
           "pyi",
@@ -203,8 +205,10 @@
           "rust",
           "shell",
           "terraform",
+          "text",
           "ts",
-          "tsx"
+          "tsx",
+          "yaml"
         ]
       }
     },

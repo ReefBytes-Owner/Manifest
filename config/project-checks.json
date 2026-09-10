@@ -1584,7 +1584,9 @@
       "version": "ok",
       "include_regex": "",
       "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))|(?:^(\\.Jules/|docs/templates/|plugins/manifest-code-quality/skills/smoke-manage/vendor/(LICENSE\\.PyYAML|yaml/)|plugins/manifest-i-have-adhd/(skills/|guidance/|devin/|LICENSE\\.upstream))|\\.patch$)",
-      "types": [],
+      "types": [
+        "text"
+      ],
       "types_or": [],
       "pass_filenames": true,
       "honors_status_contract": true
@@ -1611,7 +1613,9 @@
       "version": "ok",
       "include_regex": "",
       "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))|(?:^(\\.Jules/|docs/templates/|configs/cursor/rules/|plugins/manifest-code-quality/skills/smoke-manage/vendor/(LICENSE\\.PyYAML|yaml/)|plugins/manifest-i-have-adhd/(skills/|guidance/|devin/|LICENSE\\.upstream)))",
-      "types": [],
+      "types": [
+        "text"
+      ],
       "types_or": [],
       "pass_filenames": true,
       "honors_status_contract": true
@@ -1638,7 +1642,9 @@
       "version": "ok",
       "include_regex": "",
       "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))|(?:^(plugins/manifest-code-quality/skills/smoke-manage/vendor/(LICENSE\\.PyYAML|yaml/)|plugins/manifest-i-have-adhd/(skills/|guidance/|devin/|LICENSE\\.upstream)))",
-      "types": [],
+      "types": [
+        "text"
+      ],
       "types_or": [],
       "pass_filenames": true,
       "honors_status_contract": true
@@ -1665,7 +1671,9 @@
       "version": "command:shfmt=3.13.1",
       "include_regex": "",
       "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))|(?:(^\\.Jules/|\\.bats$))",
-      "types": [],
+      "types": [
+        "shell"
+      ],
       "types_or": [],
       "pass_filenames": true,
       "honors_status_contract": true
@@ -1799,7 +1807,9 @@
       "version": "distribution:pre-commit-hooks=6.0.0",
       "include_regex": "",
       "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))|(?:^(\\.Jules/))",
-      "types": [],
+      "types": [
+        "yaml"
+      ],
       "types_or": [],
       "pass_filenames": true
     },
@@ -1821,7 +1831,9 @@
       "version": "distribution:pre-commit-hooks=6.0.0",
       "include_regex": "",
       "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))|(?:^(\\.Jules/))",
-      "types": [],
+      "types": [
+        "json"
+      ],
       "types_or": [],
       "pass_filenames": true
     },
@@ -1888,7 +1900,9 @@
       "version": "distribution:pre-commit-hooks=6.0.0",
       "include_regex": "",
       "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))",
-      "types": [],
+      "types": [
+        "text"
+      ],
       "types_or": [],
       "pass_filenames": true
     },
@@ -1910,7 +1924,10 @@
       "version": "distribution:pre-commit-hooks=6.0.0",
       "include_regex": "",
       "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))",
-      "types": [],
+      "types": [
+        "text",
+        "executable"
+      ],
       "types_or": [],
       "pass_filenames": true
     },
@@ -1932,7 +1949,9 @@
       "version": "distribution:pre-commit-hooks=6.0.0",
       "include_regex": "",
       "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))|(?:\\.(bats|tmpl)$)",
-      "types": [],
+      "types": [
+        "text"
+      ],
       "types_or": [],
       "pass_filenames": true
     },
@@ -1954,7 +1973,9 @@
       "version": "distribution:pre-commit-hooks=6.0.0",
       "include_regex": "",
       "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))",
-      "types": [],
+      "types": [
+        "text"
+      ],
       "types_or": [],
       "pass_filenames": true
     },
@@ -2030,7 +2051,9 @@
       "version": "command:shellcheck=0.11.0",
       "include_regex": "",
       "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))|(?:(^\\.Jules/|\\.bats$))",
-      "types": [],
+      "types": [
+        "shell"
+      ],
       "types_or": [],
       "pass_filenames": true
     },
@@ -2054,7 +2077,9 @@
       "version": "command:markdownlint-cli2=0.23.0",
       "include_regex": "",
       "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))|(?:^(\\.Jules/|\\.jules/|specs/|docs/superpowers/|docs/templates/|docs/SHELL_ANALYSIS_REPORT\\.md|docs/VALIDATION_REPORT\\.md|\\.specify/|\\.claude/skills/speckit-[^/]+/|node_modules/|\\.apm/skills/|plugins/stitch-design/|plugins/manifest-i-have-adhd/(skills/|guidance/|devin/)))",
-      "types": [],
+      "types": [
+        "markdown"
+      ],
       "types_or": [],
       "pass_filenames": true
     },
@@ -2080,7 +2105,9 @@
       "version": "distribution:yamllint=1.38.0",
       "include_regex": "",
       "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))|(?:^(\\.Jules/))",
-      "types": [],
+      "types": [
+        "yaml"
+      ],
       "types_or": [],
       "pass_filenames": true
     },

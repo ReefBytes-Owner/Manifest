@@ -13,8 +13,10 @@ from .models import CheckSpec
 
 VALID_PATH_TYPES = frozenset(
     {
+        "executable",
         "go",
         "javascript",
+        "json",
         "jsx",
         "markdown",
         "pyi",
@@ -22,16 +24,26 @@ VALID_PATH_TYPES = frozenset(
         "rust",
         "shell",
         "terraform",
+        "text",
         "ts",
         "tsx",
+        "yaml",
     }
 )
+# "executable" and "text" are pre-commit `identify` cross-cutting tags applied
+# to every regular file in addition to any suffix/shebang tag below (mirrors
+# identify's own "executable" = x-bit set, "text" = no NUL byte in a sample):
+# see `_path_tags`. `identify`'s "file" tag (implicitly true for every
+# regular file we tag at all) is not modeled -- requiring it would be a
+# no-op, since `_path_tags` already returns `None` for anything that is not
+# a regular file.
 _SUFFIX_TAGS = {
     ".bash": frozenset({"shell"}),
     ".bats": frozenset({"shell"}),
     ".cjs": frozenset({"javascript"}),
     ".go": frozenset({"go"}),
     ".js": frozenset({"javascript"}),
+    ".json": frozenset({"json"}),
     ".jsx": frozenset({"jsx"}),
     ".markdown": frozenset({"markdown"}),
     ".md": frozenset({"markdown"}),
@@ -44,7 +56,10 @@ _SUFFIX_TAGS = {
     ".tfvars": frozenset({"terraform"}),
     ".ts": frozenset({"ts"}),
     ".tsx": frozenset({"tsx"}),
+    ".yaml": frozenset({"yaml"}),
+    ".yml": frozenset({"yaml"}),
 }
+_BINARY_SAMPLE_BYTES = 8192
 _SHELLS = frozenset({"ash", "bash", "dash", "ksh", "sh", "zsh"})
 _PYTHON_INTERPRETER = re.compile(r"python(?:\d+(?:\.\d+)*)?\Z")
 
@@ -128,16 +143,21 @@ def _path_tags(root: Path, name: str) -> frozenset[str] | None:
     if not stat.S_ISREG(mode):
         return None
     tags = set(_SUFFIX_TAGS.get(path.suffix.casefold(), ()))
+    try:
+        sample = path.open("rb").read(_BINARY_SAMPLE_BYTES)
+    except OSError:
+        sample = b""
     if not tags and mode & 0o111:
-        try:
-            first_line = path.open("rb").readline(256).decode("utf-8", errors="ignore")
-        except OSError:
-            first_line = ""
+        first_line = sample[:256].decode("utf-8", errors="ignore")
         interpreter = _shebang_interpreter(first_line)
         if interpreter in _SHELLS:
             tags.add("shell")
         if _PYTHON_INTERPRETER.fullmatch(interpreter):
             tags.add("python")
+    if mode & 0o111:
+        tags.add("executable")
+    if b"\x00" not in sample:
+        tags.add("text")
     return frozenset(tags)
 
 

@@ -1,0 +1,44 @@
+# Effective `types` (AND semantics) for `.pre-commit-config.yaml` hooks that
+# declare NEITHER `types` NOR `types_or` themselves -- the type restriction
+# comes only from the hook's own upstream `.pre-commit-hooks.yaml` manifest,
+# which `.pre-commit-config.yaml` never states. Used by
+# test_hook_selector_parity.py (the drift test) and
+# test_check_profile_parity.py's frozen-oracle hook contract (C7f):
+# `hook.<id>` checks in config/project-checks.json must resolve to these
+# tags, not `[]`, or `selection: changed` forwards every changed path to
+# every hook regardless of file type.
+#
+# Pinned from each hook's `.pre-commit-hooks.yaml` at the exact `rev` this
+# repository's `.pre-commit-config.yaml` pins. A `rev` bump must revisit this
+# table, or drift is silent.
+#   pre-commit/pre-commit-hooks @ v6.0.0
+#     https://raw.githubusercontent.com/pre-commit/pre-commit-hooks/v6.0.0/.pre-commit-hooks.yaml
+#   shellcheck-py/shellcheck-py @ v0.11.0.1
+#     https://raw.githubusercontent.com/shellcheck-py/shellcheck-py/v0.11.0.1/.pre-commit-hooks.yaml
+#   scop/pre-commit-shfmt @ v3.13.1-1 (hook id: shfmt)
+#     https://raw.githubusercontent.com/scop/pre-commit-shfmt/v3.13.1-1/.pre-commit-hooks.yaml
+#   DavidAnson/markdownlint-cli2 @ v0.23.0
+#     https://raw.githubusercontent.com/DavidAnson/markdownlint-cli2/v0.23.0/.pre-commit-hooks.yaml
+#   adrienverge/yamllint @ v1.38.0
+#     https://raw.githubusercontent.com/adrienverge/yamllint/v1.38.0/.pre-commit-hooks.yaml
+#     (declares `types: [file, yaml]`; `file` is true of every regular file
+#     this project ever tags at all, so it drops out of the effective
+#     requirement -- see path_filters.py's VALID_PATH_TYPES comment)
+upstream_default_types:
+  trailing-whitespace: [text]
+  end-of-file-fixer: [text]
+  mixed-line-ending: [text]
+  check-yaml: [yaml]
+  check-json: [json]
+  check-merge-conflict: [text]
+  check-executables-have-shebangs: [text, executable]
+  check-shebang-scripts-are-executable: [text]
+  detect-private-key: [text]
+  shellcheck: [shell]
+  shfmt: [shell]
+  markdownlint-cli2: [markdown]
+  yamllint: [yaml]
+  # Upstream declares no `types` restriction at all (default `[file]`, i.e.
+  # every regular file): no type narrowing beyond `files`/`exclude`.
+  check-added-large-files: []
+  check-case-conflict: []
