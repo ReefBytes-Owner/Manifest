@@ -140,8 +140,8 @@ class TestProvisionBinary:
         lock = {
             "schema_version": 1,
             "tools": {
-                "python-env": {
-                    "kind": "python-env",
+                "rust-env": {
+                    "kind": "rust-env",
                     "version": "x",
                     "platforms": {
                         "linux-x64": {

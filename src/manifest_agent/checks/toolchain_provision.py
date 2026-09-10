@@ -20,14 +20,16 @@ import json
 import os
 import tarfile
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from . import toolchain
+from . import toolchain_materialize as materialize
 
 Fetcher = Callable[[str], bytes]
 
-_IMPLEMENTED_KINDS = frozenset({"binary"})
+_IMPLEMENTED_KINDS = frozenset({"binary", "python-env", "node-env"})
+_ENV_KINDS = frozenset({"python-env", "node-env"})
 
 
 @dataclass(frozen=True)
@@ -45,6 +47,8 @@ class ProvisionContext:
     lock: Mapping
     platform: str
     fetcher: Fetcher = None  # type: ignore[assignment]
+    repo_root: Path = field(default_factory=Path.cwd)
+    env: Mapping[str, str] = field(default_factory=dict)
 
 
 def default_fetcher(url: str) -> bytes:  # pragma: no cover - exercised only live
@@ -107,6 +111,77 @@ def _record_bundle(
         return manifest
 
     _with_store_lock(ctx.store, body)
+
+
+def _record_env_bundle(
+    ctx: ProvisionContext, bundle: str, source_sha256: str, scripts: Mapping[str, str]
+) -> None:
+    def body() -> dict:
+        manifest = _load_manifest(ctx.store, ctx.lock)
+        manifest["tools"][bundle] = {
+            "source_sha256": source_sha256,
+            "executables": {
+                f"bin/{name}": {"path": relative} for name, relative in scripts.items()
+            },
+        }
+        (ctx.store / "manifest.json").write_text(json.dumps(manifest, sort_keys=True))
+        return manifest
+
+    _with_store_lock(ctx.store, body)
+
+
+def _read_source_bytes(ctx: ProvisionContext, url: str) -> bytes:
+    """`file://` lockfile URLs are read relative to `ctx.repo_root` -- never
+    fetched over the network; only the archive/binary `Fetcher` seam does
+    that. A non-`file://` URL is a lock authoring error, not a runtime one."""
+    relative = url.removeprefix("file://")
+    return (ctx.repo_root / relative).read_bytes()
+
+
+def _provision_env_entry(
+    ctx: ProvisionContext, bundle: str, entry: Mapping
+) -> ProvisionOutcome:
+    """Materialize a python-env/node-env bundle and record whatever the
+    materialization actually produced. This never gates on the lock's
+    `exe_sha256` matching -- exactly like `_provision_binary_entry`, the
+    check is `toolchain.resolve()`'s job on every later preflight, not
+    provisioning time; the store's own manifest is never the trust anchor."""
+    platform_entry = _platform_entry(entry, bundle, ctx.platform)
+    if isinstance(platform_entry, ProvisionOutcome):
+        return platform_entry
+    source_bytes = _read_source_bytes(ctx, platform_entry["url"])
+    source_sha256 = hashlib.sha256(source_bytes).hexdigest()
+    if source_sha256 != platform_entry["sha256"]:
+        return ProvisionOutcome(
+            bundle, "blocked", f"toolchain: {bundle} digest mismatch"
+        )
+    env_root = ctx.store / f"tools/{bundle}/{source_sha256[:16]}"
+    names = [Path(script).name for script in platform_entry.get("console_scripts", ())]
+    ctx_m = materialize.MaterializeContext(
+        ctx.lock, ctx.store, ctx.platform, ctx.repo_root, ctx.env
+    )
+    try:
+        if entry["kind"] == "python-env":
+            materialize.materialize_python_env(ctx_m, env_root)
+            scripts = materialize.python_env_console_scripts(env_root, names)
+        else:
+            materialize.materialize_node_env(ctx_m, env_root, ctx.fetcher)
+            scripts = materialize.node_env_console_scripts(env_root, names)
+    except materialize.MaterializationError as error:
+        return ProvisionOutcome(bundle, "blocked", str(error))
+    missing = sorted(set(names) - set(scripts))
+    if missing:
+        return ProvisionOutcome(
+            bundle,
+            "blocked",
+            f"toolchain: {bundle} missing console script(s) {missing}",
+        )
+    env_relative = env_root.relative_to(ctx.store)
+    store_relative_scripts = {
+        name: str(env_relative / relative) for name, relative in scripts.items()
+    }
+    _record_env_bundle(ctx, bundle, source_sha256, store_relative_scripts)
+    return ProvisionOutcome(bundle, "provisioned")
 
 
 def _platform_entry(
@@ -224,11 +299,29 @@ def provision(
     platform: str,
     only: frozenset[str] | None = None,
     fetcher: Fetcher | None = None,
+    repo_root: Path | None = None,
+    env: Mapping[str, str] | None = None,
 ) -> list[ProvisionOutcome]:
-    """Provision every (or `only`-selected) lock tool for `platform`."""
-    ctx = ProvisionContext(store, lock, platform, fetcher or default_fetcher)
+    """Provision every (or `only`-selected) lock tool for `platform`.
+
+    Binary bundles provision before python-env/node-env ones regardless of
+    the lock's key order: `uv` and `node` must already be in the store
+    before a `python-env`/`node-env` materialization can resolve them.
+    """
+    ctx = ProvisionContext(
+        store,
+        lock,
+        platform,
+        fetcher or default_fetcher,
+        repo_root or Path.cwd(),
+        env or {},
+    )
+    items = sorted(
+        (lock.get("tools") or {}).items(),
+        key=lambda item: item[1].get("kind") in _ENV_KINDS,
+    )
     outcomes: list[ProvisionOutcome] = []
-    for bundle, entry in (lock.get("tools") or {}).items():
+    for bundle, entry in items:
         if only is not None and bundle not in only:
             continue
         if entry.get("kind") not in _IMPLEMENTED_KINDS:
@@ -240,5 +333,8 @@ def provision(
                 )
             )
             continue
-        outcomes.append(_provision_binary_entry(ctx, bundle, entry))
+        if entry.get("kind") in _ENV_KINDS:
+            outcomes.append(_provision_env_entry(ctx, bundle, entry))
+        else:
+            outcomes.append(_provision_binary_entry(ctx, bundle, entry))
     return outcomes

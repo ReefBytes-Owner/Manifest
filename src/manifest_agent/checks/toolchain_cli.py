@@ -141,7 +141,14 @@ def provision(context: click.Context, **options: Any) -> None:
         outcomes = _run_imports(lock, store, platform_id, imports)
     else:
         only = frozenset(options["only"]) or None
-        outcomes = provision_mod.provision(lock, store, platform=platform_id, only=only)
+        outcomes = provision_mod.provision(
+            lock,
+            store,
+            platform=platform_id,
+            only=only,
+            repo_root=Path.cwd(),
+            env=dict(os.environ),
+        )
     blocked = any(outcome.status == "blocked" for outcome in outcomes)
     report = {
         "status": "blocked" if blocked else "complete",
