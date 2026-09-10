@@ -547,7 +547,7 @@
       "required_modules": []
     },
     "hook.markdownlint-cli2": {
-      "executable": "markdownlint-cli2",
+      "executable": "store:node-env/bin/markdownlint-cli2",
       "version_argv": [
         "python3",
         "-I",
@@ -2013,7 +2013,7 @@
       "category": "lint",
       "group": "lint",
       "argv": [
-        "markdownlint-cli2",
+        "store:node-env/bin/markdownlint-cli2",
         "--config",
         ".markdownlint.jsonc"
       ],

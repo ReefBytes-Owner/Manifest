@@ -12,7 +12,7 @@ directly and FAILed trying to parse it as shell.
 
 from __future__ import annotations
 
-import shutil
+import os
 import subprocess
 from pathlib import Path
 
@@ -26,7 +26,7 @@ def _git_init(root: Path) -> None:
         ["git", "init", "-q"],
         cwd=root,
         check=True,
-        env={"PATH": __import__("os").defpath},
+        env={"PATH": os.defpath},
     )
 
 
@@ -145,26 +145,49 @@ def test_run_returns_pass_when_selection_is_empty_never_invokes_engine(repo):
     assert hook_lint._run("hook.shellcheck", repo, []) == hook_lint.PASS
 
 
-@pytest.mark.skipif(shutil.which("shellcheck") is None, reason="shellcheck not on PATH")
-def test_main_end_to_end_ignores_a_toml_file_mixed_with_a_clean_shell_file(repo):
+def test_main_end_to_end_selects_shell_then_blocks_on_unattested_toolchain(repo):
+    # C2b: `hook.shellcheck` now resolves its engine from the hash-verified
+    # store, never `PATH` -- even a REAL, correctly-versioned `shellcheck`
+    # on this host's PATH must be ignored. `.gitleaks.toml` mixed in with
+    # `build.sh` proves `_select` still narrowed to the real shell input
+    # (an empty selection PASSes immediately without ever consulting the
+    # store; a non-empty one must reach -- and BLOCK on -- resolution).
     (repo / ".gitleaks.toml").write_text("[extend]\nuseDefault = true\n")
     (repo / "build.sh").write_text("#!/usr/bin/env bash\nset -euo pipefail\necho hi\n")
     status = hook_lint.main(
         ["hook.shellcheck", "--root", str(repo), "--", ".gitleaks.toml", "build.sh"]
     )
-    assert status == hook_lint.PASS
+    assert status == hook_lint.BLOCKED
 
 
-@pytest.mark.skipif(shutil.which("shellcheck") is None, reason="shellcheck not on PATH")
-def test_main_end_to_end_still_fails_on_a_real_shell_violation(repo):
-    (repo / ".gitleaks.toml").write_text("[extend]\nuseDefault = true\n")
-    (repo / "build.sh").write_text(
-        "#!/usr/bin/env bash\nset -euo pipefail\nunused_var=1\necho hi\n"
+def test_main_end_to_end_ignores_a_path_impostor_shellcheck_and_blocks(
+    repo, monkeypatch
+):
+    """PATH-poisoning negative test (C2b, phase-3-5-decisions.md Correction
+    2): an impostor `shellcheck` on `PATH` that reports the EXACT pinned
+    version string must never be trusted or invoked -- the store is the
+    only trust boundary. Before this chunk, `hook_lint._run` resolved the
+    engine with `shutil.which`, so this exact impostor would have PASSed.
+    """
+    (repo / "build.sh").write_text("#!/usr/bin/env bash\nset -euo pipefail\necho hi\n")
+    marker = repo.parent / "impostor-ran"
+    impostor_bin = repo.parent / "impostor-bin"
+    impostor_bin.mkdir()
+    impostor = impostor_bin / "shellcheck"
+    impostor.write_text(
+        "#!/bin/sh\n"
+        f"echo ran >> {marker}\n"
+        'if [ "$1" = "--version" ]; then\n'
+        '  printf "ShellCheck - A shell script static analysis tool\\nversion: 0.11.0\\n"\n'
+        "fi\n"
+        "exit 0\n"
     )
-    status = hook_lint.main(
-        ["hook.shellcheck", "--root", str(repo), "--", ".gitleaks.toml", "build.sh"]
-    )
-    assert status == hook_lint.FAIL
+    impostor.chmod(0o755)
+    monkeypatch.setenv("PATH", f"{impostor_bin}:{os.defpath}")
+    monkeypatch.setenv("MANIFEST_TOOLCHAIN_STORE", str(repo.parent / "empty-store"))
+    status = hook_lint.main(["hook.shellcheck", "--root", str(repo), "--", "build.sh"])
+    assert status == hook_lint.BLOCKED
+    assert not marker.exists()
 
 
 def test_yamllint_selection_alone_ignores_a_toml_file_mixed_with_yaml(repo):

@@ -1,17 +1,16 @@
 """tools/project_checks/dependency_checks.py: dependency.lock.node,
 package.node-runtime, dependency.audit.python, dependency.audit.node.
 
-npm/node/uv happen to be installed on THIS host. Most tests below fake the
-external tool via `PATH` (mirroring `test_project_check_bodies.py::_fake_uv`)
-so they stay deterministic regardless of ambient host state --
+npm/node/uv happen to be installed on THIS host. `dependency.lock.node` and
+`package.node-runtime` resolve `npm`/`node` from the hash-verified toolchain
+store only (C2b, phase-3-5-decisions.md Correction 2) -- every "fake tool on
+PATH" fixture below now proves the check BLOCKs and never invokes the
+impostor, rather than proving PASS/FAIL behavior driven by the fake. Real
+host `npm`/`node` are used only in
+`test_node_runtime_ignores_real_host_npm_and_node_and_blocks`, to show a
+REAL correctly-versioned tool on `PATH` is ignored too.
 `tests/fixtures/advisory/*.json` supply the stub feed responses for the two
-`dependency.audit.*` tests, no network involved. `package.node-runtime`'s
-isolation property (no `NODE_PATH`, a real ESM `import` resolving only
-inside the isolated copy) is NOT provable with a faked `node`: Node's ESM
-resolver's behavior around `NODE_PATH` is exactly the property under test,
-so `test_node_runtime_passes_with_real_node_and_isolated_esm_import` and its
-FAIL sibling below run the REAL `npm`/`node` on this host against a small,
-real, git-tracked fixture bundle.
+`dependency.audit.*` tests (unmigrated -- see `_which`), no network involved.
 """
 
 from __future__ import annotations
@@ -68,21 +67,33 @@ def _run(
 # --- dependency.lock.node ---------------------------------------------------
 
 
-def test_lock_node_passes_when_npm_ci_dry_run_succeeds(tmp_path):
+def test_lock_node_ignores_a_path_impostor_npm_and_blocks(tmp_path):
+    """PATH-poisoning negative test (C2b, phase-3-5-decisions.md Correction
+    2): before this chunk, `npm` was resolved with `shutil.which` and this
+    exact fixture -- a script on `PATH` claiming to be `npm` and reporting
+    success -- would have PASSed. `dependency.lock.node` now resolves `npm`
+    from the hash-verified store only (`store:node/bin/npm`); the impostor
+    must never run.
+    """
     root = tmp_path / "repo"
     _node_project(root)
     bin_dir = tmp_path / "bin"
+    marker = tmp_path / "impostor-ran"
     _fake_script(
         bin_dir / "npm",
-        "import sys\n"
-        "assert sys.argv[1:] == ['ci', '--dry-run', '--ignore-scripts', '--offline']\n"
+        "import pathlib\n"
+        f"pathlib.Path({str(marker)!r}).write_text('ran')\n"
         "raise SystemExit(0)\n",
     )
     result = _run(root, "dependency.lock.node", path_prepend=bin_dir)
-    assert result.returncode == 0, result.stderr
+    assert result.returncode == 3, result.stderr
+    assert "BLOCKED" in result.stderr
+    assert not marker.exists()
 
 
 def test_lock_node_blocked_when_offline_cache_missing(tmp_path):
+    # The fake npm's failure mode is unreachable now (store resolution
+    # BLOCKs first, C2b) -- kept to prove the fixture itself never runs.
     root = tmp_path / "repo"
     _node_project(root)
     bin_dir = tmp_path / "bin"
@@ -96,6 +107,8 @@ def test_lock_node_blocked_when_offline_cache_missing(tmp_path):
 
 
 def test_lock_node_fails_on_genuine_mismatch(tmp_path):
+    # Same: the mismatch fixture is unreachable post-C2b (store BLOCKs
+    # before npm would ever run); the check still BLOCKs, never PASSes.
     root = tmp_path / "repo"
     _node_project(root)
     bin_dir = tmp_path / "bin"
@@ -104,7 +117,7 @@ def test_lock_node_fails_on_genuine_mismatch(tmp_path):
         "import sys\nprint('npm ERR! lockfile out of date', file=sys.stderr)\nraise SystemExit(1)\n",
     )
     result = _run(root, "dependency.lock.node", path_prepend=bin_dir)
-    assert result.returncode == 2
+    assert result.returncode == 3
 
 
 def test_lock_node_blocked_when_npm_absent(tmp_path):
@@ -123,7 +136,7 @@ def test_lock_node_blocked_when_npm_absent(tmp_path):
         env=env,
     )
     assert result.returncode == 3
-    assert "npm is unavailable" in result.stderr
+    assert "BLOCKED" in result.stderr
 
 
 # --- package.node-runtime ----------------------------------------------------
@@ -156,28 +169,37 @@ def _git_tracked_node_bundle(root: Path) -> Path:
     return project
 
 
-def test_node_runtime_passes_end_to_end(tmp_path):
+def test_node_runtime_ignores_path_impostor_npm_and_node_and_blocks(tmp_path):
+    """PATH-poisoning negative test (C2b): both `npm` and `node` here are
+    impostors on `PATH` that would have PASSed before this chunk (fake npm
+    "installs", fake node reports "check ok"). `package.node-runtime` now
+    resolves both from the store only; neither impostor may run.
+    """
     root = tmp_path / "repo"
     _git_tracked_node_bundle(root)
     bin_dir = tmp_path / "bin"
+    marker = tmp_path / "impostor-ran"
     _fake_script(
         bin_dir / "npm",
-        "import sys, pathlib\n"
-        "assert sys.argv[1:] == ['ci', '--ignore-scripts', '--offline']\n"
+        "import pathlib\n"
+        f"pathlib.Path({str(marker)!r}).write_text('npm')\n"
         "pathlib.Path('node_modules').mkdir(exist_ok=True)\n"
         "raise SystemExit(0)\n",
     )
     _fake_script(
         bin_dir / "node",
-        "import sys\n"
-        "assert sys.argv[1] == 'build.mjs' and '--check' in sys.argv\n"
+        "import pathlib\n"
+        f"pathlib.Path({str(marker)!r}).write_text('node')\n"
         "print('check ok')\nraise SystemExit(0)\n",
     )
     result = _run(root, "package.node-runtime", path_prepend=bin_dir)
-    assert result.returncode == 0, result.stderr
+    assert result.returncode == 3, result.stderr
+    assert "BLOCKED" in result.stderr
+    assert not marker.exists()
 
 
 def test_node_runtime_blocked_when_npm_offline_prerequisites_missing(tmp_path):
+    # Unreachable post-C2b (store BLOCKs before npm runs); still BLOCKs.
     root = tmp_path / "repo"
     _git_tracked_node_bundle(root)
     bin_dir = tmp_path / "bin"
@@ -188,10 +210,11 @@ def test_node_runtime_blocked_when_npm_offline_prerequisites_missing(tmp_path):
     _fake_script(bin_dir / "node", "raise SystemExit(0)\n")
     result = _run(root, "package.node-runtime", path_prepend=bin_dir)
     assert result.returncode == 3
-    assert "npm offline install prerequisites unavailable" in result.stderr
+    assert "BLOCKED" in result.stderr
 
 
 def test_node_runtime_fails_when_build_check_fails(tmp_path):
+    # Unreachable post-C2b (store BLOCKs before node runs); still BLOCKs.
     root = tmp_path / "repo"
     _git_tracked_node_bundle(root)
     bin_dir = tmp_path / "bin"
@@ -201,7 +224,7 @@ def test_node_runtime_fails_when_build_check_fails(tmp_path):
         "import sys\nprint('SyntaxError: unexpected token', file=sys.stderr)\nraise SystemExit(1)\n",
     )
     result = _run(root, "package.node-runtime", path_prepend=bin_dir)
-    assert result.returncode == 2
+    assert result.returncode == 3
 
 
 def _write_local_widget_package(bundle: Path) -> None:
@@ -275,7 +298,13 @@ def _real_esm_node_bundle(tmp_path: Path) -> Path:
 
 
 @pytest.mark.skipif(not NPM_AND_NODE_AVAILABLE, reason="npm/node not installed locally")
-def test_node_runtime_passes_with_real_node_and_isolated_esm_import(tmp_path):
+def test_node_runtime_ignores_real_host_npm_and_node_and_blocks(tmp_path):
+    """C2b: even a REAL, working, correctly-versioned `npm`/`node` on this
+    host's `PATH` is ignored -- `package.node-runtime` resolves both from
+    the store only. Before this chunk, this fixture (real `npm ci` +
+    `node build.mjs --check` against an isolated ESM import) PASSed; it
+    must now BLOCK without ever touching the isolated copy.
+    """
     root = _real_esm_node_bundle(tmp_path)
     result = subprocess.run(
         [sys.executable, str(SCRIPT), "package.node-runtime", "--root", str(root)],
@@ -283,35 +312,11 @@ def test_node_runtime_passes_with_real_node_and_isolated_esm_import(tmp_path):
         text=True,
         timeout=120,
     )
-    assert result.returncode == 0, result.stderr
-    assert "check ok: isolated-widget" in result.stdout
+    assert result.returncode == 3, result.stderr
+    assert "BLOCKED" in result.stderr
     # Isolation: the tracked project directory must never gain node_modules.
     tracked_node_modules = root / "plugins/stitch-design/runtime/node/node_modules"
     assert not tracked_node_modules.exists()
-
-
-@pytest.mark.skipif(not NPM_AND_NODE_AVAILABLE, reason="npm/node not installed locally")
-def test_node_runtime_fails_with_real_node_on_genuine_check_failure(tmp_path):
-    """Real `npm ci` succeeds (the isolated `node_modules` is fully
-    provisioned, proven by the ESM `import` itself succeeding); `build.mjs`'s
-    own check logic then genuinely fails -- proving FAIL (not BLOCKED) is
-    reported once npm/node ran fine but the artifact itself is wrong."""
-    root = _real_esm_node_bundle(tmp_path)
-    project = root / "plugins/stitch-design/runtime/node"
-    (project / "build.mjs").write_text(
-        "import { widgetName } from 'local-widget';\n"
-        "if (process.argv.includes('--check') && widgetName !== 'not-the-real-widget') {\n"
-        "  throw new Error('deliberate check failure');\n"
-        "}\n"
-    )
-    _git_commit_all(root, "break check")
-    result = subprocess.run(
-        [sys.executable, str(SCRIPT), "package.node-runtime", "--root", str(root)],
-        capture_output=True,
-        text=True,
-        timeout=120,
-    )
-    assert result.returncode == 2, result.stderr
 
 
 # --- dependency.audit.python / .node: BLOCKED-when-feed-unreachable + advisory routing

@@ -87,6 +87,42 @@
         }
       }
     },
+    "uv": {
+      "kind": "binary",
+      "version": "0.12.6",
+      "platforms": {
+        "linux-x64": {
+          "url": "https://github.com/astral-sh/uv/releases/download/0.12.6/uv-x86_64-unknown-linux-gnu.tar.gz",
+          "sha256": null,
+          "exe_sha256": null,
+          "path_in_archive": "uv-x86_64-unknown-linux-gnu/uv"
+        },
+        "darwin-arm64": {
+          "url": "https://github.com/astral-sh/uv/releases/download/0.12.6/uv-aarch64-apple-darwin.tar.gz",
+          "sha256": null,
+          "exe_sha256": null,
+          "path_in_archive": "uv-aarch64-apple-darwin/uv"
+        }
+      }
+    },
+    "node": {
+      "kind": "binary",
+      "version": "24.9.0",
+      "platforms": {
+        "linux-x64": {
+          "url": "https://nodejs.org/dist/v24.9.0/node-v24.9.0-linux-x64.tar.xz",
+          "sha256": null,
+          "exe_sha256": null,
+          "path_in_archive": "node-v24.9.0-linux-x64/bin/node"
+        },
+        "darwin-arm64": {
+          "url": "https://nodejs.org/dist/v24.9.0/node-v24.9.0-darwin-arm64.tar.gz",
+          "sha256": null,
+          "exe_sha256": null,
+          "path_in_archive": "node-v24.9.0-darwin-arm64/bin/node"
+        }
+      }
+    },
     "node-env": {
       "kind": "node-env",
       "version": "config/toolchain/package.json",

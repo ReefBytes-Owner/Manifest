@@ -130,7 +130,7 @@ def test_every_retained_id_has_one_encodable_task7_disposition() -> None:
         ("hooks", "hook.golangci-lint", "v2.12.2"),
         ("hooks", "hook.terraform_validate", "v1.108.0"),
         ("structure", "lint.markdown.keydocs", "21c1be1b"),
-        ("structure", "test.bundle-partition", "bats"),
+        ("structure", "test.bundle-partition", "toolchain"),
     ],
 )
 def test_unresolved_dispositions_are_executable_blocked_bodies(
@@ -959,6 +959,22 @@ def _fake_uv(path: Path) -> None:
     path.chmod(0o755)
 
 
+def _mock_uv_resolution(monkeypatch, packages_module, fake_uv: Path) -> None:
+    """C2b: `packages.py` no longer resolves `uv` from `PATH` -- it goes
+    through `toolchain_resolve.resolve_env`. These golden fixtures still
+    exercise the REAL `_lock`/`_build` logic against a fake `uv` script; only
+    the resolution seam moves, mirroring where the trust boundary now lives.
+    """
+    monkeypatch.setattr(
+        packages_module.toolchain_resolve,
+        "resolve_env",
+        lambda ref, root, base_env: (
+            str(fake_uv),
+            {**base_env, "PATH": str(fake_uv.parent)},
+        ),
+    )
+
+
 def test_package_lock_check_passes_and_mismatch_fails_without_rewriting_lock(
     tmp_path: Path, monkeypatch
 ) -> None:
@@ -973,6 +989,7 @@ def test_package_lock_check_passes_and_mismatch_fails_without_rewriting_lock(
     fake_uv = tmp_path / "bin/uv"
     _fake_uv(fake_uv)
     monkeypatch.setenv("PATH", str(fake_uv.parent))
+    _mock_uv_resolution(monkeypatch, packages, fake_uv)
     monkeypatch.setenv("FAKE_PROJECT", str(project))
     before = lock.read_bytes()
     output = tmp_path / "output"
@@ -999,6 +1016,7 @@ def test_dependency_lock_root_check_passes_and_mismatch_fails_without_rewriting_
     fake_uv = tmp_path / "bin/uv"
     _fake_uv(fake_uv)
     monkeypatch.setenv("PATH", str(fake_uv.parent))
+    _mock_uv_resolution(monkeypatch, packages, fake_uv)
     monkeypatch.setenv("FAKE_PROJECT", str(root))
     before = lock.read_bytes()
     output = tmp_path / "output"
@@ -1102,6 +1120,7 @@ def test_package_coordinator_rejects_wheel_missing_required_schema(
     fake_uv = tmp_path / "bin/uv"
     _fake_uv(fake_uv)
     monkeypatch.setenv("PATH", str(fake_uv.parent))
+    _mock_uv_resolution(monkeypatch, packages, fake_uv)
     monkeypatch.setenv("FAKE_WHEEL", str(wheel))
     monkeypatch.setenv("FAKE_PROJECT", str(root))
     assert _run(packages.main, root, "package.coordinator", tmp_path / "valid-out") == 0
@@ -1368,7 +1387,11 @@ def test_shell_wrapper_keeps_finding_when_later_group_times_out(
     (root / "bootstrap/lib").mkdir(parents=True)
     (root / "bootstrap.sh").write_text("#!/bin/bash\n")
     (root / "bootstrap/lib/value.sh").write_text("#!/bin/bash\n")
-    monkeypatch.setattr(structure.shutil, "which", lambda _: "/fixture/shellcheck")
+    monkeypatch.setattr(
+        structure.toolchain_resolve,
+        "resolve_tool",
+        lambda ref, root: (Path("/fixture/shellcheck"), "/fixture/bin"),
+    )
     calls = 0
 
     def run(*args, **kwargs):
@@ -1395,7 +1418,11 @@ def test_yaml_wrapper_distinguishes_findings_from_unavailable_execution(
     config = root / "configs/claude/config"
     config.mkdir(parents=True)
     (config / "value.yml").write_text("value: ok\n")
-    monkeypatch.setattr(structure.shutil, "which", lambda _: "/fixture/yamllint")
+    monkeypatch.setattr(
+        structure.toolchain_resolve,
+        "resolve_tool",
+        lambda ref, root: (Path("/fixture/yamllint"), "/fixture/bin"),
+    )
     monkeypatch.setattr(
         structure.subprocess,
         "run",

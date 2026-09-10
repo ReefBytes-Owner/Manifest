@@ -14,8 +14,10 @@ from pathlib import Path
 
 try:
     from tools.project_checks import generated as generated_checks
+    from tools.project_checks import toolchain_resolve
 except ModuleNotFoundError:  # direct script execution from this directory
     import generated as generated_checks
+    import toolchain_resolve
 
 PASS = 0
 FAIL = 2
@@ -278,30 +280,25 @@ def _run_process(
         raise BlockedError(f"command unavailable: {error}") from error
 
 
+_SHFMT_ERRORS = (OSError, subprocess.TimeoutExpired, toolchain_resolve.ToolchainBlocked)
+
+
 def _shfmt(root: Path, paths: list[tuple[str, Path]]) -> int:
-    executable = shutil.which("shfmt")
-    if executable is None:
-        raise BlockedError("shfmt is unavailable")
+    argv_tail = (
+        "-d",
+        "-i",
+        "4",
+        "-ci",
+        "-sr",
+        "-ln",
+        "bash",
+        *(str(path) for _, path in paths),
+    )
     try:
-        result = subprocess.run(
-            (
-                executable,
-                "-d",
-                "-i",
-                "4",
-                "-ci",
-                "-sr",
-                "-ln",
-                "bash",
-                *(str(path) for _, path in paths),
-            ),
-            cwd=root,
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=300,
+        result = toolchain_resolve.run_via_store(
+            "store:shfmt/bin/shfmt", root, argv_tail, timeout=300
         )
-    except (OSError, subprocess.TimeoutExpired) as error:
+    except _SHFMT_ERRORS as error:
         raise BlockedError(f"shfmt unavailable: {error}") from error
     if result.stdout:
         print(result.stdout, end="")
@@ -421,7 +418,8 @@ _DIRECT_ROWS = (
     "hook.check-shebang-scripts-are-executable|check-shebang-scripts-are-executable;"
     "hook.detect-private-key|detect-private-key;hook.check-ast|check-ast;"
     "hook.debug-statements|debug-statement-hook;"
-    "hook.markdownlint-cli2|markdownlint-cli2|--config|.markdownlint.jsonc;"
+    "hook.markdownlint-cli2|store:node-env/bin/markdownlint-cli2|--config|"
+    ".markdownlint.jsonc;"
     "hook.ruff|ruff|check;hook.ruff-format|ruff|format|--check;"
     "hook.eslint|eslint;"
     "hook.constitution-check|python3|configs/claude/scripts/constitution_check.py;"

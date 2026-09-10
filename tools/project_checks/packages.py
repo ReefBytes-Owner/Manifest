@@ -7,7 +7,7 @@ import argparse
 import hashlib
 import importlib.util
 import json
-import shutil
+import os
 import subprocess
 import sys
 import tempfile
@@ -15,6 +15,11 @@ import tomllib
 import zipfile
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
+
+try:
+    from tools.project_checks import toolchain_resolve
+except ModuleNotFoundError:  # direct script execution from this directory
+    import toolchain_resolve
 
 PASS = 0
 FAIL = 2
@@ -92,18 +97,21 @@ def _revalidate_project(root: Path, check_id: str, expected: Path) -> None:
         raise BlockedError(f"project changed during validation: {_PROJECTS[check_id]}")
 
 
-def _uv() -> str:
-    executable = shutil.which("uv")
-    if executable is None:
-        raise BlockedError("uv is unavailable")
-    return executable
+def _uv(root: Path) -> tuple[str, dict[str, str]]:
+    try:
+        return toolchain_resolve.resolve_env("store:uv/bin/uv", root, dict(os.environ))
+    except toolchain_resolve.ToolchainBlocked as error:
+        raise BlockedError(str(error)) from error
 
 
-def _run(command: tuple[str, ...], cwd: Path) -> subprocess.CompletedProcess[str]:
+def _run(
+    command: tuple[str, ...], cwd: Path, env: dict[str, str] | None = None
+) -> subprocess.CompletedProcess[str]:
     try:
         return subprocess.run(
             command,
             cwd=cwd,
+            env=env,
             check=False,
             capture_output=True,
             text=True,
@@ -126,7 +134,7 @@ def _lock(root: Path, check_id: str) -> int:
     lock = project / "uv.lock"
     if not lock.is_file():
         raise BlockedError(f"lockfile unavailable: {lock.relative_to(root)!s}")
-    executable = _uv()
+    executable, env = _uv(root)
     _revalidate_project(root, check_id, project)
     result = _run(
         (
@@ -139,6 +147,7 @@ def _lock(root: Path, check_id: str) -> int:
             str(project),
         ),
         root,
+        env,
     )
     diagnostic = _emit(result)
     if result.returncode == 0:
@@ -202,7 +211,7 @@ def _build(root: Path, check_id: str, output: Path) -> int:
     project = _project(root, check_id)
     _backend(project)
     destination = _build_destination(output, check_id)
-    executable = _uv()
+    executable, env = _uv(root)
     _revalidate_project(root, check_id, project)
     _revalidate_destination(output, destination)
     result = _run(
@@ -218,6 +227,7 @@ def _build(root: Path, check_id: str, output: Path) -> int:
             str(project),
         ),
         root,
+        env,
     )
     diagnostic = _emit(result)
     _revalidate_destination(output, destination)

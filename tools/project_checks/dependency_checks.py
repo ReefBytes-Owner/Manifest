@@ -17,6 +17,7 @@ profile; ``manifest check`` never runs them today.
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -30,6 +31,11 @@ if str(_SRC) not in sys.path:
     sys.path.insert(0, str(_SRC))
 
 from manifest_agent.checks import debt  # noqa: E402
+
+try:
+    from tools.project_checks import toolchain_resolve
+except ModuleNotFoundError:  # direct script execution from this directory
+    import toolchain_resolve
 
 PASS, FAIL, BLOCKED = 0, 2, 3
 DEFAULT_BASELINE = "config/debt-baseline.json"
@@ -126,10 +132,21 @@ def _isolated_output(
     return output, None
 
 
+def _npm(root: Path) -> tuple[str, dict[str, str]]:
+    try:
+        return toolchain_resolve.resolve_env(
+            "store:node/bin/npm", root, dict(os.environ)
+        )
+    except toolchain_resolve.ToolchainBlocked as error:
+        raise BlockedError(str(error)) from error
+
+
 def _lock_node(root: Path) -> int:
     project = _node_project(root)
-    npm = _which("npm")
-    result = _run([npm, "ci", "--dry-run", "--ignore-scripts", "--offline"], project)
+    npm, env = _npm(root)
+    result = _run(
+        [npm, "ci", "--dry-run", "--ignore-scripts", "--offline"], project, env
+    )
     diagnostic = _emit(result)
     if result.returncode == 0:
         return PASS
@@ -197,11 +214,20 @@ _ESM_RESOLUTION_FAILURE_WORDS = (
 )
 
 
+def _node(root: Path) -> tuple[str, dict[str, str]]:
+    try:
+        return toolchain_resolve.resolve_env(
+            "store:node/bin/node", root, dict(os.environ)
+        )
+    except toolchain_resolve.ToolchainBlocked as error:
+        raise BlockedError(str(error)) from error
+
+
 def _node_runtime(root: Path, output: Path) -> int:
-    npm = _which("npm")
-    node = _which("node")
+    npm, npm_env = _npm(root)
+    node, node_env = _node(root)
     project = _isolated_bundle_copy(root, output)
-    install = _run([npm, "ci", "--ignore-scripts", "--offline"], project)
+    install = _run([npm, "ci", "--ignore-scripts", "--offline"], project, npm_env)
     diagnostic = _emit(install)
     if install.returncode != 0:
         if any(word in diagnostic for word in _OFFLINE_WORDS):
@@ -210,7 +236,7 @@ def _node_runtime(root: Path, output: Path) -> int:
     # No NODE_PATH: `build.mjs`'s node_modules resolution now walks up from
     # its own (isolated-copy) directory and finds the install above --
     # exactly what an unmodified `node build.mjs --check` invocation does.
-    build = _run([node, "build.mjs", "--check"], project)
+    build = _run([node, "build.mjs", "--check"], project, node_env)
     build_diagnostic = _emit(build)
     if build.returncode == 0:
         return PASS

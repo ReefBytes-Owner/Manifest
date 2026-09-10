@@ -11,9 +11,22 @@ import subprocess
 import sys
 from pathlib import Path
 
+try:
+    from tools.project_checks import toolchain_resolve
+except ModuleNotFoundError:  # direct script execution from this directory
+    import toolchain_resolve
+
 PASS = 0
 FAIL = 2
 BLOCKED = 3
+
+# Hash-verified toolchain store references for the engines this module used
+# to resolve from ambient PATH (phase-3-5-decisions.md "Corrections
+# 2026-09-10" > "Correction 2"). No fallback: an unattested/unprovisioned
+# entry BLOCKs, it never falls back to PATH.
+_SHELLCHECK_REF = "store:shellcheck/bin/shellcheck"
+_YAMLLINT_REF = "store:python-env/bin/yamllint"
+_BATS_REF = "store:node-env/bin/bats"
 
 SYMLINKS = {
     "configs/claude/skills": "../../.apm/skills",
@@ -258,10 +271,18 @@ def _glob_inputs(root: Path, pattern: str) -> tuple[list[Path], list[str]]:
     return files, blocked
 
 
-def _lint_process(root: Path, command: tuple[str, ...]) -> int:
+def _lint_process(
+    root: Path, command: tuple[str, ...], env: dict[str, str] | None = None
+) -> int:
     try:
         result = subprocess.run(
-            command, cwd=root, check=False, capture_output=True, text=True, timeout=300
+            command,
+            cwd=root,
+            env=env,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=300,
         )
     except (OSError, subprocess.TimeoutExpired) as error:
         print(f"BLOCKED: linter unavailable: {error}", file=sys.stderr)
@@ -275,10 +296,16 @@ def _lint_process(root: Path, command: tuple[str, ...]) -> int:
     return FAIL if result.returncode == 1 else BLOCKED
 
 
+def _resolved(store_ref: str, root: Path) -> tuple[str, dict[str, str]]:
+    try:
+        executable, path_env = toolchain_resolve.resolve_tool(store_ref, root)
+    except toolchain_resolve.ToolchainBlocked as error:
+        raise BlockedError(str(error)) from error
+    return str(executable), {"PATH": path_env, "LC_ALL": "C", "LANG": "C"}
+
+
 def _shellcheck_project(root: Path, bootstrap: bool) -> int:
-    executable = shutil.which("shellcheck")
-    if executable is None:
-        raise BlockedError("pinned shellcheck 0.11.0.1 is unavailable")
+    executable, env = _resolved(_SHELLCHECK_REF, root)
     patterns = (
         ("bootstrap/lib/*.sh",) if bootstrap else ("configs/claude/scripts/*.sh",)
     )
@@ -298,7 +325,9 @@ def _shellcheck_project(root: Path, bootstrap: bool) -> int:
     failed = False
     for files in groups:
         status = _lint_process(
-            root, (executable, "-S", "warning", *(str(path) for path in files))
+            root,
+            (executable, "-S", "warning", *(str(path) for path in files)),
+            env,
         )
         failed = failed or status == FAIL
         if status == BLOCKED:
@@ -309,14 +338,12 @@ def _shellcheck_project(root: Path, bootstrap: bool) -> int:
 
 
 def _yamllint_project(root: Path) -> int:
-    executable = shutil.which("yamllint")
-    if executable is None:
-        raise BlockedError("pinned yamllint 1.38.0 is unavailable")
+    executable, env = _resolved(_YAMLLINT_REF, root)
     files, blocked = _glob_inputs(root, "configs/claude/config/*.yml")
     status = (
         PASS
         if not files
-        else _lint_process(root, (executable, *(str(path) for path in files)))
+        else _lint_process(root, (executable, *(str(path) for path in files)), env)
     )
     for diagnostic in blocked:
         print(f"BLOCKED: {diagnostic}", file=sys.stderr)
@@ -326,18 +353,13 @@ def _yamllint_project(root: Path) -> int:
 
 
 def _bundle_partition(root: Path) -> int:
-    executable = shutil.which("bats")
-    if executable is None:
-        # Version pin (1.11.1) is verified separately by the registry's own
-        # preflight (test.bundle-partition's tool version_argv); this is only
-        # "no bats binary resolved on PATH at all".
-        raise BlockedError("bats is unavailable on PATH")
+    executable, env = _resolved(_BATS_REF, root)
     target = root / "tests/bats/bundle_partition.bats"
     if target.is_symlink() or not target.is_file():
         raise BlockedError(
             "required input is unavailable: tests/bats/bundle_partition.bats"
         )
-    return _lint_process(root, (executable, str(target)))
+    return _lint_process(root, (executable, str(target)), env)
 
 
 CHECKS = {

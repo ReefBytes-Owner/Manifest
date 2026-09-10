@@ -21,10 +21,14 @@ from __future__ import annotations
 
 import argparse
 import re
-import shutil
 import subprocess
 import sys
 from pathlib import Path
+
+try:
+    from tools.project_checks import toolchain_resolve
+except ModuleNotFoundError:  # direct script execution from this directory
+    import toolchain_resolve
 
 PASS = 0
 FAIL = 2
@@ -48,6 +52,13 @@ _TYPE_FILTERS = {
     "hook.yamllint": (re.compile(r"\.ya?ml$"), "yamllint", ()),
 }
 CHECK_IDS = tuple(_TYPE_FILTERS)
+# check_id -> hash-verified toolchain store reference (phase-3-5-decisions.md
+# "Corrections 2026-09-10" > "Correction 2"): the engine is resolved from the
+# store, never from PATH -- there is no fallback.
+_STORE_REFS = {
+    "hook.shellcheck": "store:shellcheck/bin/shellcheck",
+    "hook.yamllint": "store:python-env/bin/yamllint",
+}
 # Extension-only misses two real shapes: shell scripts without a .sh/.bash
 # suffix (e.g. *.sh.tmpl -- still a #!/bin/bash script pre-commit's real
 # shellcheck-py hook would lint) and yamllint's own no-extension config
@@ -141,13 +152,18 @@ def _run(check_id: str, root: Path, paths: list[Path]) -> int:
     if not paths:
         return PASS
     _, executable_name, extra_argv = _TYPE_FILTERS[check_id]
-    executable = shutil.which(executable_name)
-    if executable is None:
-        raise BlockedError(f"{executable_name} is unavailable")
+    try:
+        executable, path_env = toolchain_resolve.resolve_tool(
+            _STORE_REFS[check_id], root
+        )
+    except toolchain_resolve.ToolchainBlocked as error:
+        raise BlockedError(str(error)) from error
+    env = {"PATH": path_env, "LC_ALL": "C", "LANG": "C"}
     try:
         result = subprocess.run(
-            (executable, *extra_argv, *(str(path) for path in paths)),
+            (str(executable), *extra_argv, *(str(path) for path in paths)),
             cwd=root,
+            env=env,
             check=False,
             capture_output=True,
             text=True,

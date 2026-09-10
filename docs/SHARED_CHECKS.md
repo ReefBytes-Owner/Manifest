@@ -369,56 +369,51 @@ instead of silently resolving whatever happens to be on `PATH`. Test:
 
 | Check(s) | Old identity | New identity | Store-resolved? |
 |---|---|---|---|
-| `lint.shell.scripts`, `lint.shell.bootstrap`, `hook.shellcheck` | `distribution:shellcheck-py=0.11.0.1;command:shellcheck=0.11.0` | `command:shellcheck=0.11.0` | No — `shutil.which("shellcheck")` against ambient `PATH`. |
-| `hook.shfmt` | `"ok"` (unpinned placeholder) | `command:shfmt=3.13.1`; body argv is `-d` (check-only), never `-w` | No — `shutil.which("shfmt")` against ambient `PATH`. |
-| `lint.yaml.config`, `hook.yamllint` | `distribution:pyyaml=6.0.2;distribution:yamllint=1.38.0;command:yamllint=1.38.0` | `distribution:yamllint=1.38.0` | No — `shutil.which("yamllint")` against ambient `PATH`. |
-| `hook.markdownlint-cli2` | already `command:markdownlint-cli2=0.23.0` | unchanged (already engine-only, not touched this chunk) | No — `shutil.which("markdownlint-cli2")` against ambient `PATH`. |
-| `test.bats` | `./node_modules/.bin/bats` | `command:bats=1.11.1`; argv is `store:node-env/bin/bats` | **Yes** — the only one of these checks whose executable is a `store:` reference. |
-| `test.bundle-partition` | `"ok"` + hardcoded BLOCKED (`npx` control) | `command:bats=1.11.1`; runs `tests/bats/bundle_partition.bats` via `shutil.which("bats")`, no more `npx` | No — `shutil.which("bats")` against ambient `PATH`, unchanged trust class from before this chunk (it gained a real body, not store resolution). |
-| `hook.gitleaks` | `command:gitleaks=8.30.0` | `command:gitleaks=8.30.1` (unified with CI's checksum-verified install and the lock's `binary` entry) | No — `shutil.which("gitleaks")` against ambient `PATH`, now called from a `tools/project_checks/gitleaks_check.py` wrapper body (C6b) instead of direct argv. |
+| `lint.shell.scripts`, `lint.shell.bootstrap`, `hook.shellcheck` | `distribution:shellcheck-py=0.11.0.1;command:shellcheck=0.11.0` | `command:shellcheck=0.11.0` | **Yes — BLOCKED unattested until C7.** Body resolves `store:shellcheck/bin/shellcheck` via `tools/project_checks/toolchain_resolve.py`; the registry-level version probe (drift detection only, not a security control) is unchanged. |
+| `hook.shfmt` | `"ok"` (unpinned placeholder) | `command:shfmt=3.13.1`; body argv is `-d` (check-only), never `-w` | **Yes — BLOCKED unattested until C7.** Body resolves `store:shfmt/bin/shfmt`. |
+| `lint.yaml.config`, `hook.yamllint` | `distribution:pyyaml=6.0.2;distribution:yamllint=1.38.0;command:yamllint=1.38.0` | `distribution:yamllint=1.38.0` | **Yes — BLOCKED unattested until C7 (twice over: `python-env` is also not yet an implemented provision kind).** Body resolves `store:python-env/bin/yamllint`. |
+| `hook.markdownlint-cli2` | already `command:markdownlint-cli2=0.23.0` | unchanged | **Yes — BLOCKED unattested until C7.** Direct-argv check; registry `tool.executable` and `check.argv[0]` are both `store:node-env/bin/markdownlint-cli2` (same generic runner rewrite `test.bats` already used — no wrapper body needed). |
+| `test.bats` | `./node_modules/.bin/bats` | `command:bats=1.11.1`; argv is `store:node-env/bin/bats` | Yes (unchanged from before this chunk). |
+| `test.bundle-partition` | `"ok"` + hardcoded BLOCKED (`npx` control) | `command:bats=1.11.1`; runs `tests/bats/bundle_partition.bats` | **Yes — BLOCKED unattested until C7.** Body resolves `store:node-env/bin/bats`. |
+| `hook.gitleaks` | `command:gitleaks=8.30.0` | `command:gitleaks=8.30.1` | No (unchanged from before this chunk — out of C2b's explicit scope; still `shutil.which("gitleaks")` in `gitleaks_check.py`). |
+| `dependency.lock.config`, `dependency.lock.delegate`, `dependency.lock.root`, `package.coordinator`, `package.config` | `command:uv=0.12.6` | unchanged | **Yes — BLOCKED unattested until C7.** Body resolves `store:uv/bin/uv` via `packages.py::_uv`. |
+| `dependency.lock.node`, `package.node-runtime` | `"ok"` | unchanged | **Yes — BLOCKED unavailable until C7 (twice over: the `binary`-kind provisioner records only `bin/node`, not `bin/npm`, so `npm` needs a provisioner extension too).** Body resolves `store:node/bin/node` / `store:node/bin/npm` via `dependency_checks.py`. |
 
-**Honesty caveat**: of the 9 engine-bearing checks this chunk's engine-pin
-table touches, only **`test.bats`** actually resolves its engine through the
-hash-verified toolchain store (3a). The other 8 still trust whatever
-`shutil.which(...)` finds on `PATH`, gated only by the version-string probe
-(exactly the pre-3a trust model — a launcher swapped for one that reports the
-same version string still passes). This is not new, more `PATH` reliance:
-these checks trusted `PATH` before this chunk too. It is disclosed here
-because the engine-pin table above could otherwise read as "these checks are
-now store-verified," which is true for exactly one of them.
+**Honesty caveat (updated, C2b)**: of the 9 engine-bearing checks the C2
+engine-pin table touches, **8 of 9** now resolve their engine through the
+hash-verified toolchain store (only `hook.gitleaks` remains PATH-resolved,
+deliberately out of this chunk's scope — see `gitleaks_check.py`, landed
+separately in C6b). This reverses the C2 deferral recorded below (kept for
+history): every migrated check is `BLOCKED: toolchain: <tool> unattested for
+<platform>` (or `not provisioned`, for the two provisioner-kind gaps above)
+until C7 fills in real hashes and implements the `python-env`/`node-env`
+kinds — that is the intended, honest result: a receipt that used to say PASS
+about an unverified tool now says BLOCKED about the same tool, truthfully.
 
-**Why the other 8 are not `store:`-wired yet — the real blockers, not an
-architecture limit.** Two things, both fixable, neither insurmountable:
+**Why the other 8 were not `store:`-wired at first — the original C2
+deferral, now reversed.** `phase-3-5-decisions.md` "Corrections 2026-09-10" >
+"Correction 2" overturns this section's original reasoning. It is kept
+verbatim below for history; C2b's migration described above supersedes it.
 
 1. `registry.py`'s `_validate_tool_reference` requires
    `check["argv"][0] == tool["executable"]` exactly. Checks wrapped through
    `python3 tools/project_checks/{structure,hooks}.py <id> --root .` have
-   `argv[0] == "python3"`; migrating only `tool.executable` to `store:...`
-   breaks that invariant (caught immediately by `test_check_registry.py`).
-   For the direct-argv checks (`hook.shellcheck`, `hook.yamllint`,
-   `hook.markdownlint-cli2`) this is not a hard blocker — their argv is
-   compared against `hooks.py`'s own `TASK7_DISPOSITIONS` table (a live
-   Python dict this codebase owns and edits every chunk, most recently by
-   this one for `hook.shellcheck`/`hook.yamllint` — see below), not against
-   `config/check-preservation.json`'s frozen oracle. Rewiring them to
-   `store:` form was mechanically possible within this chunk; it was
-   deferred, not architecturally prevented. `hook.gitleaks` left the
-   direct-argv set entirely in C6b, for an unrelated reason: its body now
-   needs the candidate's base revision (`.git/candidate-base-sha`) to scan
-   the right range, which only a `python3` wrapper body can read, so its
-   argv is `python3` form like `hook.shellcheck`'s (in
-   `tools/project_checks/gitleaks_check.py`'s own `TASK7_DISPOSITIONS`,
-   not `hooks.py`'s) — not a `store:` migration, just no longer eligible
-   for one under this bullet's blocker either way.
-2. **The deferral is deliberate, not an oversight**: every entry in
-   `config/toolchain.lock.json` currently has `exe_sha256: null`
-   (unattested — real hashes are C7, needs network). Routing a check through
-   `toolchain.resolve()` against an unattested lock entry makes it
-   `BLOCKED: toolchain: <tool> unattested for <platform>` unconditionally —
-   converting a check that works today (PATH + version string) into one that
-   can never pass until C7 lands. Store-wiring these 8 checks now would
-   verify nothing while breaking them; it becomes meaningful the moment C7
-   fills in real hashes. Tracked for that chunk, not this one.
+   `argv[0] == "python3"` — **this was never actually a blocker**: C2b's
+   in-body resolution (mirroring `analysis_checks.resolve_scanner`, already
+   landed for `types.python`/`security.semgrep`) resolves `store:` references
+   *inside* the `python3` body, touching neither the registry argv nor this
+   invariant. `hook.markdownlint-cli2` (a direct-argv check) migrated by the
+   other path: both `tool.executable` and `check.argv[0]` moved to
+   `store:node-env/bin/markdownlint-cli2` together, exactly like `test.bats`.
+2. **The original deferral's premise — "every lock entry is
+   `exe_sha256: null`, so store resolution verifies nothing while turning a
+   working check BLOCKED" — was refuted, not merely reconsidered.** Today's
+   profile-level BLOCKED is coincidence (unrelated pending obligations), not
+   a control; a PATH-resolved PASS is the exact pre-3a trust model this
+   system exists to close (a swapped launcher reporting the pinned version
+   string still passes). An honest BLOCKED is worth more than a PASS that
+   verifies nothing. C7 becomes a pure hash-fill with no further wiring
+   changes.
 
 **`hook.gitleaks` scans `base..HEAD`, never `--staged` (C6b).** Before this
 chunk the registry's argv was `gitleaks git --pre-commit --redact --staged
