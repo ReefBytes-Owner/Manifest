@@ -1,5 +1,6 @@
 {
   "schema_version": 1,
+  "toolchain_lock": "config/toolchain.lock.json",
   "tools": {
     "structure.symlinks": {
       "executable": "python3",

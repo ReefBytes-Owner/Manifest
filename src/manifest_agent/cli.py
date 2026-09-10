@@ -270,3 +270,30 @@ cli.add_command(
         help="Validate per-group CI producer receipts and emit one aggregate verdict.",
     )
 )
+
+
+class _LazyProvisionCommand(click.Command):
+    """`toolchain_cli.provision`, imported only once selected (same reasoning
+    as `_LazyChecksCommand`: keep lifecycle commands free of the check
+    subsystem's import weight)."""
+
+    def make_context(
+        self,
+        info_name: str | None,
+        args: list[str],
+        parent: click.Context | None = None,
+        **extra: Any,
+    ) -> click.Context:
+        import manifest_agent.checks.toolchain_cli as toolchain_cli
+
+        return toolchain_cli.provision.make_context(
+            info_name, args, parent=parent, **extra
+        )
+
+
+cli.add_command(
+    _LazyProvisionCommand(
+        "provision",
+        help="Populate the content-addressed toolchain store from a reviewed lock.",
+    )
+)

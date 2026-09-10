@@ -10,6 +10,7 @@ from typing import Any
 from .models import CheckSpec, PreparationSpec
 from .path_filters import validate_path_filters
 from .registry_schema import read_validated_document
+from .toolchain import lock_digest_for_registry
 
 VALID_GROUPS = frozenset({"lint", "test", "structure", "security", "package"})
 VALID_PROFILES = frozenset({"quick", "full", "security", "release"})
@@ -416,7 +417,9 @@ def load_registry(path: Path) -> dict[str, Any]:
     """Load a registry after structural and semantic validation."""
     document = read_validated_document(path)
     _validate_semantics(document)
-    return _normalize(document)
+    normalized = _normalize(document)
+    normalized.update(lock_digest_for_registry(document, path))
+    return normalized
 
 
 def resolve_checks(

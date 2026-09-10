@@ -14,6 +14,7 @@
   ],
   "properties": {
     "schema_version": { "const": 1 },
+    "toolchain_lock": { "$ref": "#/$defs/nonEmptyString" },
     "tools": {
       "type": "object",
       "additionalProperties": false,

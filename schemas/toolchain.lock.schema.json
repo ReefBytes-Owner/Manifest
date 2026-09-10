@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://manifest.local/schemas/toolchain.lock.schema.json",
+  "title": "Manifest toolchain lock",
+  "description": "Content-addressed provisioning lock for manifest provision. Every tool entry names the artifact kind, its per-platform source, and a sha256 that a real download must satisfy. An entry with sha256: null is unattested and must resolve to BLOCKED, never PASS.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "tools"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "tools": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "patternProperties": {
+        "^[A-Za-z0-9][A-Za-z0-9._-]*$": { "$ref": "#/$defs/toolEntry" }
+      }
+    }
+  },
+  "$defs": {
+    "nonEmptyString": {
+      "type": "string",
+      "minLength": 1
+    },
+    "sha256OrNull": {
+      "type": ["string", "null"],
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "toolEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "version", "platforms"],
+      "properties": {
+        "kind": { "enum": ["binary", "python-env", "node-env"] },
+        "version": { "$ref": "#/$defs/nonEmptyString" },
+        "platforms": {
+          "type": "object",
+          "additionalProperties": false,
+          "minProperties": 1,
+          "patternProperties": {
+            "^[a-z0-9]+-[a-z0-9]+$": { "$ref": "#/$defs/platformEntry" }
+          }
+        }
+      }
+    },
+    "platformEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["url", "sha256", "path_in_archive"],
+      "properties": {
+        "url": { "$ref": "#/$defs/nonEmptyString" },
+        "sha256": { "$ref": "#/$defs/sha256OrNull" },
+        "path_in_archive": { "$ref": "#/$defs/nonEmptyString" },
+        "console_scripts": {
+          "description": "python-env / node-env only: console-script relative paths hashed after materialization.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/nonEmptyString" }
+        }
+      }
+    }
+  }
+}

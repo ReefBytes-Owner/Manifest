@@ -113,6 +113,70 @@ missing producer groups as `BLOCKED`, so a `BLOCKED` aggregate report is the
 expected shape until a producer exists for every group `full` requires, not
 just until `coverage_pending` clears.
 
+## Toolchain provisioning
+
+`manifest check` never downloads or installs anything; pinned tools are
+resolved from a content-addressed **toolchain store**, hash-verified against
+`config/toolchain.lock.json` on every preflight, never trusted by name from
+`PATH`. Populating the store is a separate, explicitly invoked command:
+
+```bash
+# Provision every lock-listed tool for the running platform
+manifest provision --lock config/toolchain.lock.json
+
+# Validate the store against the lock without downloading anything
+manifest provision --lock config/toolchain.lock.json --offline   # exit 3 if incomplete
+
+# Adopt an existing binary only if its sha256 matches the lock
+manifest provision --lock config/toolchain.lock.json --import gitleaks=/usr/local/bin/gitleaks
+```
+
+- **Store location**: `$MANIFEST_TOOLCHAIN_STORE`, else
+  `$XDG_CACHE_HOME/manifest/toolchain`, else `~/.cache/manifest/toolchain` —
+  never inside the repository or the candidate.
+- **Registry binding**: `tools[NAME].executable` may be
+  `"store:<bundle>/<relative-exe>"` (schema 1.1, additive). Plain bare names
+  remain legal only for the always-present interpreter set (`python3`,
+  `bash`) or a repository-relative script path; every other bare command
+  name is exactly the `PATH`-trust gap this closes (`hooks.py`/`ruff.py`
+  etc. migrate to `store:` in a later chunk — see `coverage_pending`).
+- **`--offline`**: checks every lock-attested `(bundle, platform)` pair
+  against the store's `manifest.json` and re-hashes each executable; exits
+  `0` only if every attested tool for the target platform resolves cleanly,
+  else `3`. It never contacts the network.
+- **Unattested entries always BLOCK.** `config/toolchain.lock.json` is
+  committed with real tool/version/platform structure but `"sha256": null`
+  wherever a real hash needs a download; an unattested entry can never
+  resolve to `PASS` — only `BLOCKED: toolchain: <tool> unattested for
+  <platform>`.
+
+Failure semantics (`src/manifest_agent/checks/toolchain.py::resolve`):
+
+| Condition | Status | Reason string |
+|---|---|---|
+| Lock has no attested entry for this platform | BLOCKED | `toolchain: <tool> unattested for <platform>` |
+| Store missing the entry | BLOCKED | `toolchain: <tool> not provisioned (run manifest provision)` |
+| sha256 mismatch (executable or interpreter) | BLOCKED | `toolchain: <tool> digest mismatch` |
+| Store `manifest.json` lock digest ≠ the registry's lock digest | BLOCKED | `toolchain: store stale (lock changed)` |
+| Store mutated between preflight and the check's own run | BLOCKED | `toolchain: store changed during run` |
+| Version probe mismatch (existing, unrelated to the store) | BLOCKED | `tool version mismatch` |
+
+Spec row: `rule` pinned tools come only from an attested, hash-verified
+store → `tool` `manifest provision`, `config/toolchain.lock.json`,
+`schemas/toolchain.lock.schema.json`, `src/manifest_agent/checks/
+toolchain.py` → `scope` every `tools[]` entry except the interpreter
+allow-list → `trigger` every check/preparation preflight → `failure` BLOCKED
+per the table above → `exception` none (an unpinned tool is not a check) →
+`test` `tests/python/manifest_agent/test_toolchain.py` (fixture-lock unit
+coverage of every row above), `test_toolchain_provision.py` (`--offline`,
+`--import`, download-hash-mismatch, unimplemented-kind honesty),
+`test_toolchain_cli.py` (the real CLI via `file://` lock URLs),
+`test_check_runner_toolchain.py` (end-to-end through `run_profile`,
+including the swapped-launcher and store-changed-mid-run cases), and
+`test_toolchain_registry_guards.py` (no check/preparation/tool argv ever
+contains `"provision"`; the allow-list is exactly `python3` + `bash` +
+repo-relative scripts).
+
 ## Coverage limits
 
 `config/project-checks.json` still carries a nonempty `coverage_pending` list

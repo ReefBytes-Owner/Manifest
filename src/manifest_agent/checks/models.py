@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .process import ProcessResult
+from .toolchain import ResolvedTool
 
 
 @dataclass(frozen=True)
@@ -73,7 +74,7 @@ class Candidate:
 
 
 ToolKey = tuple[str, Path]
-ToolOutcome = tuple[ProcessResult, bool, ProcessResult | None]
+ToolOutcome = tuple[ProcessResult, bool, ProcessResult | None, ResolvedTool | None]
 
 
 @dataclass(frozen=True)
