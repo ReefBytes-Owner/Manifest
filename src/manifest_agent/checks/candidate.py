@@ -89,12 +89,16 @@ def _identity(root: Path, name: str) -> dict[str, str | int]:
     return {"kind": "file", "mode": mode, "sha256": digest}
 
 
-def _index(root: Path) -> tuple[bytes, dict[str, str]]:
+_GIT_FILE_MODES = {b"100644": 0o644, b"100755": 0o755}
+
+
+def _index(root: Path) -> tuple[bytes, dict[str, str], dict[str, int]]:
     flags = _git(root, "ls-files", "-v", "-z").split(b"\0")
     if any(entry[:1].upper() == b"S" for entry in flags):
         raise CandidateBlockedError("sparse/skip-worktree inputs are unsupported")
     entries = _git(root, "ls-files", "--stage", "-z")
-    links = {}
+    links: dict[str, str] = {}
+    modes: dict[str, int] = {}
     for entry in entries.split(b"\0"):
         if not entry:
             continue
@@ -104,7 +108,9 @@ def _index(root: Path) -> tuple[bytes, dict[str, str]]:
             raise CandidateBlockedError("unresolved index conflicts")
         if mode == b"160000":
             links[os.fsdecode(name)] = sha.decode("ascii")
-    return entries, links
+        elif mode in _GIT_FILE_MODES:
+            modes[os.fsdecode(name)] = _GIT_FILE_MODES[mode]
+    return entries, links, modes
 
 
 def _walk(
@@ -153,7 +159,7 @@ def _snapshot(root: Path, *, populated_links: bool = True) -> dict[str, object]:
             mode = (Path(folder) / filename).lstat().st_mode
             if not (stat.S_ISREG(mode) or stat.S_ISLNK(mode)):
                 raise CandidateBlockedError("non-regular candidate file")
-    index, links = _index(root)
+    index, links, _modes = _index(root)
     names = sorted(
         set(
             _git(
@@ -209,6 +215,30 @@ def candidate_digest(source: Path) -> str:
         if isinstance(error, CandidateBlockedError):
             raise
         raise CandidateBlockedError("candidate fingerprint unavailable") from error
+
+
+def _with_git_tracked_modes(root: Path, files: dict) -> dict:
+    """`files` with tracked-regular-file modes taken from Git's own index.
+
+    Used only for the one-time plan that becomes a fresh candidate's copy
+    and staged tree (`materialize_candidate`): a tracked file's mode must
+    come from what Git actually recorded (100644/100755), never the source
+    worktree's raw on-disk permission bits, so an unstaged local `chmod`
+    cannot leak into the candidate as a real, staged mode change.
+
+    Deliberately NOT applied to `_identity`/`_snapshot` in general -- those
+    also drive `candidate_digest`'s repeated re-snapshots, which exist to
+    catch exactly this kind of raw on-disk mutation (a misbehaving check
+    body chmod'ing a candidate file without staging it). Substituting Git's
+    mode there would blind that tamper check instead of fixing anything.
+    """
+    _, _, modes = _index(root)
+    corrected = dict(files)
+    for name, git_mode in modes.items():
+        identity = corrected.get(name)
+        if identity is not None and identity["kind"] == "file":
+            corrected[name] = {**identity, "mode": git_mode}
+    return corrected
 
 
 def _copy(root: Path, destination: Path, files: dict) -> None:
@@ -313,8 +343,9 @@ def materialize_candidate(source: Path, base_sha: str, destination: Path) -> Can
         _git(destination, "bundle", "unbundle", str(bundle))
         bundle.unlink()
         _git(destination, "update-ref", "HEAD", head)
-        _copy(source, destination, before["files"])
-        tree = _stage(destination, before["files"])
+        plan = _with_git_tracked_modes(source, before["files"])
+        _copy(source, destination, plan)
+        tree = _stage(destination, plan)
         if (
             before != _snapshot(source)
             or head != _git(source, "rev-parse", "HEAD").decode().strip()

@@ -78,7 +78,14 @@ def test_complete_candidate_preserves_source_and_current_head(source, tmp_path):
     assert (candidate.root / "staged").read_text() == "staged edit\n"
     assert (candidate.root / "unstaged").read_text() == "unstaged edit\n"
     assert not (candidate.root / "deleted").exists()
-    assert (candidate.root / "mode").stat().st_mode & 0o777 == 0o751
+    # "mode" was chmod'd 0o751 on disk AFTER the commit, with no `git add` to
+    # stage it: Git still records it 100644 (C7f). The candidate must match
+    # what Git recorded, not the source worktree's unstaged on-disk drift.
+    assert (candidate.root / "mode").stat().st_mode & 0o777 == 0o644
+    assert (
+        git(candidate.root, "ls-files", "--stage", "mode")
+        == f"100644 {git(root, 'rev-parse', 'HEAD:mode').decode().strip()} 0\tmode\n".encode()
+    )
     assert os.readlink(candidate.root / "link") == "head-only.txt"
     assert (candidate.root / "staged").stat().st_ino != (root / "staged").stat().st_ino
     assert candidate.root.stat().st_mode & 0o777 == 0o700
@@ -96,6 +103,47 @@ def test_complete_candidate_preserves_source_and_current_head(source, tmp_path):
     for revision in (candidate.base_sha, candidate.head_sha):
         assert git(candidate.root, "cat-file", "-t", revision) == b"commit\n"
     assert not (candidate.root / ".git/objects/info/alternates").exists()
+
+
+def test_candidate_file_modes_match_git_not_worktree_permission_drift(tmp_path):
+    """A committed file's mode always matches Git's 100644/100755, even when
+    the source worktree's on-disk permission bits disagree (C7f): a
+    materialization bug once let a 100644 file's stray on-disk executable
+    bit leak into the candidate, so hook.check-executables-have-shebangs
+    flagged docs/SHARED_CHECKS.md as executable although git ls-files
+    recorded 100644.
+    """
+    from manifest_agent.checks import materialize_candidate
+
+    root = tmp_path / "source"
+    root.mkdir()
+    git(root, "init", "-q")
+    (root / "plain.txt").write_text("data\n")
+    (root / "script.sh").write_text("#!/bin/sh\necho hi\n")
+    (root / "script.sh").chmod(0o755)
+    git(root, "add", ".")
+    git(root, "commit", "-qm", "base")
+    assert git(root, "ls-files", "--stage", "plain.txt").split()[0] == b"100644"
+    assert git(root, "ls-files", "--stage", "script.sh").split()[0] == b"100755"
+
+    # Drift the on-disk bits away from what Git recorded, on BOTH files, with
+    # nothing re-staged: a 100644 file gains a stray executable bit, and a
+    # 100755 file loses its executable bit.
+    (root / "plain.txt").chmod(0o755)
+    (root / "script.sh").chmod(0o644)
+
+    candidate = materialize_candidate(
+        root, git(root, "rev-parse", "HEAD").decode().strip(), tmp_path / "candidate"
+    )
+
+    assert (candidate.root / "plain.txt").stat().st_mode & 0o777 == 0o644
+    assert (candidate.root / "script.sh").stat().st_mode & 0o777 == 0o755
+    assert (
+        git(candidate.root, "ls-files", "--stage", "plain.txt").split()[0] == b"100644"
+    )
+    assert (
+        git(candidate.root, "ls-files", "--stage", "script.sh").split()[0] == b"100755"
+    )
 
 
 @pytest.mark.parametrize("target", ["/tmp", "../outside", "bridge/secret"])
