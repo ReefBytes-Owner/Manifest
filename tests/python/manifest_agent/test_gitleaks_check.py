@@ -46,6 +46,14 @@ def _git(root: Path, *args: str) -> bytes:
     ).stdout
 
 
+# Assembled at runtime, never a single matchable literal in this file's own
+# source -- this repo's own `hook.gitleaks`/`security.semgrep` scans run
+# against THIS repo's history, not the throwaway fixture repo below, and a
+# secret-shaped literal sitting in this test's committed source would be a
+# real finding on this repo's own scan, not just the fixture's.
+_AWS_KEY_ID = "AKIA" + "ABCDEFGHIJKLMNOP"
+
+
 @pytest.fixture
 def repo_with_committed_secret(tmp_path: Path) -> tuple[Path, str]:
     """A clean checkout (nothing staged) whose HEAD commit, past the base
@@ -58,7 +66,7 @@ def repo_with_committed_secret(tmp_path: Path) -> tuple[Path, str]:
     _git(root, "add", ".")
     _git(root, "commit", "-qm", "base")
     base_sha = _git(root, "rev-parse", "HEAD").decode().strip()
-    (root / "config.env").write_text("AWS_ACCESS_KEY_ID=AKIAABCDEFGHIJKLMNOP\n")
+    (root / "config.env").write_text(f"AWS_ACCESS_KEY_ID={_AWS_KEY_ID}\n")
     _git(root, "add", ".")
     _git(root, "commit", "-qm", "add secret")
     return root, base_sha
