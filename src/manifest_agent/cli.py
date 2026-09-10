@@ -322,3 +322,31 @@ cli.add_command(
         help="Run a native hook adapter (manifest hook <client> <event>) or verify one (manifest hook verify <client>).",
     )
 )
+
+
+class _LazyBranchProtectionCommand(click.Command):
+    """`protection_cli.branch_protection`, imported only once selected (same
+    reasoning as `_LazyChecksCommand`: keep lifecycle commands free of the
+    check subsystem and `gh` invocation this command pulls in)."""
+
+    def make_context(
+        self,
+        info_name: str | None,
+        args: list[str],
+        parent: click.Context | None = None,
+        **extra: Any,
+    ) -> click.Context:
+        import manifest_agent.protection_cli as protection_cli
+
+        return protection_cli.branch_protection.make_context(
+            info_name, args, parent=parent, **extra
+        )
+
+
+cli.add_command(
+    _LazyBranchProtectionCommand(
+        "branch-protection",
+        help="Reconcile GitHub branch protection to config/branch-protection.json. "
+        "Dry-run by default -- activation (--apply) is the repository owner's act.",
+    )
+)

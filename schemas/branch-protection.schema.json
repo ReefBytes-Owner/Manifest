@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://manifest.local/schemas/branch-protection.schema.json",
+  "title": "Manifest branch-protection target",
+  "description": "The declared target settings for `manifest branch-protection`. `required_status_checks.jobs` lists GitHub Actions JOB IDS, not status-check contexts: the command resolves each job id to its `name:` in the referenced workflow at run time, so the required contexts can never drift from the workflow file silently. A job id absent from the workflow is BLOCKED, never applied.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "source",
+    "branch",
+    "workflow",
+    "required_status_checks",
+    "enforce_admins",
+    "required_pull_request_reviews",
+    "required_conversation_resolution",
+    "allow_force_pushes",
+    "allow_deletions",
+    "restrictions"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "source": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Where this target was derived from -- the activation proposal and the correction that supersedes part of it."
+    },
+    "branch": { "type": "string", "minLength": 1 },
+    "workflow": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Repo-relative path to the workflow file that defines every job id in required_status_checks.jobs."
+    },
+    "required_status_checks": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["strict", "jobs"],
+      "properties": {
+        "strict": { "type": "boolean" },
+        "jobs": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "enforce_admins": { "type": "boolean" },
+    "required_pull_request_reviews": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "dismiss_stale_reviews",
+        "require_code_owner_reviews",
+        "required_approving_review_count",
+        "require_last_push_approval"
+      ],
+      "properties": {
+        "dismiss_stale_reviews": { "type": "boolean" },
+        "require_code_owner_reviews": { "type": "boolean" },
+        "required_approving_review_count": { "type": "integer", "minimum": 0, "maximum": 6 },
+        "require_last_push_approval": { "type": "boolean" }
+      }
+    },
+    "required_conversation_resolution": { "type": "boolean" },
+    "allow_force_pushes": { "type": "boolean" },
+    "allow_deletions": { "type": "boolean" },
+    "restrictions": { "type": "null" }
+  }
+}

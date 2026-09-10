@@ -347,6 +347,25 @@ If activation goes wrong after the owner approves it:
    another name, or should the release workflow be changed to not depend on one
    existing?
 
+## 9. Dry-run tooling
+
+`manifest branch-protection` (`src/manifest_agent/protection.py` +
+`protection_cli.py`) computes §4/Correction-1's target from
+`config/branch-protection.json`, resolves each required job id in
+`required_status_checks.jobs` to its live `name:` in `.github/workflows/ci.yml`
+(never a hardcoded context string), reads the live GitHub setting via `gh api`,
+and diffs. **Dry-run by default** -- it changes nothing unless `--apply` is
+given. Exit codes: `0` live matches proposed; `1` drift found (dry-run); `2`
+`--apply` wrote but the re-read still differs (residual drift); `3` BLOCKED
+(`gh` unavailable/errored, a required job missing from the workflow, or -- on
+`--apply` only -- an unmet precondition). Preconditions gate `--apply`
+specifically: every required job must exist, and the aggregate job plus its
+producers must carry no `continue-on-error: true` (checked today: it still
+does, per C6b). `--apply` refuses with no write issued while any precondition
+is unmet. Activation is the repository owner's act, run manually; this
+document proposes, `manifest branch-protection --apply` is what would execute
+it once the owner decides to.
+
 ## Could not verify
 
 - The exact behavior of `github.event.before` on a real push event to `main`, and
