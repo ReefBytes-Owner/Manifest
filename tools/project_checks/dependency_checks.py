@@ -17,7 +17,6 @@ profile; ``manifest check`` never runs them today.
 from __future__ import annotations
 
 import json
-import os
 import shutil
 import subprocess
 import sys
@@ -34,7 +33,8 @@ from manifest_agent.checks import debt  # noqa: E402
 
 PASS, FAIL, BLOCKED = 0, 2, 3
 DEFAULT_BASELINE = "config/debt-baseline.json"
-NODE_PROJECT = "plugins/stitch-design/runtime/node"
+NODE_BUNDLE_ROOT = "plugins/stitch-design"
+NODE_PROJECT = f"{NODE_BUNDLE_ROOT}/runtime/node"
 CHECK_IDS = (
     "dependency.lock.node",
     "package.node-runtime",
@@ -138,26 +138,83 @@ def _lock_node(root: Path) -> int:
     return FAIL
 
 
+def _tracked_bundle_files(root: Path) -> list[str]:
+    """Git-tracked, repo-relative paths under ``NODE_BUNDLE_ROOT`` -- a
+    filesystem walk would also pick up gitignored local artifacts (stray
+    ``node_modules``, editor files) that must never enter the isolated
+    copy (mirrors ``debt_checks.py::_tracked_paths``)."""
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(root), "ls-files", "--", NODE_BUNDLE_ROOT],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=30,
+        )
+    except (subprocess.SubprocessError, OSError) as error:
+        raise BlockedError(f"cannot list tracked files: {error}") from error
+    return [line for line in result.stdout.splitlines() if line]
+
+
+def _isolated_bundle_copy(root: Path, output: Path) -> Path:
+    """A self-contained copy of the tracked ``plugins/stitch-design`` tree.
+
+    ``build.mjs`` does a static ESM ``import { build } from 'esbuild'`` --
+    Node's ESM resolver ignores ``NODE_PATH`` entirely (a CJS-only legacy
+    mechanism), so no environment trick can make that import see an
+    ``isolated/node_modules`` sitting next to a COPY of just
+    ``runtime/node``. ``build.mjs`` also resolves its own entry points and
+    its drift-check target (``runtime/dist``) relative to the surrounding
+    bundle root, not just its own directory. Copying the whole tracked
+    bundle -- never the source worktree itself -- and running ``npm ci``
+    and ``node build.mjs --check`` from the copy's own
+    ``runtime/node/`` is what makes Node's ordinary node_modules walk find
+    the isolated install with zero env overrides, while every relative
+    path inside ``build.mjs`` still resolves the same way it does in the
+    real tree.
+    """
+    files = _tracked_bundle_files(root)
+    if not files:
+        raise BlockedError(f"no tracked files under {NODE_BUNDLE_ROOT}")
+    destination = output / "stitch-design-bundle"
+    for relative in files:
+        target = destination / Path(relative).relative_to(NODE_BUNDLE_ROOT)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(root / relative, target)
+    project = destination / "runtime" / "node"
+    for name in ("package.json", "package-lock.json", "build.mjs"):
+        if not (project / name).is_file():
+            raise BlockedError(
+                f"node project metadata unavailable: {NODE_PROJECT}/{name}"
+            )
+    return project
+
+
+_ESM_RESOLUTION_FAILURE_WORDS = (
+    "cannot find module",
+    "cannot find package",
+    "err_module_not_found",
+)
+
+
 def _node_runtime(root: Path, output: Path) -> int:
-    project = _node_project(root)
     npm = _which("npm")
     node = _which("node")
-    isolated = output / "node-runtime"
-    isolated.mkdir(parents=True, exist_ok=True)
-    for name in ("package.json", "package-lock.json"):
-        shutil.copyfile(project / name, isolated / name)
-    install = _run([npm, "ci", "--ignore-scripts", "--offline"], isolated)
+    project = _isolated_bundle_copy(root, output)
+    install = _run([npm, "ci", "--ignore-scripts", "--offline"], project)
     diagnostic = _emit(install)
     if install.returncode != 0:
         if any(word in diagnostic for word in _OFFLINE_WORDS):
             raise BlockedError("npm offline install prerequisites unavailable")
         return FAIL
-    env = {**os.environ, "NODE_PATH": str(isolated / "node_modules")}
-    build = _run([node, "build.mjs", "--check"], project, env=env)
+    # No NODE_PATH: `build.mjs`'s node_modules resolution now walks up from
+    # its own (isolated-copy) directory and finds the install above --
+    # exactly what an unmodified `node build.mjs --check` invocation does.
+    build = _run([node, "build.mjs", "--check"], project)
     build_diagnostic = _emit(build)
     if build.returncode == 0:
         return PASS
-    if "cannot find module" in build_diagnostic:
+    if any(word in build_diagnostic for word in _ESM_RESOLUTION_FAILURE_WORDS):
         raise BlockedError("node build prerequisites unavailable")
     return FAIL
 
@@ -211,6 +268,21 @@ def _advisory_id_from_via(via: dict) -> str:
     return url.rsplit("/", 1)[-1] if url else via.get("title", "unknown-advisory")
 
 
+def _installed_node_version(project: Path, name: str) -> str | None:
+    """The actually-installed version of ``name`` from ``package-lock.json``
+    (lockfile v2/v3's ``packages`` map) -- ``npm audit --json``'s
+    per-package ``range`` is the affected semver RANGE, not the pinned
+    version this repo's lock resolved to; identity should key on what is
+    actually installed, per phase-3-5-decisions.md 3d."""
+    try:
+        lock = json.loads((project / "package-lock.json").read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    entry = (lock.get("packages") or {}).get(f"node_modules/{name}")
+    version = entry.get("version") if isinstance(entry, dict) else None
+    return version if isinstance(version, str) else None
+
+
 def _advisory_findings_node(root: Path) -> list[debt.RawFinding]:
     project = _node_project(root)
     npm = _which("npm")
@@ -231,13 +303,16 @@ def _advisory_findings_node(root: Path) -> list[debt.RawFinding]:
         raise BlockedError(f"npm audit produced unusable output: {error}") from error
     findings = []
     for name, entry in payload.get("vulnerabilities", {}).items():
+        version = _installed_node_version(project, name) or entry.get(
+            "range", "unknown"
+        )
         for via in entry.get("via", []):
             if not isinstance(via, dict):
                 continue
             findings.append(
                 debt.RawFinding(
                     check="advisory",
-                    path=f"{name}@{entry.get('range', 'unknown')}",
+                    path=f"{name}@{version}",
                     anchor="",
                     message=_advisory_id_from_via(via),
                     line=0,

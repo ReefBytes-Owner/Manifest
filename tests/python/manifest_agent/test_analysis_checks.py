@@ -276,6 +276,24 @@ def test_semgrep_argv_contains_metrics_off_and_local_config_only():
     assert not any(value.startswith("p/") for value in argv)
 
 
+def test_semgrepignore_excludes_only_the_fixture_directory():
+    """Explicit, committed decision (not left to whatever semgrep's own
+    default ignores happen to do): `.semgrepignore` -- unaffected by the
+    argv's `--no-git-ignore`, which only disables .gitignore consultation
+    -- excludes exactly the deliberately-vulnerable rule fixtures, and
+    nothing else in `tests/`. Without this, a real `security.semgrep` run
+    would FAIL on this repo's own conformance fixtures the moment semgrep
+    is provisioned (C7)."""
+    semgrepignore = REPO_ROOT / ".semgrepignore"
+    assert semgrepignore.is_file()
+    patterns = [
+        line.strip()
+        for line in semgrepignore.read_text().splitlines()
+        if line.strip() and not line.strip().startswith("#")
+    ]
+    assert patterns == ["tests/fixtures/semgrep/"]
+
+
 def test_python_anchor_finds_innermost_function():
     fixture = REPO_ROOT / "tests/fixtures/types/pkg_b.py"
     # `return double(get_value())` inside `use` is the fixture's 15th line.

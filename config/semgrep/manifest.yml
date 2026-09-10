@@ -33,9 +33,14 @@ rules:
     languages: [python]
     severity: ERROR
     message: >-
-      yaml.load() without an explicit Loader can execute arbitrary Python
-      objects; use yaml.safe_load() or pass Loader=yaml.SafeLoader.
-    pattern: yaml.load($X)
+      yaml.load() without an explicit safe Loader can execute arbitrary
+      Python objects; use yaml.safe_load() or pass Loader=yaml.SafeLoader.
+    patterns:
+      - pattern-either:
+          - pattern: yaml.load($X)
+          - pattern: yaml.load($X, Loader=yaml.Loader)
+          - pattern: yaml.load($X, Loader=yaml.UnsafeLoader)
+          - pattern: yaml.load($X, Loader=yaml.FullLoader)
 
   - id: manifest-python-eval
     languages: [python]
@@ -85,14 +90,17 @@ rules:
   - id: manifest-bash-eval
     languages: [bash]
     severity: ERROR
-    message: "eval executes its argument as shell code -- see shell-audit-* skills."
-    pattern: eval $X
+    message: "eval executes its argument(s) as shell code -- see shell-audit-* skills."
+    # `...` (not a single `$X`) so a multi-argument invocation
+    # (`eval "$a" "$b"`) -- which the shell concatenates and evaluates just
+    # like a single string -- still matches.
+    pattern: eval ...
 
   - id: manifest-bash-curl-pipe-sh
     languages: [bash]
     severity: ERROR
     message: >-
-      piping curl output directly into a shell executes unreviewed remote
+      piping a download directly into a shell executes unreviewed remote
       content; download, verify, then execute as a separate step.
     patterns:
       - pattern-either:
@@ -100,3 +108,7 @@ rules:
           - pattern: curl ... | bash
           - pattern: curl ... | sudo sh
           - pattern: curl ... | sudo bash
+          - pattern: wget ... | sh
+          - pattern: wget ... | bash
+          - pattern: wget ... | sudo sh
+          - pattern: wget ... | sudo bash

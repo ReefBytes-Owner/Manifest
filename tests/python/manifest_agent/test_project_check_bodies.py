@@ -975,6 +975,32 @@ def test_package_lock_check_passes_and_mismatch_fails_without_rewriting_lock(
     assert lock.read_bytes() == before
 
 
+def test_dependency_lock_root_check_passes_and_mismatch_fails_without_rewriting_lock(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """`dependency.lock.root` (Phase 3 chunk C5) reuses this module's
+    `_lock()` body via `_PROJECTS["dependency.lock.root"] = "."` -- same
+    mechanism as `dependency.lock.config` above, just pointed at the
+    repository root instead of a subproject."""
+    from tools.project_checks import packages
+
+    root = tmp_path / "root"
+    root.mkdir(parents=True)
+    (root / "pyproject.toml").write_text("[project]\nname='fixture'\nversion='1'\n")
+    lock = root / "uv.lock"
+    lock.write_bytes(b"project-version = 1\n")
+    fake_uv = tmp_path / "bin/uv"
+    _fake_uv(fake_uv)
+    monkeypatch.setenv("PATH", str(fake_uv.parent))
+    monkeypatch.setenv("FAKE_PROJECT", str(root))
+    before = lock.read_bytes()
+    output = tmp_path / "output"
+    assert _run(packages.main, root, "dependency.lock.root", output) == 0
+    (root / "pyproject.toml").write_text("[project]\nname='fixture'\nversion='2'\n")
+    assert _run(packages.main, root, "dependency.lock.root", output) == 2
+    assert lock.read_bytes() == before
+
+
 def test_package_missing_offline_tool_is_blocked(tmp_path: Path, monkeypatch) -> None:
     from tools.project_checks import packages
 

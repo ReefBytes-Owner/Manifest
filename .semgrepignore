@@ -1,0 +1,18 @@
+# security.semgrep (Phase 3 chunk C5, phase-3-5-decisions.md 3d).
+#
+# The check's argv is `semgrep scan --config config/semgrep/manifest.yml
+# --metrics=off --no-git-ignore --json --error --severity ERROR .` (an
+# exact literal from the decision doc, deliberately not changed here).
+# `--no-git-ignore` only disables semgrep's automatic *.gitignore*
+# consultation; it does NOT disable this file -- `.semgrepignore` is a
+# separate, semgrep-native ignore mechanism that stays in effect regardless
+# of that flag. This is the explicit, committed decision for the
+# fixture/production interplay: the nine deliberately-vulnerable
+# `tests/fixtures/semgrep/<rule-id>/positive*` files exist to prove each
+# rule fires exactly once (see test_analysis_checks.py); they are not real
+# findings, and without this exclusion they would make every real
+# `security.semgrep` production run FAIL the moment semgrep is provisioned
+# (C7) -- not because of a real defect, but because of this repo's own
+# rule-conformance fixtures. Only the fixture directory is excluded; the
+# rest of `tests/` stays in scope.
+tests/fixtures/semgrep/

@@ -472,9 +472,9 @@ change that adds `types.python`.
 | Rule | Tool / config | Scope | Trigger | Failure | Exception | Test |
 |---|---|---|---|---|---|---|
 | No new/regressed type errors | `types.python` → `store:node-env/bin/pyright`, `pyrightconfig.json` (`typeCheckingMode: basic`, `reportMissingImports: true`) | `src`, `tools`, `configs/claude/scripts`, `configs/claude/scripts/manifest_model_policy`, `plugins/manifest-delegate`, `tests/python` | `full`, `release` | New pyright `error`-severity diagnostic → FAIL `new debt`; missing pyright/store or missing `pyrightconfig.json` → BLOCKED | Reviewed `config/debt-baseline.json` entry (`debt.py` identities, same file as `debt.constitution`) | `tests/python/manifest_agent/test_analysis_checks.py` (fake-store PASS/FAIL/baseline-excused + real-lock BLOCKED); `tests/fixtures/types/pkg_a.py`+`pkg_b.py` (real cross-package type error) |
-| Source security (Python + Bash) | `security.semgrep` → `store:python-env/bin/semgrep`, `config/semgrep/manifest.yml` (9 local rules, ≤15) | Authored Python/Bash | `security`, `release` | ERROR-severity finding → FAIL; missing semgrep/store → BLOCKED | Reviewed, **expiring-only**, `config/debt-baseline.json` entry | `test_analysis_checks.py` (argv contains `--metrics=off`, no `p/...` config); `tests/fixtures/semgrep/<rule-id>/{positive,negative}.*`, one hit each rule (real-semgrep-gated, skips honestly when semgrep is absent) |
-| Node runtime builds offline | `package.node-runtime` → `npm ci --ignore-scripts --offline` (isolated copy of `package.json`/`package-lock.json`, never the tracked project dir) then `node build.mjs --check` (`NODE_PATH` points at the isolated install) | `plugins/stitch-design/runtime/node` | `full`, `release` | `npm ci`/`node build.mjs --check` fails → FAIL; no offline npm cache → BLOCKED | none | `test_dependency_checks.py` (fake npm+node PASS/FAIL/BLOCKED) |
-| Root/node lock integrity | `dependency.lock.root` (`uv lock --check` at repo root, reuses `packages.py::_lock`); `dependency.lock.node` (`npm ci --dry-run --ignore-scripts --offline`) | root `uv.lock`; `plugins/stitch-design/runtime/node/package-lock.json` | `full`, `release` | Lock/manifest mismatch → FAIL; no offline uv/npm cache → BLOCKED | none | `test_project_check_bodies.py` (root reuses the existing `dependency.lock.config` fixture pattern); `test_dependency_checks.py` |
+| Source security (Python + Bash) | `security.semgrep` → `store:python-env/bin/semgrep`, `config/semgrep/manifest.yml` (9 local rules, ≤15), `.semgrepignore` | Authored Python/Bash | `security`, `release` | ERROR-severity finding → FAIL; missing semgrep/store → BLOCKED | Reviewed, **expiring-only**, `config/debt-baseline.json` entry | `test_analysis_checks.py` (argv contains `--metrics=off`, no `p/...` config, `.semgrepignore` covers exactly the fixture dir); `tests/fixtures/semgrep/<rule-id>/{positive,negative}.*`, one hit each rule (real-semgrep-gated, skips honestly when semgrep is absent) |
+| Node runtime builds offline | `package.node-runtime` → copies the whole tracked `plugins/stitch-design` bundle into an isolated dir (never the tracked project dir), runs `npm ci --ignore-scripts --offline` and `node build.mjs --check` there — no `NODE_PATH` | `plugins/stitch-design/runtime/node` | `full`, `release` | `npm ci`/`node build.mjs --check` fails → FAIL; no offline npm cache → BLOCKED | none | `test_dependency_checks.py`: fake npm+node PASS/FAIL/BLOCKED, **plus real `npm`+`node` against a git-tracked fixture with a `file:`-only ESM dependency** (proves the isolated import resolves with zero `NODE_PATH`, and that the tracked project never gains a `node_modules`) |
+| Root/node lock integrity | `dependency.lock.root` (`uv lock --check` at repo root, reuses `packages.py::_lock`); `dependency.lock.node` (`npm ci --dry-run --ignore-scripts --offline`) | root `uv.lock`; `plugins/stitch-design/runtime/node/package-lock.json` | `full`, `release` | Lock/manifest mismatch → FAIL; no offline uv/npm cache → BLOCKED | none | `test_project_check_bodies.py::test_dependency_lock_root_check_passes_and_mismatch_fails_without_rewriting_lock` (fake `uv`, root reuses `dependency.lock.config`'s fixture pattern); `test_dependency_checks.py` |
 | Dependency advisories | `dependency.audit.python` (`uv export --frozen` → `pip-audit --format json`); `dependency.audit.node` (`npm audit --omit=dev --audit-level=high --json`) | root `uv.lock`; node project lock | **registered, not wired into any profile** (C8) | Known advisory with no valid baseline entry → FAIL `new debt`; feed unreachable → BLOCKED | Time-limited `config/debt-baseline.json` entry, `check: "advisory"`, identity from advisory ID + package + version | `test_dependency_checks.py` (stub `tests/fixtures/advisory/{pip-audit,npm-audit}-stub.json`, no network; BLOCKED-when-unreachable proven with a fake tool printing a network-error diagnostic) |
 
 **Why `dependency.audit.*` stays out of every profile.** Both transmit
@@ -500,6 +500,35 @@ unattested store entry still BLOCKs with the standard `toolchain: <tool>
 unattested for <platform>` reason string — proven in
 `test_analysis_checks.py` against the real, committed, unattested
 `config/toolchain.lock.json` (`exe_sha256: null`), not a fixture stand-in.
+
+**`security.semgrep`'s fixture/production interplay is an explicit,
+committed decision, not left to semgrep's own defaults.** The check's argv
+(`--no-git-ignore --json --error --severity ERROR .`) only disables
+semgrep's automatic `.gitignore` consultation — it says nothing about
+whether the nine deliberately-vulnerable
+`tests/fixtures/semgrep/<rule-id>/positive*` fixtures are in or out of
+scope, and leaving that to chance means either they are silently invisible
+(if semgrep happens to default-ignore `tests/`) or they FAIL the production
+scan the instant semgrep is provisioned (C7) — a false positive against
+this repo's own conformance fixtures, not a real finding. The repo root
+`.semgrepignore` (a semgrep-native mechanism, unaffected by
+`--no-git-ignore`) excludes exactly `tests/fixtures/semgrep/` and nothing
+else under `tests/`; `test_semgrepignore_excludes_only_the_fixture_directory`
+pins the pattern list to that one entry.
+
+**Store divergence for `dependency.lock.node`/`package.node-runtime`/
+`dependency.audit.*` is disclosed debt, not silent drift.** Unlike
+`types.python`/`security.semgrep` above, `dependency_checks.py` resolves
+`npm`, `node`, `uv`, and `pip-audit` from ambient `PATH` via `shutil.which`
+— the same trust class `packages.py::_uv` already uses for
+`dependency.lock.config`/`dependency.lock.delegate`, not a new gap this
+chunk introduces. Concretely: `dependency.lock.node`'s PASS on a
+provisioned developer host is verification against that host's own `~/.npm`
+cache, not a hash-verified store entry the way `types.python`'s pyright
+resolution is. Bringing `npm`/`node`/`uv`/`pip-audit` into the store is
+tracked for a future chunk; until then this is a known, accepted
+inconsistency with the store-resolution table above, not something silently
+different from it.
 
 **No TypeScript compiler check — data-backed, not just asserted.** There is
 no TS project: `plugins/stitch-design/runtime/node` is `build.mjs`
