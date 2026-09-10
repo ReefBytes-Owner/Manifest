@@ -590,6 +590,39 @@ noted under C7b; `lint.markdown.keydocs` needs the action-pin confirmation;
 `test.smoke.lite`/`generated.cursor`/`hook.check-cursor-rules-drift` are
 unrelated pre-existing gaps).
 
+**C7e (candidate `.git` identity compares `index` logically, not by raw
+bytes).** The `test.bats` flake C7d reported but left out of scope: its body
+runs `git status`/`git diff`, which rewrites `.git/index`'s on-disk stat
+cache (ctime/mtime/ino/size/flags) with no logical change to what is staged.
+Both places the candidate's `.git` identity was checked byte-compared that
+file wholesale, so the refresh alone reported "candidate identity changed"
+for `test.bats` — and because `_identity_error` re-validates the stored
+digest before *every* check, one such run degraded the entire 75-check
+profile to BLOCKED. Fix: `.git/index`'s identity is now the logical content
+of `git ls-files --stage -z` (mode, blob sha, stage, path) — a body that
+adds, removes, stages or unstages a path still changes this value and BLOCKs;
+a stat-cache-only refresh does not. Nothing else is relaxed: every other file
+under `.git` (refs, `HEAD`, `objects`, any file a body writes there directly)
+and the entire working tree stay byte-compared. Applied in both places `.git`
+identity is established: `candidate.py::_snapshot` (feeds
+`candidate_digest`, stored in `.git/candidate-state.json` and re-checked by
+`runner._identity_error` before and after every check) now derives its
+`entries` field from `git ls-files --stage -z` instead of also hashing the
+raw `.git/index` file bytes (the two were redundant — `entries` already
+captured the logical content; only the raw-bytes duplicate was stat-cache
+sensitive), and `runner.py`'s per-check before/after walk of `candidate.root
+/ ".git"` now goes through the new `candidate.git_dir_snapshot`, which walks
+`.git` byte-for-byte except substituting `index`'s entry with the
+`ls-files --stage -z` hash. Proven with real subprocesses, real git and a
+real disposable candidate
+(`tests/python/manifest_agent/test_toolchain_c7e_git_identity.py`): a body
+running `git status`/`git diff` is not identity-changed, and does not BLOCK
+a later check in the same profile run; a body that `git add`s a new path,
+`git rm --cached`s a tracked path, mutates a tracked file's bytes, or writes
+any other file under `.git` still BLOCKs "candidate identity changed"; and
+`candidate_digest` is byte-identical before and after a `git status` inside
+the candidate.
+
 **Why the other 8 were not `store:`-wired at first — the original C2
 deferral, now reversed.** `phase-3-5-decisions.md` "Corrections 2026-09-10" >
 "Correction 2" overturns this section's original reasoning. It is kept

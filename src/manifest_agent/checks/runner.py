@@ -19,6 +19,7 @@ from .candidate import (
     _safe_path,
     _walk,
     candidate_digest,
+    git_dir_snapshot,
 )
 from .group_selection import guard_nonempty_group
 from .models import (
@@ -98,7 +99,7 @@ def execute_check(
     try:
         changed = before != _walk(
             candidate.root, exclude=(".git",)
-        ) or git_before != _walk(candidate.root / ".git")
+        ) or git_before != git_dir_snapshot(candidate.root)
         identity_error = _identity_error(candidate)
     except (CandidateBlockedError, OSError) as error:
         changed, identity_error = True, redact_text(str(error))
@@ -138,7 +139,7 @@ def _execution_context(
     return (
         cwd,
         _walk(candidate.root, exclude=(".git",)),
-        _walk(candidate.root / ".git"),
+        git_dir_snapshot(candidate.root),
     )
 
 

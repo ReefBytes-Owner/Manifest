@@ -127,6 +127,23 @@ def _walk(
     return result
 
 
+def git_dir_snapshot(root: Path) -> dict[str, dict[str, str | int]]:
+    """Byte-identity for every file under ``.git`` except ``index``.
+
+    ``index``'s identity is the logical content of ``git ls-files --stage -z``
+    (mode, blob sha, stage, path): a body running ``git status``/``git diff``
+    refreshes the index's on-disk stat cache with no logical change, and that
+    must not be mistaken for a candidate mutation (Correction 5 / C7e).
+    Everything else under ``.git`` — refs, HEAD, objects, any file a body
+    writes there directly — stays byte-compared.
+    """
+    snapshot = _walk(root / ".git")
+    if "index" in snapshot:
+        entries = _git(root, "ls-files", "--stage", "-z")
+        snapshot["index"] = {"kind": "index", "entries_sha256": _hash(entries)}
+    return snapshot
+
+
 def _snapshot(root: Path, *, populated_links: bool = True) -> dict[str, object]:
     for folder, directories, filenames in os.walk(root, followlinks=False):
         directories[:] = [name for name in directories if name != ".git"]
@@ -170,13 +187,7 @@ def _snapshot(root: Path, *, populated_links: bool = True) -> dict[str, object]:
             }
         elif path.exists() or path.is_symlink():
             files[name] = _identity(root, name)
-    index_path = Path(
-        os.fsdecode(
-            _git(root, "rev-parse", "--path-format=absolute", "--git-path", "index")
-        ).strip()
-    )
     return {
-        "index": _hash(index_path.read_bytes()) if index_path.exists() else "",
         "entries": _hash(index),
         "names": _hash(b"\0".join(names)),
         "head": _git(root, "rev-parse", "HEAD").decode().strip(),
