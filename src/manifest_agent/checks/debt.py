@@ -135,7 +135,11 @@ def evaluate(inputs: EvaluationInputs) -> DebtReport:
     active = base_valid if inputs.baseline_from_base else cand_valid
 
     fails = _findings_fails(ident_cand, ident_base_ids, active, inputs.today)
-    fails.extend(_stale_fails(active, ident_cand))
+    # Staleness always reads B_cand, never B_base, even under
+    # baseline_from_base: retiring a fixed entry is the ratchet working as
+    # designed, not a candidate-granted exception (which is what
+    # baseline_from_base exists to forbid) -- see the module docstring.
+    fails.extend(_stale_fails(cand_valid, ident_cand))
 
     proposed = tuple(
         entry for identity, entry in cand_valid.items() if identity not in base_valid
@@ -160,7 +164,13 @@ def _findings_fails(ident_cand, ident_base_ids, active, today: date) -> list[Ver
     return fails
 
 
-def _stale_fails(active, ident_cand) -> list[Verdict]:
+def _stale_fails(cand_valid, ident_cand) -> list[Verdict]:
+    """A candidate baseline entry whose finding is gone must be retired.
+
+    Always reads ``cand_valid`` (never ``active``/``base_valid``): staleness
+    is about what the CANDIDATE still claims as an exception, regardless of
+    which baseline excuses findings under ``baseline_from_base``.
+    """
     return [
         Verdict(
             identity,
@@ -171,7 +181,7 @@ def _stale_fails(active, ident_cand) -> list[Verdict]:
             0,
             "stale entry: retire it",
         )
-        for identity, entry in active.items()
+        for identity, entry in cand_valid.items()
         if entry.retired_base is None and identity not in ident_cand
     ]
 
@@ -197,6 +207,9 @@ def materialize_base_tree(repo_root: Path, base_sha: str) -> Path:
     ``repo_root`` by construction) and the caller owns cleanup.
     """
     tmp_root = Path(tempfile.mkdtemp(prefix="manifest-debt-base-"))
+    assert not tmp_root.resolve().is_relative_to(repo_root.resolve()), (
+        "base tree must never land inside the candidate root"
+    )
     archive = subprocess.Popen(
         ["git", "-C", str(repo_root), "archive", "--format=tar", base_sha],
         stdout=subprocess.PIPE,

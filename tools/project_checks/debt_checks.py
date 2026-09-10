@@ -138,19 +138,19 @@ def _constitution_findings(
     stdout = _run_scanner(argv, scan_root, "constitution")
     try:
         payload = json.loads(stdout or "[]")
-    except json.JSONDecodeError as error:
-        raise Blocked(f"constitution scan produced non-JSON output: {error}") from error
-    return [
-        debt.RawFinding(
-            check=item["check"],
-            path=item["path"],
-            anchor=item.get("anchor", ""),
-            message=item["message"],
-            line=item["line"],
-        )
-        for item in payload
-        if item["check"] not in advisory
-    ]
+        return [
+            debt.RawFinding(
+                check=item["check"],
+                path=item["path"],
+                anchor=item.get("anchor", ""),
+                message=item["message"],
+                line=item["line"],
+            )
+            for item in payload
+            if item["check"] not in advisory
+        ]
+    except (json.JSONDecodeError, KeyError, TypeError) as error:
+        raise Blocked(f"constitution scan produced unusable output: {error}") from error
 
 
 def _bundle_link_findings(scan_root: Path, tool_root: Path) -> list[debt.RawFinding]:
@@ -202,9 +202,22 @@ def _collect(check_id: str, cand_root: Path, base_root: Path):
     )
 
 
+def _load_baseline(path: Path, label: str) -> debt.Baseline:
+    """``Baseline.load`` translated into the check's own BLOCKED vocabulary.
+
+    A malformed baseline file (unreadable, non-JSON, wrong schema version)
+    must surface as ``BLOCKED: invalid baseline`` like every other baseline
+    defect this ratchet detects -- not as an uncaught traceback.
+    """
+    try:
+        return debt.Baseline.load(path)
+    except (ValueError, OSError) as error:
+        raise Blocked(f"invalid baseline ({label}) at {path}: {error}") from error
+
+
 def _propose(check_id: str, cand_root: Path, base_root: Path, args) -> int:
     findings_cand, findings_base = _collect(check_id, cand_root, base_root)
-    existing = debt.Baseline.load(cand_root / args.baseline)
+    existing = _load_baseline(cand_root / args.baseline, "candidate")
     base_sha = _base_sha(cand_root, args.base_sha)
     inputs = debt.ProposalInputs(
         findings_cand=findings_cand,
@@ -229,8 +242,8 @@ def _propose(check_id: str, cand_root: Path, base_root: Path, args) -> int:
 
 def _evaluate(check_id: str, cand_root: Path, base_root: Path, args) -> debt.DebtReport:
     findings_cand, findings_base = _collect(check_id, cand_root, base_root)
-    baseline_cand = debt.Baseline.load(cand_root / args.baseline)
-    baseline_base = debt.Baseline.load(base_root / args.baseline)
+    baseline_cand = _load_baseline(cand_root / args.baseline, "candidate")
+    baseline_base = _load_baseline(base_root / args.baseline, "base")
     inputs = debt.EvaluationInputs(
         findings_cand=findings_cand,
         findings_base=findings_base,
@@ -263,7 +276,17 @@ def _render(report: debt.DebtReport, as_json: bool) -> None:
                     ],
                     "blocked_reasons": list(report.blocked_reasons),
                     "proposed_exceptions": [
-                        {"identity": e.identity, "check": e.check, "path": e.path}
+                        {
+                            "identity": e.identity,
+                            "check": e.check,
+                            "path": e.path,
+                            "anchor": e.anchor,
+                            "reason": e.reason,
+                            "owner": e.owner,
+                            "introduced_base": e.introduced_base,
+                            "expires": e.expires,
+                            "retired_base": e.retired_base,
+                        }
                         for e in report.proposed_exceptions
                     ],
                 },

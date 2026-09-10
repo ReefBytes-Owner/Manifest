@@ -70,6 +70,55 @@ def test_normalize_message_preserves_distinct_wording():
     assert a != b
 
 
+def test_normalize_message_collapses_path_shaped_quoted_strings():
+    a = debt.normalize_message("already documented at `size.py:89,118`")
+    b = debt.normalize_message("already documented at `size.py:200,310`")
+    assert a == b  # both collapse to the same <path> placeholder
+
+
+def test_normalize_message_preserves_distinct_quoted_identifiers():
+    # Real constitution messages quote bare symbol names, not paths -- e.g.
+    # `` `cfg` `` / `` `routes` `` from C-DATA. Collapsing ANY quoted string
+    # (the pre-fix behaviour) reopens the same-count hole this ratchet
+    # exists to close: two different literals at the same anchor would
+    # collide on one identity, and a same-anchor swap would PASS.
+    a = debt.normalize_message("literal `cfg` is a 23-line literal data table")
+    b = debt.normalize_message("literal `routes` is a 23-line literal data table")
+    assert a != b
+
+
+def test_same_anchor_identifier_swap_is_caught_by_identity():
+    """A same-anchor swap between two different quoted identifiers must be a
+    different identity -- proof the path/identifier distinction in
+    ``normalize_message`` does not reopen the same-count hole.
+    """
+    before = [
+        debt.RawFinding(
+            "C-DATA",
+            "payloads.py",
+            "f",
+            "literal `cfg` is a 23-line literal table",
+            104,
+        )
+    ]
+    after = [
+        debt.RawFinding(
+            "C-DATA",
+            "payloads.py",
+            "f",
+            "literal `routes` is a 23-line literal table",
+            104,
+        )
+    ]
+    ids_before = {f.identity for f in debt.assign_identities(before)}
+    ids_after = {f.identity for f in debt.assign_identities(after)}
+    assert ids_before != ids_after
+
+    report = _evaluate(after, before, _baseline(), _baseline())
+    assert report.status == "FAIL"
+    assert report.fails[0].reason == "new debt"
+
+
 def test_identity_excludes_line_number():
     id_a = debt.identity_of("C-SIZE", "a.py", "f", "72 lines", 0)
     id_b = debt.identity_of("C-SIZE", "a.py", "f", "72 lines", 0)
@@ -196,6 +245,26 @@ def test_baseline_from_base_ignores_candidate_only_exceptions():
     )
     assert report.status == "FAIL"
     assert report.fails[0].reason == "new debt"
+
+
+def test_release_profile_passes_when_candidate_fixes_and_retires_baselined_debt():
+    """Controller ruling: under ``baseline_from_base``, staleness reads
+    ``B_cand`` (never ``B_base``). Retiring a fixed entry is the ratchet
+    working as designed, not a candidate-granted exception -- FAILing it
+    would block every debt-reduction PR until a second PR lands the
+    retirement, inverting the chunk's purpose.
+    """
+    ident = debt.identity_of("C-SIZE", "a.py", "f", "too long", 0)
+    cand_retired = _entry(ident, retired="fix-sha")  # candidate fixed + retired it
+    base_unretired = _entry(ident)  # base tree's copy has not caught up yet
+    report = _evaluate(
+        [],  # finding is gone from the candidate
+        [],  # and from the base tree's findings
+        _baseline(cand_retired),
+        _baseline(base_unretired),
+        from_base=True,
+    )
+    assert report.status == "PASS"
 
 
 def test_proposed_exceptions_are_reported_but_never_gate():

@@ -24,6 +24,19 @@ from dataclasses import dataclass
 
 _UNIT_SEP = "␟"  # never appears in a finding message; safe field join
 
+_QUOTED_RE = re.compile(r"""(['"`])((?:(?!\1).)*)\1""")
+# A path-shaped quoted string: contains a separator, or a recognizable file
+# suffix anywhere in it (``size.py:89,118`` is a path+line-range reference,
+# not a bare identifier). Deliberately NOT "any quoted string" -- constitution
+# messages also quote bare symbol names (`` `cfg` ``, `` `routes` ``) and those
+# must stay distinct so a same-anchor swap between two different symbols is
+# still a different identity.
+_KNOWN_SUFFIX_RE = re.compile(
+    r"\.(py|sh|bash|zsh|js|jsx|ts|tsx|mjs|cjs|json|jsonc|yml|yaml|toml|cfg|ini|"
+    r"txt|rst|md|markdown|html?|css|scss|sql|rb|go|rs|c|h|cc|cpp|hpp|java|kt|"
+    r"swift|php|xml|env|lock)\b"
+)
+
 
 @dataclass(frozen=True, slots=True)
 class RawFinding:
@@ -48,13 +61,25 @@ class IdentifiedFinding:
     line: int
 
 
+def _collapse_if_path_shaped(match: re.Match[str]) -> str:
+    inner = match.group(2)
+    if "/" in inner or _KNOWN_SUFFIX_RE.search(inner):
+        return "<path>"
+    return match.group(0)  # bare identifier (`cfg`, `routes`) -- keep it
+
+
 def normalize_message(message: str) -> str:
-    """Collapse digits, whitespace runs, and quoted paths.
+    """Collapse digits, whitespace runs, and path-shaped quoted strings.
 
     "function has 72 lines" and "...73 lines" must land on the same
     identity while the finding persists -- only the count of lines moved.
+    A quoted path (contains ``/`` or a known file suffix, e.g. ``size.py:89``)
+    collapses the same way; a quoted bare identifier (``cfg``, ``routes``)
+    does not, or two findings that differ only in which symbol they name
+    would collide on identity -- see ``test_debt.py``'s same-anchor-swap
+    proof.
     """
-    text = re.sub(r"""(['"`])(?:(?!\1).)*\1""", "<path>", message)
+    text = _QUOTED_RE.sub(_collapse_if_path_shaped, message)
     text = re.sub(r"\d+", "#", text)
     return re.sub(r"\s+", " ", text).strip()
 

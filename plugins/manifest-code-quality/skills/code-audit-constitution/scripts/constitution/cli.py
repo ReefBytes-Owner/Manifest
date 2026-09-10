@@ -13,12 +13,14 @@ skill about. The hook makes the opposite choice, on purpose.
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import json
 import subprocess
 import sys
 from pathlib import Path
 
 from . import baseline as baseline_mod
+from .anchor import anchor_for
 from .findings import Finding, render_json, render_text
 from .registry import Registry, RegistryError, load
 from .source import SourceFile
@@ -34,8 +36,10 @@ Usage: constitution_check.py [options] [FILE ...]
   --format FORMAT   text (default) or json
   --strict          treat advisory findings as blocking too
   --no-baseline     report every violation, not only those above the ratchet
-  --update-baseline rewrite the baseline entries for the given files
   --list            print the article and check registry, then exit
+
+  --update-baseline is retired (C3 identity ratchet). Propose instead:
+      manifest check debt.constitution --propose-baseline --output PATH
 
 Exit: 0 clean, 1 blocking findings, 2 usage or registry error.
 """
@@ -64,9 +68,6 @@ def main(argv: list[str] | None = None) -> int:
 
     findings = _collect(paths, registry, args.only)
     root = _repo_root(paths[0])
-
-    if args.update_baseline:
-        return _write_baseline(findings, paths, root, registry)
 
     reported, suppressed = _apply_baseline(findings, root, registry, args.no_baseline)
     if reported:
@@ -102,24 +103,6 @@ def _apply_baseline(
     return advisory + excess, len(gated) - len(excess)
 
 
-def _write_baseline(findings, paths, root, registry) -> int:
-    """Merge fresh counts for the scanned files into the existing baseline."""
-    target = baseline_mod.DEFAULT_PATH
-    try:
-        existing = baseline_mod.Baseline.load(target, root)
-    except (OSError, ValueError) as err:
-        print(f"{PROG}: {err}", file=sys.stderr)
-        return 2
-    fresh = baseline_mod.record(findings, root, registry)
-    merged = dict(existing.counts)
-    for path in paths:
-        merged.pop(existing.key(path), None)  # scanned: replaced, not merged
-    merged.update(fresh.counts)
-    baseline_mod.Baseline(counts=merged, root=root).write(target)
-    print(f"{PROG}: baseline written to {target} ({len(merged)} file(s))")
-    return 0
-
-
 def _is_advisory(finding: Finding, registry: Registry) -> bool:
     check = registry.checks.get(finding.check)
     return check is None or check.advisory
@@ -144,7 +127,10 @@ def _collect(
         except OSError as err:
             print(f"{PROG}: cannot read {path}: {err}", file=sys.stderr)
             continue
-        findings.extend(run_checks(src, registry, only=only))
+        for finding in run_checks(src, registry, only=only):
+            findings.append(
+                dataclasses.replace(finding, anchor=anchor_for(src, finding.line))
+            )
     return findings
 
 
@@ -228,6 +214,5 @@ def _parse(argv: list[str]):
     parser.add_argument("--format", choices=("text", "json"), default="text")
     parser.add_argument("--strict", action="store_true")
     parser.add_argument("--no-baseline", action="store_true")
-    parser.add_argument("--update-baseline", action="store_true")
     parser.add_argument("--list", action="store_true")
     return parser.parse_args(argv)
