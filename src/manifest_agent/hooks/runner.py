@@ -14,7 +14,19 @@ from manifest_agent.process import redact_text
 from ..checks.process import run_argv
 
 DIAGNOSTIC_CAP = 4096
-FORWARDED_ENV_KEYS = ("HOME", "PATH", "PYTHONPATH", "LANG", "LC_ALL", "TMPDIR")
+# XDG_STATE_HOME travels with the rest so the invoked `manifest check`
+# subprocess writes its own run-telemetry record (5c) to the same sink this
+# adapter itself is configured against -- omitting it would default the
+# child to the real, un-isolated HOME-derived state directory.
+FORWARDED_ENV_KEYS = (
+    "HOME",
+    "PATH",
+    "PYTHONPATH",
+    "LANG",
+    "LC_ALL",
+    "TMPDIR",
+    "XDG_STATE_HOME",
+)
 
 
 def run_manifest_check(

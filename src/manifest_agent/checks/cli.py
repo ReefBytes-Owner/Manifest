@@ -8,6 +8,7 @@ import secrets
 import shutil
 import stat
 import tempfile
+import time
 from contextlib import suppress
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -15,6 +16,7 @@ from typing import Any
 
 import click
 
+from . import telemetry
 from .aggregate import aggregate_results
 from .candidate import CandidateBlockedError, materialize_candidate
 from .registry import (
@@ -317,6 +319,23 @@ def _execute(
             shutil.rmtree(destination)
 
 
+def _record_check_telemetry(report: dict, profile: str, source: Path, wall_seconds: float) -> None:
+    """One append-only observer record per `manifest check` run (5c).
+    `telemetry.record_run` is itself the safety boundary -- it never
+    raises -- so this can sit unconditionally before `context.exit` without
+    risking the check's own exit code."""
+    duration = report.get("duration_seconds")
+    request = telemetry.RecordRunRequest(
+        profile=profile,
+        status=str(report.get("status", "BLOCKED")),
+        duration_seconds=duration if isinstance(duration, (int, float)) else wall_seconds,
+        source_root=source,
+        receipt_key=str(report.get("receipt_key") or ""),
+        head_sha=str(report.get("head_sha") or ""),
+    )
+    telemetry.record_run(request)
+
+
 @click.command("check")
 @click.argument("profile", type=click.Choice(sorted(VALID_PROFILES)))
 @click.option(
@@ -344,6 +363,7 @@ def check(context: click.Context, **options: Any) -> None:
         raise click.UsageError("--base is required unless --list is used")
     source = Path.cwd().resolve()
     output_target = None
+    start = time.monotonic()
     try:
         try:
             output_target = _output_target(output, source)
@@ -362,6 +382,8 @@ def check(context: click.Context, **options: Any) -> None:
                 profile, group, OutputBlockedError(f"output write blocked: {error}")
             )
             _emit(report, as_json, None)
+        if not list_only:
+            _record_check_telemetry(report, profile, source, time.monotonic() - start)
         context.exit(STATUS_EXITS[report["status"]])
     finally:
         if output_target is not None:

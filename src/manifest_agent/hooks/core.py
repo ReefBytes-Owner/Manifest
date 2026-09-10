@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -19,6 +20,7 @@ from ..checks.candidate import CandidateBlockedError, candidate_digest
 from .receipt import ReceiptInput, build_receipt, write_receipt
 from .runner import run_manifest_check
 from .state import check_and_record
+from .telemetry import record_hook_telemetry
 
 STDIN_CAP = 256 * 1024
 DEFAULT_TIMEOUT_SECONDS = 120.0
@@ -165,9 +167,13 @@ def process_event(request: EventRequest) -> AdapterOutcome:
             "supported", "SKIPPED_CONTINUATION", "allow",
             "stop continuation already used for this candidate", None,
         )
+    run_start = time.monotonic()
     status, diagnostics = run_manifest_check(
         profile=request.profile, project_config=request.project_config, base="HEAD",
         cwd=root, timeout_seconds=request.timeout_seconds,
+    )
+    record_hook_telemetry(
+        request.client, request.profile, root, status, time.monotonic() - run_start
     )
     receipt = build_receipt(
         ReceiptInput(
