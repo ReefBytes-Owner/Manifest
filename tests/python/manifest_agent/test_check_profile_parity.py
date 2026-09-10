@@ -12,6 +12,7 @@ import pytest
 from manifest_agent.checks.registry import load_registry, resolve_checks
 from tests.python.manifest_agent import _c5_ids
 from tools.project_checks.generated import TASK7_DISPOSITIONS as GENERATED
+from tools.project_checks.gitleaks_check import TASK7_DISPOSITIONS as GITLEAKS
 from tools.project_checks.hook_lint import TASK7_DISPOSITIONS as HOOK_LINT
 from tools.project_checks.hooks import TASK7_DISPOSITIONS as HOOKS
 from tools.project_checks.packages import TASK7_DISPOSITIONS as PACKAGES
@@ -21,15 +22,8 @@ ROOT = Path(__file__).resolve().parents[3]
 VERSION_ADAPTER = ROOT / "tools/project_checks/tool_versions.py"
 REGISTRY_PATH = ROOT / "config/project-checks.json"
 PRESERVATION_PATH = ROOT / "config/check-preservation.json"
-DISPOSITIONS = STRUCTURE | GENERATED | HOOKS | HOOK_LINT | PACKAGES
-SECURITY_IDS = frozenset(
-    {
-        "hook.check-credentials",
-        "hook.detect-private-key",
-        "hook.gitleaks",
-        "hook.terraform_trivy",
-    }
-)
+DISPOSITIONS = STRUCTURE | GENERATED | HOOKS | HOOK_LINT | PACKAGES | GITLEAKS
+SECURITY_IDS = _c5_ids.SECURITY_IDS
 RELEASE_ONLY_IDS = frozenset({"package.release-archive", "package.release-manifest"})
 FILENAMELESS_HOOK_IDS = frozenset(
     {
@@ -66,7 +60,13 @@ SUPERSEDED = _c5_ids.SUPERSEDED_IDS
 LIVE_RETAINED_IDS = RETAINED_IDS - SUPERSEDED
 EXPECTED_PROFILES = {
     "quick": QUICK_IDS,
-    "full": LIVE_RETAINED_IDS - SECURITY_IDS - RELEASE_ONLY_IDS | DEBT_IDS | C5_FULL,
+    # C6b: `full` folds in SECURITY_IDS/C5_SEC -- one CI aggregate, `security`
+    # is a named subset with no aggregate of its own (phase-3-5-decisions.md).
+    "full": LIVE_RETAINED_IDS - RELEASE_ONLY_IDS
+    | DEBT_IDS
+    | C5_FULL
+    | SECURITY_IDS
+    | C5_SEC,
     "security": SECURITY_IDS | DEBT_IDS | C5_SEC,
     "release": LIVE_RETAINED_IDS | DEBT_IDS | DEBT_RELEASE_IDS | C5_FULL | C5_SEC,
 }
@@ -179,7 +179,7 @@ def _assert_profile_contract(registry: dict) -> None:
     }
     assert {profile: len(ids) for profile, ids in EXPECTED_PROFILES.items()} == {
         "quick": 31,
-        "full": 64 + len(DEBT_IDS) + len(C5_FULL),
+        "full": 64 + sum(len(x) for x in (DEBT_IDS, C5_FULL, SECURITY_IDS, C5_SEC)),
         "security": 4 + len(DEBT_IDS) + len(C5_SEC),
         "release": 70
         + sum(len(x) for x in (DEBT_IDS, DEBT_RELEASE_IDS, C5_FULL, C5_SEC)),
@@ -311,7 +311,7 @@ def test_registry_schema_loads_and_exactly_closes_retained_profiles():
         assert {check.id for check in resolve_checks(registry, profile, None)} == set(
             expected_ids
         )
-        for group in {"lint", "test", "structure", "package"}:
+        for group in {"lint", "test", "structure", "package", "security"}:
             assert {check.id for check in resolve_checks(registry, profile, group)} == {
                 check_id
                 for check_id in expected_ids

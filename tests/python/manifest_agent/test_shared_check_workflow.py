@@ -39,7 +39,10 @@ SHADOW_GROUP_JOBS = {
     "shadow-checks-security": "security",
     "shadow-checks-package": "package",
 }
-SHADOW_AGGREGATE_JOB = "shadow-checks-aggregate"
+# C6b: renamed from "shadow-checks-aggregate" (phase-3-5-decisions.md
+# Correction 1) -- still job-level `continue-on-error: true`, still never a
+# required status; only the job id/display name changed.
+SHADOW_AGGREGATE_JOB = "checks-aggregate-full"
 ZERO_SHA = "0000000000000000000000000000000000000000"
 
 WRITE_PERMISSION_VALUES = {"write"}
@@ -462,4 +465,32 @@ class TestCiContextAllowlistCoversNewGroups:
         assert _GROUP_JOB_NAME.match(declared_name) is None, (
             f"the aggregate job's own name {declared_name!r} must never "
             f"match the shadow-group allowlist"
+        )
+
+
+class TestAggregateProducerSetMatchesRegistry:
+    # C6b: a future producer/profile mismatch (a group added to `full` with
+    # no matching producer job, or vice versa) must fail this test loudly
+    # instead of silently BLOCKing the aggregate on "missing producer job".
+    def test_producer_groups_equal_registrys_expected_groups_for_full(self) -> None:
+        from manifest_agent.checks.registry import load_registry, resolve_checks
+
+        registry = load_registry(ROOT / "config/project-checks.json")
+        expected_groups = {
+            check.group for check in resolve_checks(registry, "full", None)
+        }
+
+        jobs = _jobs()
+        aggregate_needs = jobs[SHADOW_AGGREGATE_JOB].get("needs", [])
+        producer_groups = set()
+        for job_name in aggregate_needs:
+            (command,) = _manifest_check_lines(jobs[job_name])
+            match = re.search(r"--group\s+(\S+)", command)
+            assert match, f"{job_name}: producer must select --group explicitly"
+            producer_groups.add(match.group(1))
+
+        assert producer_groups == expected_groups, (
+            "aggregate producer set does not match the registry's "
+            f"expected_groups(full): producers={sorted(producer_groups)} "
+            f"expected={sorted(expected_groups)}"
         )

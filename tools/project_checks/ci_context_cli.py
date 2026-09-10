@@ -16,7 +16,7 @@ is writing the requested --output file.
 
 # Job-name recognition is intentionally an exact-match allowlist, not a
 # suffix search: a loose `\(<group>\)\s*$` pattern also matches the
-# aggregate job's OWN name ("Shadow Checks Aggregate (non-blocking)"),
+# aggregate job's OWN name ("Checks Aggregate (full, non-blocking)"),
 # fabricating a bogus "non-blocking" producer group that
 # `aggregate.py` then rejects as unexpected -- self-invalidating every real
 # run before receipts are even read. See test_ci_context_cli.py's aggregate-

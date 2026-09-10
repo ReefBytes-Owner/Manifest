@@ -63,7 +63,7 @@ def _shadow_step_script(job_name: str) -> str:
 
 
 def _rejection_script() -> str:
-    job = _jobs()["shadow-checks-aggregate"]
+    job = _jobs()["checks-aggregate-full"]  # C6b rename (was shadow-checks-aggregate)
     (step,) = [
         step
         for step in job["steps"]

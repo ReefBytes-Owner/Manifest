@@ -23,6 +23,17 @@ C5_FULL_RELEASE_IDS = frozenset(
 )
 C5_SECURITY_RELEASE_IDS = frozenset({"security.semgrep"})
 C5_DECLARED_ONLY_IDS = frozenset({"dependency.audit.python", "dependency.audit.node"})
+# The `security` profile's four hook ids -- also folded into `full` as of
+# C6b (phase-3-5-decisions.md Correction 1). Moved here (not defined inline
+# in the test file) purely for the same file-size reason as the ids above.
+SECURITY_IDS = frozenset(
+    {
+        "hook.check-credentials",
+        "hook.detect-private-key",
+        "hook.gitleaks",
+        "hook.terraform_trivy",
+    }
+)
 # hook.pyright's TASK7_DISPOSITIONS/`config/check-preservation.json` entries
 # are left untouched (append-only oracle) so `retained == RETAINED_IDS`
 # still holds; it is superseded (no longer a live registry check) by

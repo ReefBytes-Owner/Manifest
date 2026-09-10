@@ -423,7 +423,7 @@ _DIRECT_ROWS = (
     "hook.debug-statements|debug-statement-hook;"
     "hook.markdownlint-cli2|markdownlint-cli2|--config|.markdownlint.jsonc;"
     "hook.ruff|ruff|check;hook.ruff-format|ruff|format|--check;"
-    "hook.eslint|eslint;hook.gitleaks|gitleaks|git|--pre-commit|--redact|--staged|--verbose;"
+    "hook.eslint|eslint;"
     "hook.constitution-check|python3|configs/claude/scripts/constitution_check.py;"
     "hook.validate-bootstrap|bash|-n;hook.check-bats-assertions|tests/lint/check_bats_assertions.sh;"
     "hook.check-array-expansion|tests/lint/check_array_expansion.sh;"
@@ -442,7 +442,7 @@ def _body_argv(check_id: str) -> tuple[str, ...]:
 
 _PROJECT_HOOKS = re.compile(
     r"hook\.(?:check-credentials|check-cursor-rules-drift|cargo-fmt-check|"
-    r"cargo-clippy|pyright|gitleaks)$"
+    r"cargo-clippy|pyright)$"
 )
 TASK7_DISPOSITIONS = {
     check_id: (

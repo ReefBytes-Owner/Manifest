@@ -52,6 +52,25 @@ def test_missing_check_id_is_rejected(registry, digest):
     assert any("missing check results" in d for d in report["diagnostics"])
 
 
+def test_empty_results_receipt_is_rejected_not_treated_as_pass(registry, digest):
+    """C6b: a receipt whose `results` is empty proves nothing about the
+    group it claims to cover -- it must never contribute a PASS-by-omission
+    to the aggregate. Distinct from `test_missing_check_id_is_rejected`
+    above: that one asserts the *merge*-level "missing check results"
+    diagnostic; this one asserts the *receipt*-level rejection fires too,
+    by its own specific reason, for the empty receipt itself."""
+    receipts, run_context = clean_pair(digest)
+    receipts[0]["results"] = []
+
+    report = aggregate_results(registry, "full", receipts, run_context)
+
+    assert report["status"] == "BLOCKED"
+    assert any(
+        "stale receipt: empty results for group 'lint'" in d
+        for d in report["diagnostics"]
+    )
+
+
 def test_extra_check_id_is_rejected(registry, digest):
     receipts, run_context = clean_pair(digest)
     receipts[0]["results"].append(result("lint.unexpected"))

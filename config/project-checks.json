@@ -607,7 +607,7 @@
       "required_modules": []
     },
     "hook.gitleaks": {
-      "executable": "gitleaks",
+      "executable": "python3",
       "version_argv": [
         "python3",
         "-I",
@@ -2143,12 +2143,10 @@
       "category": "security",
       "group": "lint",
       "argv": [
-        "gitleaks",
-        "git",
-        "--pre-commit",
-        "--redact",
-        "--staged",
-        "--verbose"
+        "python3",
+        "tools/project_checks/gitleaks_check.py",
+        "--root",
+        "."
       ],
       "cwd": ".",
       "inputs": [
@@ -2163,7 +2161,8 @@
       "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))",
       "types": [],
       "types_or": [],
-      "pass_filenames": false
+      "pass_filenames": false,
+      "honors_status_contract": true
     },
     {
       "id": "hook.constitution-check",
@@ -2990,7 +2989,12 @@
       "types.python",
       "package.node-runtime",
       "dependency.lock.root",
-      "dependency.lock.node"
+      "dependency.lock.node",
+      "hook.check-credentials",
+      "hook.detect-private-key",
+      "hook.gitleaks",
+      "hook.terraform_trivy",
+      "security.semgrep"
     ],
     "security": [
       "hook.check-credentials",
@@ -3207,7 +3211,13 @@
       "types.python: deterministic candidate prerequisite provisioning pending Phase 3 for full",
       "package.node-runtime: deterministic candidate prerequisite provisioning pending Phase 3 for full",
       "dependency.lock.root: deterministic candidate prerequisite provisioning pending Phase 3 for full",
-      "dependency.lock.node: deterministic candidate prerequisite provisioning pending Phase 3 for full"
+      "dependency.lock.node: deterministic candidate prerequisite provisioning pending Phase 3 for full",
+      "hook.check-credentials: deterministic candidate prerequisite provisioning pending Phase 3 for security",
+      "hook.detect-private-key: deterministic candidate prerequisite provisioning pending Phase 3 for security",
+      "hook.gitleaks: deterministic candidate prerequisite provisioning pending Phase 3 for security",
+      "hook.terraform_trivy: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 wrapper and underlying tool pins pending Phase 3",
+      "hook.terraform_trivy: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 action/runtime equivalence pending Phase 3",
+      "security.semgrep: deterministic candidate prerequisite provisioning pending Phase 3 for security"
     ],
     "security": [
       "hook.check-credentials: deterministic candidate prerequisite provisioning pending Phase 3 for security",

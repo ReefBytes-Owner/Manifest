@@ -83,7 +83,14 @@ def _index_tree(root: Path) -> bytes:
 
 
 def test_every_retained_id_has_one_encodable_task7_disposition() -> None:
-    from tools.project_checks import generated, hook_lint, hooks, packages, structure
+    from tools.project_checks import (
+        generated,
+        gitleaks_check,
+        hook_lint,
+        hooks,
+        packages,
+        structure,
+    )
 
     oracle = json.loads(Path("config/check-preservation.json").read_text())
     expected = {
@@ -93,7 +100,7 @@ def test_every_retained_id_has_one_encodable_task7_disposition() -> None:
         for check_id in control["check_ids"]
     }
     dispositions = {}
-    for module in (structure, generated, hooks, hook_lint, packages):
+    for module in (structure, generated, hooks, hook_lint, packages, gitleaks_check):
         for check_id, disposition in module.TASK7_DISPOSITIONS.items():
             assert check_id not in dispositions
             dispositions[check_id] = disposition

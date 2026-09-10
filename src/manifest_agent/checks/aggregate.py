@@ -332,6 +332,11 @@ def _receipt_errors(
         errors.append(f"receipt group {group!r} has no confirmed producer job")
     result_errors, results = _receipt_results(receipt, group, trust)
     errors.extend(result_errors)
+    if not result_errors and not results:
+        # A receipt whose results are empty proves nothing about the group
+        # it claims to cover -- reject it the same way as a missing group,
+        # never let it read as PASS-by-omission (C6b).
+        errors.append(f"stale receipt: empty results for group {group!r}")
     if errors:
         return errors, None
     return [], {

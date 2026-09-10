@@ -31,7 +31,13 @@ manifest check-aggregate full \
 ```
 
 - `PROFILE` is one of `quick`, `full`, `security`, `release`
-  (`config/project-checks.json` → `profiles`).
+  (`config/project-checks.json` → `profiles`). `security` (C6b) is a
+  **named subset with no CI aggregate of its own** — its five hook/scan ids
+  (`hook.check-credentials`, `hook.detect-private-key`, `hook.gitleaks`,
+  `hook.terraform_trivy`, `security.semgrep`) are also folded into `full`,
+  so exactly one aggregate (`full`'s) and one required check can ever exist;
+  `security` remains useful standalone for local/hook use and as part of
+  `release`'s composition.
 - `--group` narrows to one of `structure`, `lint`, `test`, `security`,
   `package` (`config/project-checks.json` → `checks[].group`). A
   group-scoped run is always `"partial": true` and cannot certify a whole
@@ -54,13 +60,28 @@ fetched.
 |--------|-----------|---------|
 | `PASS` | `0` | Every required check in the (profile, group) closure ran and passed. |
 | `FAIL` | `2` | At least one check ran and failed. |
-| `BLOCKED` | `3` | At least one check could not be verified (missing tool, unavailable candidate, unresolved `coverage_pending` obligation). |
+| `BLOCKED` | `3` | At least one check could not be verified (missing tool, unavailable candidate, unresolved `coverage_pending` obligation, or a resolved group with zero checks — see below). |
 
 `BLOCKED` means **"could not be verified"** — it is never a pass, even when
 no check explicitly failed. When `FAIL` and `BLOCKED` coexist in the same
 run, the report returns exit `2` (`FAIL`) and retains both sets of
 diagnostics; a fail is never hidden behind a blocked result. A group result
 is always partial and cannot certify a whole profile.
+
+**A resolved group with zero checks is BLOCKED, never PASS (C6b).**
+`resolve_checks(registry, profile, group)` can legitimately return an empty
+tuple — e.g. `full` x `security` returned zero checks before this chunk
+folded the `security`-profile ids into `full`. An empty check set produces
+an empty `results`/`coverage_pending` set, which `_report`/`_list_report`
+would otherwise read as an honest PASS: a receipt about nothing.
+`manifest check <profile> --group <g>` and `--list` both now raise
+`group_selection.EmptyGroupError` (`src/manifest_agent/checks/
+group_selection.py`) with reason `profile <p> selects no checks in group
+<g>` instead. Separately, `manifest check-aggregate` rejects any individual
+producer receipt whose `results` list is empty with `stale receipt: empty
+results for group <g>` — a receipt that asserts nothing about its group is
+never trusted as evidence, even if every other structural check on it
+passes.
 
 ## The shadow CI path
 
@@ -73,7 +94,8 @@ then invokes the shared command exactly once (`uv run manifest check full
 <resolved-sha> --json --output ...`) and uploads its report as a
 run-attempt-scoped artifact (`shadow-receipt-<group>-${{ github.run_attempt
 }}`) so a workflow re-run cannot mix evidence from a prior attempt.
-`shadow-checks-aggregate` runs with `if: always()`, rejects any producer that
+`checks-aggregate-full` (renamed from `shadow-checks-aggregate`, C6b) runs
+with `if: always()`, rejects any producer that
 wrote no receipt evidence, then builds the current-run context
 (`tools/project_checks/ci_context_cli.py`, read-only via `gh api`) and calls
 `manifest check-aggregate`, writing its own receipt
@@ -127,7 +149,7 @@ never wrote a receipt at all — the guard's real purpose — is still rejected.
 
 All six jobs (`shadow-checks-structure`, `shadow-checks-lint`,
 `shadow-checks-test`, `shadow-checks-security`, `shadow-checks-package`,
-`shadow-checks-aggregate`) set job-level `continue-on-error: true`. This is
+`checks-aggregate-full`) set job-level `continue-on-error: true`. This is
 deliberately at the **job** level, not just on individual steps: a step-only
 `continue-on-error` still lets an unrelated step (checkout, `uv` install,
 context build, receipt download) fail and redden the whole job — and
@@ -140,32 +162,37 @@ later phase (Phase 5).
 
 ### Why the aggregate still reports `BLOCKED`
 
-Both fixes above make `manifest check-aggregate` actually *run* on every
-real invocation instead of being skipped, but its verdict is still
-`BLOCKED` today, for reasons unrelated to either defect:
-
-- `full`'s registry closure (`resolve_checks(registry, "full", None)`) spans
-  four groups today — `structure`, `lint`, `test`, `package` — not five:
-  `full`'s profile list contains no `security`-group check id, so
-  `security.semgrep` and `dependency.audit.*` are never part of `full`'s
-  expected evidence, only the `security` profile's. `shadow-checks-security`
-  still runs and uploads a receipt (there is a real, if currently empty,
-  `security`-group closure to shadow, and this chunk wires every group
-  `ci_context_cli.py` can recognize so none is silently dropped later), but
-  because `full` does not request that group, `aggregate.py` reports it as
-  `"producer job references unexpected group: 'security'"` — an accurate
-  diagnostic, not a bug, and one more reason (alongside `coverage_pending`)
-  the aggregate stays `BLOCKED` until a later phase either adds
-  `security.semgrep` to `full` or stops aggregating against `full` for that
-  group.
-- Every check in every group still has at least one open `coverage_pending`
-  obligation (see [Coverage limits](#coverage-limits)), which alone forces
-  `BLOCKED` regardless of the above.
+The fixes above make `manifest check-aggregate` actually *run* on every real
+invocation instead of being skipped, but its verdict is still `BLOCKED`
+today, for a reason unrelated to either defect: every check in every group
+still has at least one open `coverage_pending` obligation (see
+[Coverage limits](#coverage-limits)), which alone forces `BLOCKED`.
 
 A `BLOCKED` aggregate report is therefore still the expected, honest shape
-today — the two defects fixed here mean it is now a *real* `BLOCKED` verdict
-computed from actual receipts, not a fabricated `UNKNOWN` from a rejection
-step that never let the aggregate step run.
+today — the fixes mean it is now a *real* `BLOCKED` verdict computed from
+actual receipts, not a fabricated `UNKNOWN` (the base/rejection-signal
+defects) or a PASS-by-omission (the zero-checks defect, C6b) on the way to
+it.
+
+**C6b — the `full` x `security` false green.** Before this chunk, `full`'s
+registry closure spanned four groups — `structure`, `lint`, `test`,
+`package` — not five: `full`'s profile list contained no `security`-group
+check id, so `resolve_checks(registry, "full", "security")` returned zero
+checks, and an empty check set with zero `coverage_pending` obligations
+computed `_report`'s status as an honest-looking **PASS** — a receipt about
+nothing. That the *aggregate* stayed `BLOCKED` (`"producer job references
+unexpected group: 'security'"`, since `full` didn't request that group) was
+coincidence, not a control: the per-group `manifest check full --group
+security` receipt itself was a false green. This chunk closes both ends:
+`profiles.full` now includes the five `security`-profile ids
+(`hook.check-credentials`, `hook.detect-private-key`, `hook.gitleaks`,
+`hook.terraform_trivy`, `security.semgrep`), so `resolve_checks(registry,
+"full", "security")` resolves one real check (`security.semgrep`) and the
+`shadow-checks-security` producer becomes a legitimate, expected group
+instead of a perpetual "unexpected group" diagnostic; and the new
+zero-checks rule (above) means a future group with nothing to check can
+never silently read as PASS again, in either the per-group or the aggregate
+path.
 
 ## Toolchain provisioning
 
@@ -348,7 +375,7 @@ instead of silently resolving whatever happens to be on `PATH`. Test:
 | `hook.markdownlint-cli2` | already `command:markdownlint-cli2=0.23.0` | unchanged (already engine-only, not touched this chunk) | No — `shutil.which("markdownlint-cli2")` against ambient `PATH`. |
 | `test.bats` | `./node_modules/.bin/bats` | `command:bats=1.11.1`; argv is `store:node-env/bin/bats` | **Yes** — the only one of these checks whose executable is a `store:` reference. |
 | `test.bundle-partition` | `"ok"` + hardcoded BLOCKED (`npx` control) | `command:bats=1.11.1`; runs `tests/bats/bundle_partition.bats` via `shutil.which("bats")`, no more `npx` | No — `shutil.which("bats")` against ambient `PATH`, unchanged trust class from before this chunk (it gained a real body, not store resolution). |
-| `hook.gitleaks` | `command:gitleaks=8.30.0` | `command:gitleaks=8.30.1` (unified with CI's checksum-verified install and the lock's `binary` entry) | No — `shutil.which("gitleaks")` against ambient `PATH`. |
+| `hook.gitleaks` | `command:gitleaks=8.30.0` | `command:gitleaks=8.30.1` (unified with CI's checksum-verified install and the lock's `binary` entry) | No — `shutil.which("gitleaks")` against ambient `PATH`, now called from a `tools/project_checks/gitleaks_check.py` wrapper body (C6b) instead of direct argv. |
 
 **Honesty caveat**: of the 9 engine-bearing checks this chunk's engine-pin
 table touches, only **`test.bats`** actually resolves its engine through the
@@ -369,13 +396,20 @@ architecture limit.** Two things, both fixable, neither insurmountable:
    `argv[0] == "python3"`; migrating only `tool.executable` to `store:...`
    breaks that invariant (caught immediately by `test_check_registry.py`).
    For the direct-argv checks (`hook.shellcheck`, `hook.yamllint`,
-   `hook.markdownlint-cli2`, `hook.gitleaks`) this is not a hard blocker —
-   their argv is compared against `hooks.py`'s own `TASK7_DISPOSITIONS`
-   table (a live Python dict this codebase owns and edits every chunk, most
-   recently by this one for `hook.shellcheck`/`hook.yamllint` — see below),
-   not against `config/check-preservation.json`'s frozen oracle. Rewiring
-   them to `store:` form was mechanically possible within this chunk; it was
-   deferred, not architecturally prevented.
+   `hook.markdownlint-cli2`) this is not a hard blocker — their argv is
+   compared against `hooks.py`'s own `TASK7_DISPOSITIONS` table (a live
+   Python dict this codebase owns and edits every chunk, most recently by
+   this one for `hook.shellcheck`/`hook.yamllint` — see below), not against
+   `config/check-preservation.json`'s frozen oracle. Rewiring them to
+   `store:` form was mechanically possible within this chunk; it was
+   deferred, not architecturally prevented. `hook.gitleaks` left the
+   direct-argv set entirely in C6b, for an unrelated reason: its body now
+   needs the candidate's base revision (`.git/candidate-base-sha`) to scan
+   the right range, which only a `python3` wrapper body can read, so its
+   argv is `python3` form like `hook.shellcheck`'s (in
+   `tools/project_checks/gitleaks_check.py`'s own `TASK7_DISPOSITIONS`,
+   not `hooks.py`'s) — not a `store:` migration, just no longer eligible
+   for one under this bullet's blocker either way.
 2. **The deferral is deliberate, not an oversight**: every entry in
    `config/toolchain.lock.json` currently has `exe_sha256: null`
    (unattested — real hashes are C7, needs network). Routing a check through
@@ -385,6 +419,21 @@ architecture limit.** Two things, both fixable, neither insurmountable:
    can never pass until C7 lands. Store-wiring these 8 checks now would
    verify nothing while breaking them; it becomes meaningful the moment C7
    fills in real hashes. Tracked for that chunk, not this one.
+
+**`hook.gitleaks` scans `base..HEAD`, never `--staged` (C6b).** Before this
+chunk the registry's argv was `gitleaks git --pre-commit --redact --staged
+--verbose`, which reads the git *index* — on a CI checkout (a clean clone,
+nothing staged) that is empty, so the check exits `0` having scanned zero
+commits: a secret scanner that never runs is worse than no scanner, because
+nobody investigates a pass. `tools/project_checks/gitleaks_check.py` reads
+the candidate's base revision from the same `.git/candidate-base-sha`
+sidecar `debt_checks.py`/`analysis_checks.py` already use and scans exactly
+`gitleaks git --log-opts "<base>..HEAD" --redact --verbose`; when no base
+revision is available the run is `BLOCKED "gitleaks: no base revision"`, not
+PASS. `tests/python/manifest_agent/test_gitleaks_check.py` proves the old
+argv's false green directly (a clean checkout with a secret committed since
+base still exits `0` under `--staged`) before pinning the fixed body's
+range-scan/no-base/base-equals-head behavior.
 
 **`.gitleaks.toml` default-ruleset defect**: before this chunk, supplying
 `[[rules]]` without `[extend] useDefault = true` **replaced** gitleaks' ~150

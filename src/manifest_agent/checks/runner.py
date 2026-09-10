@@ -20,6 +20,7 @@ from .candidate import (
     _walk,
     candidate_digest,
 )
+from .group_selection import guard_nonempty_group
 from .models import (
     Candidate,
     CheckResult,
@@ -296,6 +297,7 @@ def run_profile(
     start = time.monotonic()
     selector = ProfileSelector(profile, group)
     checks = resolve_checks(registry, profile, group)
+    guard_nonempty_group(profile, group, checks)
     results: list[CheckResult] = []
     initial_identity_error = _identity_error(candidate)
     if initial_identity_error:

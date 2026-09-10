@@ -19,6 +19,7 @@ import click
 from . import telemetry
 from .aggregate import aggregate_results
 from .candidate import CandidateBlockedError, materialize_candidate
+from .group_selection import guard_nonempty_group
 from .registry import (
     VALID_GROUPS,
     VALID_PROFILES,
@@ -80,6 +81,7 @@ _OUTPUT_PRIMITIVES_SUPPORTED = (
 
 def _list_report(registry: dict, profile: str, group: str | None) -> dict:
     checks = resolve_checks(registry, profile, group)
+    guard_nonempty_group(profile, group, checks)
     pending = applicable_pending(registry, profile, group, checks)
     return {
         "schema_version": 1,

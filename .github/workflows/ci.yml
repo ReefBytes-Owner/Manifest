@@ -940,8 +940,13 @@ jobs:
           retention-days: 7
           if-no-files-found: warn
 
-  shadow-checks-aggregate:
-    name: Shadow Checks Aggregate (non-blocking)
+  checks-aggregate-full:
+    # C6b (phase-3-5-decisions.md Correction 1): renamed from
+    # shadow-checks-aggregate. Still job-level `continue-on-error: true` and
+    # still not a required status -- the required-check name change is C12,
+    # not this chunk. There is exactly one aggregate job (profile `full`);
+    # `security` is a named registry subset with no aggregate of its own.
+    name: Checks Aggregate (full, non-blocking)
     timeout-minutes: 10
     needs:
       [
