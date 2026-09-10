@@ -53,12 +53,19 @@ into `0`/`$0.00` — see the headline tests in
 
 `telemetry.record_run` is the single safety boundary for the whole write
 path (lineage resolution, attempt counting, record assembly, the append
-itself): it never raises. `checks/cli.py`'s `check` command and
-`hooks/core.py`'s `process_event` call it unconditionally right before
-reporting their own result — an unwritable telemetry directory changes
-nothing about the check's exit code or the hook's `AdapterOutcome`
+itself): it never raises. `checks/cli.py`'s `check` command calls it right
+before reporting its own result -- unconditionally for a direct invocation,
+skipped only when `MANIFEST_HOOK_ACTIVE` marks this as the inner process of
+a hook-driven run (see "One record per hook run" below); `hooks/core.py`'s
+`process_event` calls the adapter-level write unconditionally. Either way an
+unwritable telemetry directory changes nothing about the check's exit code
+or the hook's `AdapterOutcome`
 (`tests/python/manifest_agent/test_check_cli_telemetry.py::
-test_telemetry_write_failure_does_not_change_the_exit_code_or_report`).
+test_telemetry_write_failure_does_not_change_the_exit_code_or_report`). A
+write failure is reported on stderr only, never stdout (protocol purity),
+and never changes the exit code
+(`tests/python/manifest_agent/test_check_telemetry.py::
+test_a_write_failure_is_reported_on_stderr_never_stdout`).
 
 Writes are append-only (`open(..., "a")`, `fcntl.flock`-serialized the same
 way `hooks/receipt.py`/`preparation.py` already serialize writes) and
@@ -66,13 +73,22 @@ confined to `telemetry.telemetry_dir()` — resolved from `XDG_STATE_HOME`,
 never inside the repository or a candidate checkout, and never a network
 call or paid telemetry service.
 
-## Two sources per hook run
+## One record per hook run
 
-A `manifest hook` invocation that actually executes a check produces **two**
-records: the inner `manifest check` subprocess's own (profile-level) record,
-and the adapter-level one `hooks/telemetry.py` writes, which is the only one
-carrying `runtime.client`. `hooks/runner.py` forwards `XDG_STATE_HOME` to the
-inner subprocess precisely so both land in the same file.
+A `manifest hook` invocation that actually executes a check writes exactly
+**one** record: the adapter-level one `hooks/telemetry.py::record_hook_telemetry`
+writes, carrying `runtime.client` (the identity the inner subprocess has no
+way to know). `hooks/runner.py` still forwards `XDG_STATE_HOME` to the inner
+`manifest check` subprocess so it writes to the same sink as a direct
+invocation would -- but that inner process also inherits
+`MANIFEST_HOOK_ACTIVE` (the same recursion marker `hooks/runner.py::RECURSION_ENV_VAR`
+sets for the child), and `checks/cli.py::_record_check_telemetry` treats its
+presence as "an adapter already owns this run's telemetry" and skips its own
+write. Without this, attempts and repair cycles -- the two headline metrics
+this chunk exists to produce -- double for every hook-driven run
+(`tests/python/manifest_agent/hooks/test_hooks_telemetry.py::
+test_a_hook_run_writes_exactly_one_record_total_not_a_second_inner_one`,
+asserted over *all* records in the file, not a client-filtered subset).
 
 ## Derived metrics (`measure_report.py`)
 

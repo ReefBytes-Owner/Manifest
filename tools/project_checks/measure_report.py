@@ -58,8 +58,32 @@ def group_by_lineage(records: Sequence[Mapping]) -> dict[str, list[dict]]:
     return groups
 
 
+_MISSING_ATTEMPT = float("-inf")
+
+
+def _numeric(value: object) -> float | None:
+    """A JSON number, rejecting `bool` -- `isinstance(True, (int, float))`
+    is `True` in Python, so without this guard `amount_usd: true` would
+    render as `$1.00` and a `duration_seconds: true` record would silently
+    join the duration corpus. Reject non-numeric-shaped values explicitly."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    return None
+
+
 def _ordered(records: Sequence[Mapping]) -> list[dict]:
-    return sorted(records, key=lambda r: r.get("attempt") or 0)
+    """Sort-only ordering by `attempt`. A missing/non-numeric `attempt` is
+    `_MISSING_ATTEMPT` (`-inf`), not `0` -- `0` is itself a value a real
+    (if malformed) attempt could theoretically carry, and this function
+    exists precisely to never let an unknown stand in for a real number."""
+
+    def _key(record: Mapping) -> float:
+        value = _numeric(record.get("attempt"))
+        return value if value is not None else _MISSING_ATTEMPT
+
+    return sorted(records, key=_key)
 
 
 def attempts(groups: Mapping[str, list[dict]]) -> dict[str, int]:
@@ -91,11 +115,12 @@ def _percentile(sorted_values: list[float], fraction: float) -> float:
 
 def duration_percentiles(records: Sequence[Mapping]) -> dict[str, object]:
     """p50/p95 check duration in seconds; `"unknown"` (never `0`) when no
-    record in the corpus carries a numeric `duration_seconds`."""
+    record in the corpus carries a numeric-shaped `duration_seconds`
+    (`bool` rejected explicitly by `_numeric`, not treated as a number)."""
     durations = sorted(
-        float(record["duration_seconds"])
+        value
         for record in records
-        if isinstance(record.get("duration_seconds"), (int, float))
+        if (value := _numeric(record.get("duration_seconds"))) is not None
     )
     if not durations:
         return {"p50": "unknown", "p95": "unknown"}
@@ -114,9 +139,9 @@ def cost_per_accepted_change(records: Sequence[Mapping]) -> object:
     known = 0
     for record in records:
         cost = record.get("cost") or {}
-        amount = cost.get("amount_usd")
-        if cost.get("status") == "known" and isinstance(amount, (int, float)):
-            total += float(amount)
+        amount = _numeric(cost.get("amount_usd"))
+        if cost.get("status") == "known" and amount is not None:
+            total += amount
             known += 1
     if known == total_attempts:
         return total
@@ -204,7 +229,9 @@ def render(report: Mapping) -> str:
     lines.append(f"repair cycles (per lineage): {report['repair_cycles']}")
     duration = report["check_duration_seconds"]
     lines.append(f"check duration p50: {duration['p50']}  p95: {duration['p95']}")
-    lines.append(f"review time (PR opened -> approved): {report['review_time_seconds']}")
+    lines.append(
+        f"review time (PR opened -> approved): {report['review_time_seconds']}"
+    )
     lines.append("cost per accepted change:")
     for lineage, cost in report["cost_per_accepted_change"].items():
         lines.append(f"  {lineage}: {cost}")
@@ -230,10 +257,14 @@ def main(argv: list[str] | None = None) -> int:
     records = load_records(arguments.runs_file)
     review_time = None
     if arguments.repository and arguments.review_pr:
-        review_time = make_fetch_review_time()(arguments.repository, arguments.review_pr)
+        review_time = make_fetch_review_time()(
+            arguments.repository, arguments.review_pr
+        )
     report = build_report(records, review_time)
     output = (
-        json.dumps(report, sort_keys=True) + "\n" if arguments.as_json else render(report)
+        json.dumps(report, sort_keys=True) + "\n"
+        if arguments.as_json
+        else render(report)
     )
     sys.stdout.write(output)
     return PASS

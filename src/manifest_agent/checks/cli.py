@@ -46,6 +46,13 @@ ENVIRONMENT_KEYS = (
     "TMPDIR",
     "XDG_CACHE_HOME",
 )
+# Same name `hooks/runner.py::RECURSION_ENV_VAR` sets on this process's own
+# environment when `manifest hook` spawns it. Its presence here means an
+# adapter is already writing the authoritative telemetry record for this run
+# (`hooks/telemetry.py::record_hook_telemetry`) -- this inner `manifest
+# check` process must not write a second one, or attempts/repair cycles
+# double for every hook-driven run (phase-3-5-decisions.md 5c).
+HOOK_ACTIVE_ENV_VAR = "MANIFEST_HOOK_ACTIVE"
 
 
 class OutputBlockedError(RuntimeError):
@@ -325,16 +332,28 @@ def _execute(
             shutil.rmtree(destination)
 
 
-def _record_check_telemetry(report: dict, profile: str, source: Path, wall_seconds: float) -> None:
+def _record_check_telemetry(
+    report: dict, profile: str, source: Path, wall_seconds: float
+) -> None:
     """One append-only observer record per `manifest check` run (5c).
     `telemetry.record_run` is itself the safety boundary -- it never
     raises -- so this can sit unconditionally before `context.exit` without
-    risking the check's own exit code."""
+    risking the check's own exit code.
+
+    Skips when `HOOK_ACTIVE_ENV_VAR` is set: this process is then the inner
+    `manifest check` a `manifest hook` adapter spawned, and the adapter
+    already writes the authoritative record for this run
+    (`hooks/telemetry.py::record_hook_telemetry`) -- writing here too would
+    double attempts and repair cycles per hook-driven run."""
+    if os.environ.get(HOOK_ACTIVE_ENV_VAR):
+        return
     duration = report.get("duration_seconds")
     request = telemetry.RecordRunRequest(
         profile=profile,
         status=str(report.get("status", "BLOCKED")),
-        duration_seconds=duration if isinstance(duration, (int, float)) else wall_seconds,
+        duration_seconds=duration
+        if isinstance(duration, (int, float))
+        else wall_seconds,
         source_root=source,
         receipt_key=str(report.get("receipt_key") or ""),
         head_sha=str(report.get("head_sha") or ""),

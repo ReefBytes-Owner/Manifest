@@ -7,7 +7,7 @@ default to `"unknown"` and are filled only from values a caller actually
 supplies -- never inferred, never guessed. `cost.status` is `"known"` only
 with a provider-reported usage figure; there is no zero default.
 
-Telemetry is an observer, never a gate: `write_record` never raises. A write
+Telemetry is an observer, never a gate: `record_run` never raises. A write
 failure (unwritable directory, race, disk full) degrades silently and must
 never change a check's verdict or exit code. Writes are confined to
 `$XDG_STATE_HOME/manifest/telemetry/`; never a paid service, never the
@@ -19,7 +19,9 @@ from __future__ import annotations
 import fcntl
 import json
 import os
+import sys
 from collections.abc import Mapping
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -121,38 +123,45 @@ def telemetry_path(env: Mapping[str, str] | None = None) -> Path:
     return telemetry_dir(env) / RECORD_FILENAME
 
 
-def append_record(record: Mapping[str, object], env: Mapping[str, str] | None = None) -> None:
-    """Append one JSON line, serialized against concurrent writers with the
-    same `fcntl` idiom `preparation.py`/`hooks/receipt.py` already use.
-    Raises on failure -- callers that must never fail wrap this in
-    `write_record`."""
+@contextmanager
+def _locked_telemetry_dir(env: Mapping[str, str] | None = None):
+    """Hold the same exclusive `fcntl` lock `preparation.py`/`hooks/receipt.py`
+    use for the whole duration of the `with` block, yielding the directory.
+    `count_prior_attempts` and the append it guards must run under one lock
+    acquisition -- reading the attempt count outside the lock lets two
+    concurrent writers both count the same prior records and compute the
+    same `attempt` (the race this context manager closes)."""
     directory = telemetry_dir(env)
     directory.mkdir(parents=True, exist_ok=True)
-    line = json.dumps(record, sort_keys=True, separators=(",", ":")) + "\n"
     lock_fd = os.open(
         directory / LOCK_FILENAME, os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600
     )
     try:
         fcntl.flock(lock_fd, fcntl.LOCK_EX)
-        with open(directory / RECORD_FILENAME, "a", encoding="utf-8") as stream:
-            stream.write(line)
-            stream.flush()
-            os.fsync(stream.fileno())
+        yield directory
     finally:
         fcntl.flock(lock_fd, fcntl.LOCK_UN)
         os.close(lock_fd)
 
 
-def write_record(inputs: RunRecordInputs, env: Mapping[str, str] | None = None) -> None:
-    """Best-effort telemetry write: never raises. A telemetry write failure
-    must never change the exit code or verdict of the check it observes."""
-    try:
-        append_record(build_record(inputs), env)
-    except (OSError, ValueError, TypeError):
-        # Documented fallback: telemetry is an observer, never a gate --
-        # nothing was lost that a verdict depended on, so degrading to "no
-        # record this run" (rather than raising) is the whole point.
-        return
+def _append_locked(directory: Path, record: Mapping[str, object]) -> None:
+    """Write one JSON line into `directory`. Caller must already hold the
+    directory's lock (`_locked_telemetry_dir`) -- this function does not
+    lock on its own."""
+    line = json.dumps(record, sort_keys=True, separators=(",", ":")) + "\n"
+    with open(directory / RECORD_FILENAME, "a", encoding="utf-8") as stream:
+        stream.write(line)
+        stream.flush()
+        os.fsync(stream.fileno())
+
+
+def append_record(
+    record: Mapping[str, object], env: Mapping[str, str] | None = None
+) -> None:
+    """Append one JSON line, serialized against concurrent writers. Raises
+    on failure -- callers that must never fail wrap this in `record_run`."""
+    with _locked_telemetry_dir(env) as directory:
+        _append_locked(directory, record)
 
 
 def resolve_lineage(env: Mapping[str, str], source_root: Path | None) -> str | None:
@@ -170,19 +179,18 @@ def resolve_lineage(env: Mapping[str, str], source_root: Path | None) -> str | N
     if source_root is None:
         return None
     try:
-        branch = _git(source_root, "symbolic-ref", "--short", "-q", "HEAD").decode().strip()
+        branch = (
+            _git(source_root, "symbolic-ref", "--short", "-q", "HEAD").decode().strip()
+        )
     except CandidateBlockedError:
         return None
     return branch or None
 
 
-def count_prior_attempts(lineage: str | None, env: Mapping[str, str] | None = None) -> int:
-    """1-based attempt number: one more than the number of existing records
-    sharing this `candidate_lineage`. A `null` lineage cannot be tracked
-    across attempts, so it is always attempt 1."""
-    if lineage is None:
-        return 1
-    path = telemetry_path(env)
+def _count_prior_attempts_in_file(path: Path, lineage: str) -> int:
+    """1-based attempt number from `path` alone, no locking of its own --
+    callers that must be race-free hold `_locked_telemetry_dir` around this
+    call and the append that follows it as one atomic operation."""
     if not path.is_file():
         return 1
     count = 0
@@ -196,11 +204,28 @@ def count_prior_attempts(lineage: str | None, env: Mapping[str, str] | None = No
                     parsed = json.loads(raw_line)
                 except ValueError:
                     continue
-                if isinstance(parsed, dict) and parsed.get("candidate_lineage") == lineage:
+                if (
+                    isinstance(parsed, dict)
+                    and parsed.get("candidate_lineage") == lineage
+                ):
                     count += 1
     except OSError:
         return 1
     return count + 1
+
+
+def count_prior_attempts(
+    lineage: str | None, env: Mapping[str, str] | None = None
+) -> int:
+    """1-based attempt number: one more than the number of existing records
+    sharing this `candidate_lineage`. A `null` lineage cannot be tracked
+    across attempts, so it is always attempt 1. Not lock-guarded on its own
+    -- `record_run` computes this itself under `_locked_telemetry_dir` to
+    avoid the count-then-append race; this standalone entry point is for
+    read-only/diagnostic callers and tests, not concurrent writers."""
+    if lineage is None:
+        return 1
+    return _count_prior_attempts_in_file(telemetry_path(env), lineage)
 
 
 @dataclass(frozen=True)
@@ -220,28 +245,41 @@ class RecordRunRequest:
 
 def record_run(request: RecordRunRequest, env: Mapping[str, str] | None = None) -> None:
     """The one safety boundary for the whole telemetry path: resolve
-    lineage, compute the attempt number, build and append the record.
-    Never raises -- every step it performs (lineage/attempt resolution,
-    record assembly, the append itself) is covered by this single narrow
-    `try`, so a telemetry failure can never change the verdict of the
+    lineage, then count the attempt number and append the record inside one
+    `_locked_telemetry_dir` hold -- so two concurrent runs on the same
+    lineage can never both read the same prior-attempt count and write a
+    duplicate `attempt`. Never raises -- every step it performs (lineage
+    resolution, the locked count-and-append) is covered by this single
+    narrow `try`, so a telemetry failure can never change the verdict of the
     `manifest check` / `manifest hook` run it observes."""
     try:
         environment = env if env is not None else os.environ
         lineage = resolve_lineage(environment, request.source_root)
-        inputs = RunRecordInputs(
-            profile=request.profile,
-            status=request.status,
-            duration_seconds=request.duration_seconds,
-            receipt_key=request.receipt_key,
-            head_sha=request.head_sha,
-            candidate_lineage=lineage,
-            attempt=count_prior_attempts(lineage, environment),
-            runtime=request.runtime,
-            cost=request.cost,
-        )
-        append_record(build_record(inputs), environment)
-    except (OSError, ValueError, TypeError, CandidateBlockedError):
+        with _locked_telemetry_dir(environment) as directory:
+            attempt = (
+                1
+                if lineage is None
+                else _count_prior_attempts_in_file(directory / RECORD_FILENAME, lineage)
+            )
+            inputs = RunRecordInputs(
+                profile=request.profile,
+                status=request.status,
+                duration_seconds=request.duration_seconds,
+                receipt_key=request.receipt_key,
+                head_sha=request.head_sha,
+                candidate_lineage=lineage,
+                attempt=attempt,
+                runtime=request.runtime,
+                cost=request.cost,
+            )
+            _append_locked(directory, build_record(inputs))
+    except (OSError, ValueError, TypeError, CandidateBlockedError) as error:
         # Documented fallback: telemetry is an observer, never a gate --
         # nothing was lost that a verdict depended on, so degrading to "no
-        # record this run" (rather than raising) is the whole point.
+        # record this run" (rather than raising) is the whole point. A
+        # permanently unwritable state dir would otherwise yield an empty
+        # corpus with no hint -- stderr only (never stdout: protocol
+        # purity for `manifest hook`'s single-JSON-document contract), and
+        # this never changes the caller's exit code.
+        print(f"manifest telemetry: {redact_text(str(error))}", file=sys.stderr)
         return

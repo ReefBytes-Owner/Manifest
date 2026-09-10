@@ -60,7 +60,9 @@ def test_cost_per_accepted_change_with_one_uncosted_attempt_of_three(tmp_path):
 
     report = measure_report.build_report(measure_report.load_records(runs_file), None)
 
-    assert report["cost_per_accepted_change"]["123"] == "unknown (2 of 3 attempts costed)"
+    assert (
+        report["cost_per_accepted_change"]["123"] == "unknown (2 of 3 attempts costed)"
+    )
     rendered = measure_report.render(report)
     assert "unknown (2 of 3 attempts costed)" in rendered
 
@@ -148,6 +150,37 @@ def test_main_cli_reads_runs_file_and_prints_a_report(tmp_path, capsys):
     output = capsys.readouterr().out
     assert "Manifest measurement report" in output
     assert "unknown" in output
+
+
+def test_a_bool_shaped_cost_amount_is_rejected_not_rendered_as_a_dollar_figure(
+    tmp_path,
+):
+    """`isinstance(True, (int, float))` is `True` in Python, so a malformed
+    or adversarial record with `amount_usd: true` must not silently render
+    as `$1.00` -- a zero-for-unknown cousin defect in a chunk about honest
+    numbers. `_numeric` rejects `bool` explicitly."""
+    runs_file = tmp_path / "runs.jsonl"
+    malformed = _record(status="PASS", attempt=1)
+    malformed["cost"] = {"status": "known", "amount_usd": True}
+    _write_records(runs_file, [malformed])
+
+    report = measure_report.build_report(measure_report.load_records(runs_file), None)
+
+    cost = report["cost_per_accepted_change"]["123"]
+    assert isinstance(cost, str) and cost.startswith("unknown")
+
+
+def test_a_bool_shaped_duration_is_excluded_from_the_percentile_corpus(tmp_path):
+    """Same defect, the duration side: a `duration_seconds: true` record
+    must not silently join the numeric corpus and skew p50/p95."""
+    runs_file = tmp_path / "runs.jsonl"
+    malformed = _record(status="PASS", attempt=1)
+    malformed["duration_seconds"] = True
+    _write_records(runs_file, [malformed])
+
+    report = measure_report.build_report(measure_report.load_records(runs_file), None)
+
+    assert report["check_duration_seconds"] == {"p50": "unknown", "p95": "unknown"}
 
 
 def test_main_cli_json_output_never_coerces_unknown_cost_to_zero(tmp_path, capsys):

@@ -21,9 +21,13 @@ DIAGNOSTIC_CAP = 4096
 # recursion guard in core.py reach descendants, not just this one child.
 RECURSION_ENV_VAR = "MANIFEST_HOOK_ACTIVE"
 # XDG_STATE_HOME travels with the rest so the invoked `manifest check`
-# subprocess writes its own run-telemetry record (5c) to the same sink this
-# adapter itself is configured against -- omitting it would default the
-# child to the real, un-isolated HOME-derived state directory.
+# subprocess resolves state paths against the same sink this adapter is
+# configured against, matching a direct (non-hook) invocation -- omitting it
+# would default the child to the real, un-isolated HOME-derived state
+# directory. The child no longer writes its own telemetry record for a
+# hook-driven run (it sees MANIFEST_HOOK_ACTIVE below and defers to this
+# adapter's own record; see checks/cli.py::_record_check_telemetry), but the
+# rest of its state resolution should still agree with the adapter's.
 FORWARDED_ENV_KEYS = (
     "HOME",
     "PATH",

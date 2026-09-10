@@ -89,9 +89,14 @@ def test_telemetry_write_failure_does_not_change_the_exit_code_or_report(
         telemetry_dir.chmod(stat.S_IRWXU)
 
     assert result.exit_code == 0
-    report = json.loads(result.output)
+    # `result.stdout` (never `result.output`, which CliRunner mixes with
+    # stderr): a write failure now emits one diagnostic line to stderr
+    # (never stdout -- protocol purity), so only the pure-stdout accessor
+    # can be parsed as the single JSON document.
+    report = json.loads(result.stdout)
     assert report["status"] == "PASS"
     assert not (telemetry_dir / telemetry.RECORD_FILENAME).exists()
+    assert "manifest telemetry" in result.stderr
 
 
 def test_a_failing_run_still_writes_status_fail_not_a_gate_change(
