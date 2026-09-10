@@ -819,6 +819,88 @@ check_devin() {
     fi
 }
 
+# Pinned to the exact uv release already attested (real download, sha256-verified)
+# for the toolchain store at config/toolchain.lock.json's "uv" entry (C7). Bumping
+# this requires re-verifying the new release's published checksums, same as there.
+UV_INSTALLER_PINNED_VERSION="0.12.6"
+
+# GitHub release target triple for this host, or empty when uv publishes no
+# release for it (uname reports something this bootstrap does not recognize).
+_uv_release_target() {
+    local os arch
+    os="$(uname -s)"
+    arch="$(uname -m)"
+    case "$os-$arch" in
+        Darwin-arm64) echo "aarch64-apple-darwin" ;;
+        Darwin-x86_64) echo "x86_64-apple-darwin" ;;
+        Linux-x86_64) echo "x86_64-unknown-linux-gnu" ;;
+        Linux-aarch64 | Linux-arm64) echo "aarch64-unknown-linux-gnu" ;;
+        *) echo "" ;;
+    esac
+}
+
+# Download the pinned uv release tarball AND its separately-published `.sha256`
+# sidecar (both real GitHub release assets, fetched independently of each
+# other), verify the tarball's digest against the sidecar's stated value, and
+# only then extract `uv`/`uvx` into ~/.local/bin. Replaces piping
+# astral.sh/uv/install.sh into `sh` (CON-013: download, verify a checksum,
+# then run) with the same verify-then-execute shape config/toolchain.lock.json
+# already uses for the toolchain store's copy of this exact uv release.
+install_uv_verified_release() {
+    local target sha_tool
+    target="$(_uv_release_target)"
+    if [[ -z "$target" ]]; then
+        print_warning "uv: no known release target for $(uname -s)/$(uname -m)"
+        return 1
+    fi
+    if command_exists sha256sum; then
+        sha_tool="sha256sum"
+    elif command_exists shasum; then
+        sha_tool="shasum -a 256"
+    else
+        print_warning "uv: cannot verify a checksum without sha256sum or shasum"
+        return 1
+    fi
+
+    local base="https://github.com/astral-sh/uv/releases/download/${UV_INSTALLER_PINNED_VERSION}"
+    local archive="uv-${target}.tar.gz"
+    local workdir
+    workdir="$(mktemp -d)" || return 1
+    # shellcheck disable=SC2064 # workdir is fixed at trap-set time, not runtime
+    trap "rm -rf '$workdir'" RETURN
+
+    if ! curl -fsSL -o "$workdir/$archive" "$base/$archive"; then
+        print_warning "uv: could not download $archive"
+        return 1
+    fi
+    if ! curl -fsSL -o "$workdir/$archive.sha256" "$base/$archive.sha256"; then
+        print_warning "uv: could not download $archive.sha256"
+        return 1
+    fi
+
+    local expected actual
+    expected="$(awk '{print $1}' "$workdir/$archive.sha256")"
+    actual="$(cd "$workdir" && $sha_tool "$archive" | awk '{print $1}')"
+    if [[ -z "$expected" || "$actual" != "$expected" ]]; then
+        print_warning "uv: checksum mismatch for $archive (want $expected, got $actual)"
+        return 1
+    fi
+
+    if ! tar -xzf "$workdir/$archive" -C "$workdir"; then
+        print_warning "uv: could not extract $archive"
+        return 1
+    fi
+    mkdir -p "$HOME/.local/bin"
+    local extracted="$workdir/uv-${target}"
+    if [[ ! -x "$extracted/uv" ]]; then
+        print_warning "uv: verified archive did not contain uv/$target"
+        return 1
+    fi
+    install -m 755 "$extracted/uv" "$HOME/.local/bin/uv"
+    [[ -x "$extracted/uvx" ]] && install -m 755 "$extracted/uvx" "$HOME/.local/bin/uvx"
+    return 0
+}
+
 # Idempotent and existence-guarded (Principle V): no-op if uv is already available,
 # even when it lives at ~/.local/bin and is not yet on this shell's PATH. Prefers a
 # package manager, falling back to a portable pip --user install (Python is a prereq).
@@ -847,14 +929,14 @@ check_uv() {
             ;;
     esac
 
-    # Portable fallback 1: official standalone installer. Drops a self-contained uv
-    # binary into ~/.local/bin (already on the framework PATH) with no Python/pip,
-    # so it works on PEP 668 externally-managed interpreters (default Debian/Ubuntu,
-    # Homebrew Python) where `pip install --user` is blocked. Same curl|sh idiom the
-    # framework already uses for cursor-agent.
-    if command_exists curl && curl -LsSf https://astral.sh/uv/install.sh | sh; then
+    # Portable fallback 1: a real download of the pinned uv release, verified
+    # against its own published checksum, then extracted straight into
+    # ~/.local/bin (already on the framework PATH) with no Python/pip -- so it
+    # still works on PEP 668 externally-managed interpreters (default
+    # Debian/Ubuntu, Homebrew Python) where `pip install --user` is blocked.
+    if command_exists curl && install_uv_verified_release; then
         if command_exists uv || [[ -x "$HOME/.local/bin/uv" ]]; then
-            print_success "uv installed via the official installer"
+            print_success "uv installed via the verified release download"
             return 0
         fi
     fi

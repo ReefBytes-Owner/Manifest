@@ -122,7 +122,7 @@ def collect(root, since, until):
       - input/cache_read/cache_creation are per-request constants -> take first
       - output_tokens is CUMULATIVE across the streamed blocks   -> take max
     """
-    requests = {}
+    by_request = {}
     files = lines = skipped_no_timestamp = 0
     for dirpath, _, names in os.walk(root):
         project = os.path.basename(dirpath)
@@ -132,16 +132,16 @@ def collect(root, since, until):
             files += 1
             try:
                 with open(os.path.join(dirpath, name), errors="replace") as handle:
-                    kept, skipped = fold_file(handle, project, requests, since, until)
+                    kept, skipped = fold_file(handle, project, by_request, since, until)
             except OSError:
                 continue
             lines += kept
             skipped_no_timestamp += skipped
-    return requests, files, lines, skipped_no_timestamp
+    return by_request, files, lines, skipped_no_timestamp
 
 
-def fold_file(handle, project, requests, since, until):
-    """Fold one transcript file into `requests`; return (kept, skipped) counts."""
+def fold_file(handle, project, by_request, since, until):
+    """Fold one transcript file into `by_request`; return (kept, skipped) counts."""
     kept = skipped_no_timestamp = 0
     for line in handle:
         if '"assistant"' not in line:
@@ -167,9 +167,9 @@ def fold_file(handle, project, requests, since, until):
                 continue
         kept += 1
         key = rec.get("requestId") or message.get("id")
-        entry = requests.get(key)
+        entry = by_request.get(key)
         if entry is None:
-            entry = requests[key] = {
+            entry = by_request[key] = {
                 "model": message.get("model", "?"),
                 "project": project,
                 "sidechain": bool(rec.get("isSidechain")),
@@ -302,7 +302,7 @@ def main(argv):
     if selects is None:
         die(2, f"--models {args.models!r} selects nothing (try `all`)")
 
-    requests, files, lines, skipped = collect(root, bounds["since"], bounds["until"])
+    by_request, files, lines, skipped = collect(root, bounds["since"], bounds["until"])
 
     per_class = collections.defaultdict(collections.Counter)
     outputs = collections.defaultdict(list)
@@ -314,7 +314,7 @@ def main(argv):
     # class-only or model-only aggregate can express.
     cells = collections.defaultdict(collections.Counter)
 
-    for entry in requests.values():
+    for entry in by_request.values():
         models[entry["model"]] += 1
         if not selects(entry["model"]):
             continue
@@ -374,8 +374,8 @@ def main(argv):
             # committed snapshot would show a spurious diff on every
             # regeneration. Only window-gated counts belong in the snapshot.
             "assistant_lines_with_usage": lines,
-            "api_requests": len(requests),
-            "overcount_factor": round(lines / len(requests), 4) if requests else 0,
+            "api_requests": len(by_request),
+            "overcount_factor": round(lines / len(by_request), 4) if by_request else 0,
             "skipped_no_timestamp": skipped,
         },
         "models": dict(models.most_common()),
@@ -405,7 +405,7 @@ def main(argv):
 
     print(
         f"files={files}  assistant_lines={lines:,}  "
-        f"api_requests={len(requests):,}  overcount={report['scan']['overcount_factor']}x"
+        f"api_requests={len(by_request):,}  overcount={report['scan']['overcount_factor']}x"
     )
     print(
         f"models={args.models!r}  selected requests={selected['requests']:,}  "
