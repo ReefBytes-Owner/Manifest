@@ -1,0 +1,2 @@
+This file intentionally contains no credential-shaped strings.
+It exists only to exercise gitleaks' clean-scan path (no findings, exit 0).

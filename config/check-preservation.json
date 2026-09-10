@@ -8506,5 +8506,114 @@
         "value": "set -euo pipefail\ngh release edit \"$VERSION\" --draft=false\n"
       }
     }
+  ],
+  "equivalence": [
+    {
+      "hook_id": "hook.shellcheck",
+      "wrapper_rev": "https://github.com/shellcheck-py/shellcheck-py@v0.11.0.1",
+      "engine": "shellcheck",
+      "engine_version": "0.11.0",
+      "wrapper_entry_argv": [
+        "shellcheck",
+        "--severity=warning"
+      ],
+      "evidence": "shellcheck-py vendors the upstream shellcheck 0.11.0 binary unmodified and its console entry runs it with the exact argv pre-commit passes through, no transformation. Confirmed locally: `shellcheck --version` reports 0.11.0, matching the pinned command:shellcheck=0.11.0 identity the registry now uses for lint.shell.scripts, lint.shell.bootstrap and hook.shellcheck (all three previously also probed the redundant distribution:shellcheck-py=0.11.0.1 wrapper identity; dropped per the engines-not-wrappers rule). Fixture corpus exercised against the direct engine locally; wrapper-side (shellcheck-py console script) run is pending Phase 3 (C7, needs the provisioned python-env).",
+      "fixture_corpus": "tests/fixtures/equivalence/shellcheck/"
+    },
+    {
+      "hook_id": "hook.shfmt",
+      "wrapper_rev": "https://github.com/scop/pre-commit-shfmt@v3.13.1-1",
+      "engine": "shfmt",
+      "engine_version": "3.13.1",
+      "wrapper_entry_argv": [
+        "shfmt",
+        "-i",
+        "4",
+        "-ci",
+        "-sr",
+        "-ln",
+        "bash",
+        "-w"
+      ],
+      "evidence": "The wrapper repo's rev suffix ('-1') is its own packaging revision, not an shfmt version; the underlying engine is shfmt 3.13.1. The registry's hook.shfmt body (tools/project_checks/hooks.py:_shfmt) deliberately runs `-d` instead of the wrapper's `-w`: `-w` rewrites files in place, which the non-mutation rule forbids for a check body. This is a reviewed, intentional argv divergence (formatting flags `-i 4 -ci -sr -ln bash` are identical; only the write-vs-diff flag differs), not an unconfirmed equivalence gap. Reading the wrapper repo's `.pre-commit-hooks.yaml` at v3.13.1-1 to confirm it invokes the same shfmt binary is pending Phase 3 (C7, needs network); the engine identity and version pin are not blocked on that read.",
+      "fixture_corpus": "tests/fixtures/equivalence/shfmt/"
+    },
+    {
+      "hook_id": "hook.yamllint",
+      "wrapper_rev": "https://github.com/adrienverge/yamllint@v1.38.0",
+      "engine": "yamllint",
+      "engine_version": "1.38.0",
+      "wrapper_entry_argv": [
+        "yamllint"
+      ],
+      "evidence": "yamllint is a pure-Python distribution; the pre-commit hook's entry IS the same `yamllint` console script the registry now resolves via store:python-env/bin/yamllint (config/toolchain.lock.json python-env console_scripts). There is exactly one code path, so the prior distribution:pyyaml + distribution:yamllint + command:yamllint triple identity collapsed to the single distribution:yamllint=1.38.0 pin (lint.yaml.config's PyYAML dependency is unrelated: structure.py's _yamllint_project never imports PyYAML directly, it only invokes the yamllint CLI). Confirmed locally: `yamllint --version` reports 1.38.0, matching the pin exactly.",
+      "fixture_corpus": "tests/fixtures/equivalence/yamllint/"
+    },
+    {
+      "hook_id": "hook.markdownlint-cli2",
+      "wrapper_rev": "https://github.com/DavidAnson/markdownlint-cli2@v0.23.0",
+      "engine": "markdownlint-cli2",
+      "engine_version": "0.23.0",
+      "wrapper_entry_argv": [
+        "markdownlint-cli2",
+        "--config",
+        ".markdownlint.jsonc",
+        "--fix"
+      ],
+      "evidence": "The pre-commit wrapper repo (DavidAnson/markdownlint-cli2) and the markdownlint-cli2 npm package are the same upstream project at the same version -- there is no separate wrapper engine here, unlike the shellcheck-py/shfmt classes. The registry's hook.markdownlint-cli2 body omits the wrapper's --fix flag (non-mutation rule). A SEPARATE, still-unresolved identity is DavidAnson/markdownlint-cli2-action@21c1be1b93ad9ed58fa840aacc3f279cde2a72ff (a GitHub Action used only in CI, not this pre-commit hook); its action.yml -> engine version mapping has not been read (needs network, C7) and lint.markdown.keydocs stays BLOCKED until that is confirmed.",
+      "fixture_corpus": "tests/fixtures/equivalence/markdownlint-cli2/"
+    },
+    {
+      "hook_id": "test.bats",
+      "wrapper_rev": "npx bats (unpinned, auto-installs bats-core on first use)",
+      "engine": "bats",
+      "engine_version": "1.11.1",
+      "wrapper_entry_argv": [
+        "npx",
+        "bats"
+      ],
+      "evidence": "The npm/npx bats launcher this entry replaces (`./node_modules/.bin/bats` or a bare `npx bats` auto-install) runs the identical upstream bats-core distribution with no argv transformation; there is no separate wrapper engine. The registry now resolves bats via store:node-env/bin/bats (config/toolchain.lock.json node-env console_scripts) for both test.bats and test.bundle-partition, removing the npx auto-install network step the parent spec requires eliminated. Confirmed locally with bats 1.13.0 (the ambient host version, not yet the provisioned 1.11.1 pin) that the pass/fail semantics the fixture corpus exercises are launcher-independent. Hashing the actual provisioned 1.11.1 binary is pending Phase 3 (C7).",
+      "fixture_corpus": "tests/fixtures/equivalence/bats/"
+    },
+    {
+      "hook_id": "hook.gitleaks",
+      "wrapper_rev": "https://github.com/gitleaks/gitleaks@v8.30.1",
+      "engine": "gitleaks",
+      "engine_version": "8.30.1",
+      "wrapper_entry_argv": [
+        "gitleaks",
+        "git",
+        "--pre-commit",
+        "--redact",
+        "--staged",
+        "--verbose"
+      ],
+      "evidence": "Before this chunk .pre-commit-config.yaml pinned gitleaks v8.30.0 while the CI job's checksum-verified install used GITLEAKS_VERSION=8.30.1 -- two engine identities behind one control. This chunk moves the pre-commit rev to v8.30.1 and adds a matching config/toolchain.lock.json binary entry, so the wrapper, CI's install, and the registry all name the same engine version. CI's checksummed download remains the protected provenance path; the lock's exe_sha256 is filled from that same checksums file in Phase 3 (C7). Confirmed locally: `gitleaks version` reports 8.30.1, matching the unified pin exactly, and the fixture corpus (valid.txt clean, invalid.txt an AWS-access-key-shaped string) reproduces PASS/FAIL against this repo's own .gitleaks.toml with useDefault=true.",
+      "fixture_corpus": "tests/fixtures/equivalence/gitleaks/"
+    },
+    {
+      "hook_id": "lint.shell.scripts",
+      "wrapper_rev": "https://github.com/shellcheck-py/shellcheck-py@v0.11.0.1",
+      "engine": "shellcheck",
+      "engine_version": "0.11.0",
+      "wrapper_entry_argv": [
+        "shellcheck",
+        "--severity=warning"
+      ],
+      "evidence": "the project-wide `configs/claude/scripts/*.sh` shellcheck sweep probes the same shellcheck 0.11.0 engine identity as hook.shellcheck (see that entry for the full equivalence rationale); this check invokes shellcheck directly on its own project-selected file set rather than on pre-commit's changed-file selection, but the engine identity and version pin are identical.",
+      "fixture_corpus": "tests/fixtures/equivalence/shellcheck/"
+    },
+    {
+      "hook_id": "lint.shell.bootstrap",
+      "wrapper_rev": "https://github.com/shellcheck-py/shellcheck-py@v0.11.0.1",
+      "engine": "shellcheck",
+      "engine_version": "0.11.0",
+      "wrapper_entry_argv": [
+        "shellcheck",
+        "--severity=warning"
+      ],
+      "evidence": "the `bootstrap.sh`/`bootstrap/lib/*.sh` shellcheck sweep probes the same shellcheck 0.11.0 engine identity as hook.shellcheck (see that entry for the full equivalence rationale); this check invokes shellcheck directly on its own project-selected file set rather than on pre-commit's changed-file selection, but the engine identity and version pin are identical.",
+      "fixture_corpus": "tests/fixtures/equivalence/shellcheck/"
+    }
   ]
 }

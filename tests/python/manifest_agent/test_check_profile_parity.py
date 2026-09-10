@@ -11,6 +11,7 @@ import pytest
 
 from manifest_agent.checks.registry import load_registry, resolve_checks
 from tools.project_checks.generated import TASK7_DISPOSITIONS as GENERATED
+from tools.project_checks.hook_lint import TASK7_DISPOSITIONS as HOOK_LINT
 from tools.project_checks.hooks import TASK7_DISPOSITIONS as HOOKS
 from tools.project_checks.packages import TASK7_DISPOSITIONS as PACKAGES
 from tools.project_checks.structure import TASK7_DISPOSITIONS as STRUCTURE
@@ -19,7 +20,7 @@ ROOT = Path(__file__).resolve().parents[3]
 VERSION_ADAPTER = ROOT / "tools/project_checks/tool_versions.py"
 REGISTRY_PATH = ROOT / "config/project-checks.json"
 PRESERVATION_PATH = ROOT / "config/check-preservation.json"
-DISPOSITIONS = STRUCTURE | GENERATED | HOOKS | PACKAGES
+DISPOSITIONS = STRUCTURE | GENERATED | HOOKS | HOOK_LINT | PACKAGES
 SECURITY_IDS = frozenset(
     {
         "hook.check-credentials",
@@ -42,7 +43,7 @@ FILENAMELESS_HOOK_IDS = frozenset(
 QUICK_IDS = frozenset(
     {
         check_id
-        for check_id, (_, selection) in HOOKS.items()
+        for check_id, (_, selection) in (HOOKS | HOOK_LINT).items()
         if selection == "changed" and check_id not in SECURITY_IDS
     }
     | {"structure.case-collision", "structure.symlinks"}
@@ -214,13 +215,7 @@ def _assert_thin_probe_components(expected_version: str) -> None:
 
 
 def _assert_version_contract(preservation: dict, registry: dict) -> None:
-    by_id = _check_by_id(registry)
     tools = registry["tools"]
-    retained_controls = [
-        control
-        for control in preservation["controls"]
-        if control["disposition"] == "retained"
-    ]
     for check in registry["checks"]:
         tool = tools[check["tool"]]
         assert check["argv"][0] == tool["executable"]
@@ -234,6 +229,31 @@ def _assert_version_contract(preservation: dict, registry: dict) -> None:
                 "tools/project_checks/tool_versions.py",
             ]
         _assert_thin_probe_components(tool["expected_version"])
+    _assert_pin_drift_is_explained(preservation, registry)
+
+
+def _assert_pin_drift_is_explained(preservation: dict, registry: dict) -> None:
+    # A pin's frozen `tool_pin` names the historically observed WRAPPER
+    # revision (e.g. shellcheck-py==0.11.0.1, gitleaks@v8.30.0); once the
+    # registry pins the underlying ENGINE instead (C2, "the registry pins
+    # engines; wrappers are provisioning detail"), that literal substring
+    # legitimately stops appearing in the live version string. A recorded
+    # `equivalence` entry (hook_id, wrapper_rev, engine, engine_version,
+    # wrapper_entry_argv, evidence, fixture_corpus) is the reviewed proof
+    # that gap is understood and closed, not an unexplained drift -- it is
+    # an alternative, stricter accounting to the coverage_pending fallback,
+    # not a weaker one: only a check_id with its own equivalence record
+    # (evidence + fixture corpus) is exempt from the pending-obligation
+    # requirement below.
+    by_id = _check_by_id(registry)
+    equivalence_hook_ids = {
+        entry["hook_id"] for entry in preservation.get("equivalence", ())
+    }
+    retained_controls = [
+        control
+        for control in preservation["controls"]
+        if control["disposition"] == "retained"
+    ]
     for control in retained_controls:
         if not control["tool_pin"]["present"]:
             continue
@@ -246,7 +266,7 @@ def _assert_version_contract(preservation: dict, registry: dict) -> None:
                 pin_version = pin.partition("=")[2]
             else:
                 pin_version = pin.rsplit("@", 1)[-1].removeprefix("v")
-            if pin_version not in version:
+            if pin_version not in version and check_id not in equivalence_hook_ids:
                 affected_profiles = [
                     profile
                     for profile, ids in registry["profiles"].items()
@@ -296,46 +316,32 @@ def test_tools_use_real_composite_probes_and_reviewed_pins():
     _assert_version_contract(preservation, registry)
 
 
-def test_shellcheck_and_yamllint_probes_bind_invoked_inner_tools():
+def test_shellcheck_and_yamllint_probes_bind_the_engine_not_the_wrapper():
+    """C2 (engines-not-wrappers): these five tools used to probe BOTH a
+    wrapper distribution (shellcheck-py, or a redundant second yamllint
+    probe) AND the engine, producing a compound identity string. They now
+    probe the engine alone -- the wrapper distribution is provisioning
+    detail recorded in config/check-preservation.json's "equivalence" list
+    instead (see test_check_preservation.py), not re-verified on every run.
+    """
     _, registry = _raw_documents()
+    shellcheck = ("command-version", "shellcheck", "command:shellcheck=0.11.0")
+    yamllint = ("distribution-version", "yamllint", "distribution:yamllint=1.38.0")
     expected = {
-        "lint.shell.scripts": (
-            "shellcheck-py",
-            "0.11.0.1",
-            "shellcheck",
-            "0.11.0",
-        ),
-        "lint.shell.bootstrap": (
-            "shellcheck-py",
-            "0.11.0.1",
-            "shellcheck",
-            "0.11.0",
-        ),
-        "hook.shellcheck": (
-            "shellcheck-py",
-            "0.11.0.1",
-            "shellcheck",
-            "0.11.0",
-        ),
-        "lint.yaml.config": ("yamllint", "1.38.0", "yamllint", "1.38.0"),
-        "hook.yamllint": ("yamllint", "1.38.0", "yamllint", "1.38.0"),
+        "lint.shell.scripts": shellcheck,
+        "lint.shell.bootstrap": shellcheck,
+        "hook.shellcheck": shellcheck,
+        "lint.yaml.config": yamllint,
+        "hook.yamllint": yamllint,
     }
-    for check_id, (
-        distribution,
-        distribution_pin,
-        command,
-        command_pin,
-    ) in expected.items():
+    for check_id, (mode, probe, expected_version) in expected.items():
         tool = registry["tools"][check_id]
         argv = tool["version_argv"]
         flags = list(itertools.pairwise(argv))
-        assert ("--distribution", distribution) in flags
-        assert ("--command", command) in flags
-        assert (
-            f"distribution:{distribution}={distribution_pin}"
-            in tool["expected_version"]
-        )
-        assert f"command:{command}={command_pin}" in tool["expected_version"]
+        assert (mode, probe) in flags
+        assert "--distribution" not in argv
+        assert "--command" not in argv
+        assert tool["expected_version"] == expected_version
 
 
 def test_setup_is_mapped_and_publication_is_outside_profiles():

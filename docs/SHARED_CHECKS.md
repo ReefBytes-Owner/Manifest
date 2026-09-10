@@ -261,6 +261,72 @@ anchor computation), `tests/python/manifest_agent/test_debt_checks_cli.py`
 (end-to-end: BLOCKED on an unresolvable base, PASS on a clean repo, and the
 propose-baseline containment guarantee from the real CLI).
 
+## Registry hygiene: engines, not wrappers (C2)
+
+**Governing rule**: the registry pins the underlying **engine** a hook runs;
+the wrapper that installs or invokes it (a pre-commit `repo:`/`rev:`, an npm
+launcher, a GitHub Action) is provisioning detail recorded separately, not a
+second identity a check re-verifies on every run.
+
+**Dormant-language checks report `NOT_APPLICABLE`, never `PASS`.** No `.tf`,
+`.go`, or Rust source exists anywhere in this repository (`find . -iname
+'*.tf' -o -iname '*.go' -o -iname 'Cargo.toml'` — verified before this chunk
+landed). `hook.golangci-lint`, the four `hook.terraform_*` checks, and
+`hook.cargo-fmt-check`/`hook.cargo-clippy` stay registered with their real
+`selection: changed`/`project` + `types_or` filters; when zero changed/project
+paths match go/terraform/rust, `runner._selection_outcome` returns
+`NOT_APPLICABLE` with diagnostics `"zero applicable ... input selector"`
+**before** any tool preflight runs — a check that "passes" because it had
+nothing to look at is a false green, so this is the correct terminal state,
+not PASS. These five tool families are **excluded from
+`config/toolchain.lock.json`** by design: if a `.tf`/`.go`/Rust file ever
+lands, the same check goes `BLOCKED` (`toolchain: <tool> not provisioned`)
+instead of silently resolving whatever happens to be on `PATH`. Test:
+`tests/python/manifest_agent/test_check_dormant_languages.py`.
+
+**Engine pins landed this chunk:**
+
+| Check(s) | Old identity | New identity | Store-migrated? |
+|---|---|---|---|
+| `lint.shell.scripts`, `lint.shell.bootstrap`, `hook.shellcheck` | `distribution:shellcheck-py=0.11.0.1;command:shellcheck=0.11.0` | `command:shellcheck=0.11.0` | No — argv[0] is the wrapper script (`structure.py`) or must match the frozen pre-commit hook oracle exactly; `store:` wiring stays a later chunk. |
+| `hook.shfmt` | `"ok"` (unpinned placeholder) | `command:shfmt=3.13.1`; body argv is `-d` (check-only), never `-w` | No (wrapped via `hooks.py`) |
+| `lint.yaml.config`, `hook.yamllint` | `distribution:pyyaml=6.0.2;distribution:yamllint=1.38.0;command:yamllint=1.38.0` | `distribution:yamllint=1.38.0` | No |
+| `hook.markdownlint-cli2` | already `command:markdownlint-cli2=0.23.0` | unchanged (already engine-only) | No |
+| `test.bats`, `test.bundle-partition` | `./node_modules/.bin/bats` / `"ok"` + hardcoded BLOCKED (`npx` control) | `command:bats=1.11.1`; `test.bats` argv is `store:node-env/bin/bats`; `test.bundle-partition` runs `tests/bats/bundle_partition.bats` via `shutil.which("bats")`, no more `npx` | `test.bats` yes (direct argv); `test.bundle-partition` no (wrapped via `structure.py`) |
+| `hook.gitleaks` | `command:gitleaks=8.30.0` | `command:gitleaks=8.30.1` (unified with CI's checksum-verified install and the lock's `binary` entry) | No |
+
+`store:` migration only applies where a check's own `argv[0]` **is** the
+literal engine name (no `python3 tools/project_checks/*.py` wrapper in
+between) — `lint.shell.scripts`/`lint.shell.bootstrap`/`lint.yaml.config`/
+`hook.shfmt`/`test.bundle-partition` invoke a wrapper script whose own
+`argv[0]` is `python3`, and `registry.py`'s `_validate_tool_reference`
+requires `check["argv"][0] == tool["executable"]` exactly — so these stay
+plain names for now (PATH-resolved by the wrapper script's own `shutil.which`)
+and migrate to `store:` together with `hooks.py`/`structure.py` gaining a
+resolved-executable argument, a later chunk.
+
+**`.gitleaks.toml` default-ruleset defect**: before this chunk, supplying
+`[[rules]]` without `[extend] useDefault = true` **replaced** gitleaks' ~150
+built-in detectors instead of adding to them — verified locally (gitleaks
+8.30.1): a Slack-token-shaped string was missed without `useDefault` and
+caught with it, while both custom rules and `useDefault` fire correctly
+together. `useDefault = true` is now set; secret detection is additive
+again.
+
+**Equivalence records** (`config/check-preservation.json` → `equivalence`,
+new list, additive-only — `observed_revision`/`sources`/`source_entries`/
+`controls` are untouched): one entry per hook with `hook_id`, `wrapper_rev`,
+`engine`, `engine_version`, `wrapper_entry_argv`, `evidence`, and
+`fixture_corpus` (`tests/fixtures/equivalence/<hook>/{valid,invalid}.*`, one
+passing and one failing input per engine, exercised locally where the engine
+is installed — shellcheck 0.11.0, yamllint 1.38.0, bats 1.13.0 (ambient, not
+yet the 1.11.1 pin), gitleaks 8.30.1 all matched or reproduced the documented
+behavior; shfmt and markdownlint-cli2 are absent locally, so those two
+fixture corpora are unverified pending Phase 3 (C7)). `shfmt` and
+`markdownlint-cli2-action` explicitly remain **wrapper→engine unconfirmed,
+pending C7** (reading the wrapper's `.pre-commit-hooks.yaml`/`action.yml` at
+the pinned rev needs network); their `coverage_pending` entries stay.
+
 ## Coverage limits
 
 `config/project-checks.json` still carries a nonempty `coverage_pending` list

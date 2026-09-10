@@ -325,6 +325,18 @@ def _yamllint_project(root: Path) -> int:
     )
 
 
+def _bundle_partition(root: Path) -> int:
+    executable = shutil.which("bats")
+    if executable is None:
+        raise BlockedError("pinned bats 1.11.1 is unavailable")
+    target = root / "tests/bats/bundle_partition.bats"
+    if target.is_symlink() or not target.is_file():
+        raise BlockedError(
+            "required input is unavailable: tests/bats/bundle_partition.bats"
+        )
+    return _lint_process(root, (executable, str(target)))
+
+
 CHECKS = {
     "structure.symlinks": _symlinks,
     "syntax.yaml.config": _yaml,
@@ -335,6 +347,7 @@ CHECKS = {
     "lint.shell.scripts": lambda root: _shellcheck_project(root, False),
     "lint.shell.bootstrap": lambda root: _shellcheck_project(root, True),
     "lint.yaml.config": _yamllint_project,
+    "test.bundle-partition": _bundle_partition,
 }
 
 _BLOCKED_CHECKS = {
@@ -342,7 +355,6 @@ _BLOCKED_CHECKS = {
         "markdownlint-cli2 executable matching action pin "
         "21c1be1b93ad9ed58fa840aacc3f279cde2a72ff is not provisioned"
     ),
-    "test.bundle-partition": "offline bats executable for the npx control is not provisioned",
 }
 
 _PROJECT_ARGV = {
@@ -364,7 +376,7 @@ _PROJECT_ARGV = {
         "--baseline",
         "configs/claude/config/skill_reference_baseline.json",
     ),
-    "test.bats": ("./node_modules/.bin/bats", "tests/bats/"),
+    "test.bats": ("store:node-env/bin/bats", "tests/bats/"),
     "test.python": ("pytest", "tests/python/", "-v", "-m", "not native"),
     "test.hooks": ("pytest", ".apm/skills/ai-hooks-integration/tests/", "-v"),
     "test.smoke.lite": (

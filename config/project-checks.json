@@ -78,13 +78,10 @@
         "python3",
         "-I",
         "tools/project_checks/tool_versions.py",
-        "python-wrapper",
-        "--distribution",
-        "shellcheck-py",
-        "--command",
+        "command-version",
         "shellcheck"
       ],
-      "expected_version": "distribution:shellcheck-py=0.11.0.1;command:shellcheck=0.11.0",
+      "expected_version": "command:shellcheck=0.11.0",
       "required_modules": []
     },
     "lint.shell.bootstrap": {
@@ -93,13 +90,10 @@
         "python3",
         "-I",
         "tools/project_checks/tool_versions.py",
-        "python-wrapper",
-        "--distribution",
-        "shellcheck-py",
-        "--command",
+        "command-version",
         "shellcheck"
       ],
-      "expected_version": "distribution:shellcheck-py=0.11.0.1;command:shellcheck=0.11.0",
+      "expected_version": "command:shellcheck=0.11.0",
       "required_modules": []
     },
     "lint.yaml.config": {
@@ -108,18 +102,11 @@
         "python3",
         "-I",
         "tools/project_checks/tool_versions.py",
-        "python-wrapper",
-        "--distribution",
-        "PyYAML",
-        "--distribution",
-        "yamllint",
-        "--command",
+        "distribution-version",
         "yamllint"
       ],
-      "expected_version": "distribution:pyyaml=6.0.2;distribution:yamllint=1.38.0;command:yamllint=1.38.0",
-      "required_modules": [
-        "yaml"
-      ]
+      "expected_version": "distribution:yamllint=1.38.0",
+      "required_modules": []
     },
     "lint.shell.arrays": {
       "executable": "tests/lint/check_array_expansion.sh",
@@ -199,15 +186,13 @@
       "required_modules": []
     },
     "test.bats": {
-      "executable": "./node_modules/.bin/bats",
+      "executable": "store:node-env/bin/bats",
       "version_argv": [
         "python3",
         "-I",
         "tools/project_checks/tool_versions.py",
         "command-version",
-        "bats",
-        "--executable",
-        "./node_modules/.bin/bats"
+        "bats"
       ],
       "expected_version": "command:bats=1.11.1",
       "required_modules": []
@@ -264,9 +249,10 @@
         "python3",
         "-I",
         "tools/project_checks/tool_versions.py",
-        "python-wrapper"
+        "command-version",
+        "bats"
       ],
-      "expected_version": "ok",
+      "expected_version": "command:bats=1.11.1",
       "required_modules": []
     },
     "generated.commands-doc": {
@@ -374,9 +360,10 @@
         "python3",
         "-I",
         "tools/project_checks/tool_versions.py",
-        "python-wrapper"
+        "command-version",
+        "shfmt"
       ],
-      "expected_version": "ok",
+      "expected_version": "command:shfmt=3.13.1",
       "required_modules": []
     },
     "hook.check-credentials": {
@@ -548,18 +535,15 @@
       "required_modules": []
     },
     "hook.shellcheck": {
-      "executable": "shellcheck",
+      "executable": "python3",
       "version_argv": [
         "python3",
         "-I",
         "tools/project_checks/tool_versions.py",
-        "python-wrapper",
-        "--distribution",
-        "shellcheck-py",
-        "--command",
+        "command-version",
         "shellcheck"
       ],
-      "expected_version": "distribution:shellcheck-py=0.11.0.1;command:shellcheck=0.11.0",
+      "expected_version": "command:shellcheck=0.11.0",
       "required_modules": []
     },
     "hook.markdownlint-cli2": {
@@ -575,18 +559,15 @@
       "required_modules": []
     },
     "hook.yamllint": {
-      "executable": "yamllint",
+      "executable": "python3",
       "version_argv": [
         "python3",
         "-I",
         "tools/project_checks/tool_versions.py",
-        "python-wrapper",
-        "--distribution",
-        "yamllint",
-        "--command",
+        "distribution-version",
         "yamllint"
       ],
-      "expected_version": "distribution:yamllint=1.38.0;command:yamllint=1.38.0",
+      "expected_version": "distribution:yamllint=1.38.0",
       "required_modules": []
     },
     "hook.ruff": {
@@ -634,7 +615,7 @@
         "command-version",
         "gitleaks"
       ],
-      "expected_version": "command:gitleaks=8.30.0",
+      "expected_version": "command:gitleaks=8.30.1",
       "required_modules": []
     },
     "hook.constitution-check": {
@@ -1032,7 +1013,7 @@
       "timeout_seconds": 20,
       "selection": "project",
       "tool": "lint.shell.scripts",
-      "version": "distribution:shellcheck-py=0.11.0.1;command:shellcheck=0.11.0",
+      "version": "command:shellcheck=0.11.0",
       "pass_filenames": false,
       "honors_status_contract": true
     },
@@ -1055,7 +1036,7 @@
       "timeout_seconds": 20,
       "selection": "project",
       "tool": "lint.shell.bootstrap",
-      "version": "distribution:shellcheck-py=0.11.0.1;command:shellcheck=0.11.0",
+      "version": "command:shellcheck=0.11.0",
       "pass_filenames": false,
       "honors_status_contract": true
     },
@@ -1078,7 +1059,7 @@
       "timeout_seconds": 20,
       "selection": "project",
       "tool": "lint.yaml.config",
-      "version": "distribution:pyyaml=6.0.2;distribution:yamllint=1.38.0;command:yamllint=1.38.0",
+      "version": "distribution:yamllint=1.38.0",
       "pass_filenames": false,
       "honors_status_contract": true
     },
@@ -1222,7 +1203,7 @@
       "category": "test",
       "group": "test",
       "argv": [
-        "./node_modules/.bin/bats",
+        "store:node-env/bin/bats",
         "tests/bats/"
       ],
       "cwd": ".",
@@ -1346,7 +1327,7 @@
       "timeout_seconds": 300,
       "selection": "project",
       "tool": "test.bundle-partition",
-      "version": "ok",
+      "version": "command:bats=1.11.1",
       "pass_filenames": false,
       "honors_status_contract": true
     },
@@ -1588,7 +1569,7 @@
       "timeout_seconds": 20,
       "selection": "changed",
       "tool": "hook.shfmt",
-      "version": "ok",
+      "version": "command:shfmt=3.13.1",
       "include_regex": "",
       "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))|(?:(^\\.Jules/|\\.bats$))",
       "types": [],
@@ -1939,8 +1920,11 @@
       "category": "lint",
       "group": "lint",
       "argv": [
-        "shellcheck",
-        "--severity=warning"
+        "python3",
+        "tools/project_checks/hook_lint.py",
+        "hook.shellcheck",
+        "--root",
+        "."
       ],
       "cwd": ".",
       "inputs": [
@@ -1950,7 +1934,7 @@
       "timeout_seconds": 20,
       "selection": "changed",
       "tool": "hook.shellcheck",
-      "version": "distribution:shellcheck-py=0.11.0.1;command:shellcheck=0.11.0",
+      "version": "command:shellcheck=0.11.0",
       "include_regex": "",
       "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))|(?:(^\\.Jules/|\\.bats$))",
       "types": [],
@@ -1986,7 +1970,11 @@
       "category": "lint",
       "group": "lint",
       "argv": [
-        "yamllint"
+        "python3",
+        "tools/project_checks/hook_lint.py",
+        "hook.yamllint",
+        "--root",
+        "."
       ],
       "cwd": ".",
       "inputs": [
@@ -1996,7 +1984,7 @@
       "timeout_seconds": 20,
       "selection": "changed",
       "tool": "hook.yamllint",
-      "version": "distribution:yamllint=1.38.0;command:yamllint=1.38.0",
+      "version": "distribution:yamllint=1.38.0",
       "include_regex": "",
       "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))|(?:^(\\.Jules/))",
       "types": [],
@@ -2103,7 +2091,7 @@
       "timeout_seconds": 20,
       "selection": "project",
       "tool": "hook.gitleaks",
-      "version": "command:gitleaks=8.30.0",
+      "version": "command:gitleaks=8.30.1",
       "include_regex": "",
       "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))",
       "types": [],
@@ -2913,19 +2901,15 @@
       "hook.validate-bootstrap: deterministic candidate prerequisite provisioning pending Phase 3 for quick",
       "hook.check-bats-assertions: deterministic candidate prerequisite provisioning pending Phase 3 for quick",
       "hook.check-array-expansion: deterministic candidate prerequisite provisioning pending Phase 3 for quick",
-      "hook.golangci-lint: deterministic candidate prerequisite provisioning pending Phase 3 for quick",
-      "hook.terraform_fmt: deterministic candidate prerequisite provisioning pending Phase 3 for quick",
-      "hook.terraform_validate: deterministic candidate prerequisite provisioning pending Phase 3 for quick",
-      "hook.terraform_tflint: deterministic candidate prerequisite provisioning pending Phase 3 for quick",
       "hook.shfmt: https://github.com/scop/pre-commit-shfmt@v3.13.1-1 action-to-engine equivalence pending Phase 3",
-      "hook.golangci-lint: https://github.com/golangci/golangci-lint@v2.12.2 direct executable provisioning pending Phase 3",
-      "hook.terraform_fmt: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 wrapper and underlying tool pins pending Phase 3",
-      "hook.terraform_validate: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 wrapper and underlying tool pins pending Phase 3",
-      "hook.terraform_tflint: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 wrapper and underlying tool pins pending Phase 3",
       "hook.trailing-whitespace: https://github.com/pre-commit/pre-commit-hooks@v6.0.0 action/runtime equivalence pending Phase 3",
       "hook.end-of-file-fixer: https://github.com/pre-commit/pre-commit-hooks@v6.0.0 action/runtime equivalence pending Phase 3",
       "hook.mixed-line-ending: https://github.com/pre-commit/pre-commit-hooks@v6.0.0 action/runtime equivalence pending Phase 3",
       "hook.shfmt: https://github.com/scop/pre-commit-shfmt@v3.13.1-1 action/runtime equivalence pending Phase 3",
+      "hook.golangci-lint: https://github.com/golangci/golangci-lint@v2.12.2 direct executable provisioning pending Phase 3",
+      "hook.terraform_fmt: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 wrapper and underlying tool pins pending Phase 3",
+      "hook.terraform_validate: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 wrapper and underlying tool pins pending Phase 3",
+      "hook.terraform_tflint: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 wrapper and underlying tool pins pending Phase 3",
       "hook.golangci-lint: https://github.com/golangci/golangci-lint@v2.12.2 action/runtime equivalence pending Phase 3",
       "hook.terraform_fmt: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 action/runtime equivalence pending Phase 3",
       "hook.terraform_validate: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 action/runtime equivalence pending Phase 3",
@@ -2948,7 +2932,6 @@
       "structure.runtime-paths: deterministic candidate prerequisite provisioning pending Phase 3 for full",
       "structure.agent-frontmatter: deterministic candidate prerequisite provisioning pending Phase 3 for full",
       "structure.skill-references: deterministic candidate prerequisite provisioning pending Phase 3 for full",
-      "test.bats: exact pinned npm Bats launcher provenance pending Phase 3 for full",
       "test.python: deterministic candidate prerequisite provisioning pending Phase 3 for full",
       "test.hooks: deterministic candidate prerequisite provisioning pending Phase 3 for full",
       "test.smoke.lite: deterministic candidate prerequisite provisioning pending Phase 3 for full",
@@ -2986,47 +2969,36 @@
       "hook.validate-bootstrap: deterministic candidate prerequisite provisioning pending Phase 3 for full",
       "hook.check-bats-assertions: deterministic candidate prerequisite provisioning pending Phase 3 for full",
       "hook.check-array-expansion: deterministic candidate prerequisite provisioning pending Phase 3 for full",
-      "hook.cargo-fmt-check: deterministic candidate prerequisite provisioning pending Phase 3 for full",
-      "hook.cargo-clippy: deterministic candidate prerequisite provisioning pending Phase 3 for full",
       "hook.pyright: deterministic candidate prerequisite provisioning pending Phase 3 for full",
-      "hook.golangci-lint: deterministic candidate prerequisite provisioning pending Phase 3 for full",
-      "hook.terraform_fmt: deterministic candidate prerequisite provisioning pending Phase 3 for full",
-      "hook.terraform_validate: deterministic candidate prerequisite provisioning pending Phase 3 for full",
-      "hook.terraform_tflint: deterministic candidate prerequisite provisioning pending Phase 3 for full",
       "dependency.lock.config: deterministic candidate prerequisite provisioning pending Phase 3 for full",
       "dependency.lock.delegate: deterministic candidate prerequisite provisioning pending Phase 3 for full",
       "package.coordinator: deterministic candidate prerequisite provisioning pending Phase 3 for full",
       "package.config: deterministic candidate prerequisite provisioning pending Phase 3 for full",
       "hook.shfmt: https://github.com/scop/pre-commit-shfmt@v3.13.1-1 action-to-engine equivalence pending Phase 3",
-      "hook.golangci-lint: https://github.com/golangci/golangci-lint@v2.12.2 direct executable provisioning pending Phase 3",
-      "hook.terraform_fmt: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 wrapper and underlying tool pins pending Phase 3",
-      "hook.terraform_validate: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 wrapper and underlying tool pins pending Phase 3",
-      "hook.terraform_tflint: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 wrapper and underlying tool pins pending Phase 3",
       "hook.trailing-whitespace: https://github.com/pre-commit/pre-commit-hooks@v6.0.0 action/runtime equivalence pending Phase 3",
       "hook.end-of-file-fixer: https://github.com/pre-commit/pre-commit-hooks@v6.0.0 action/runtime equivalence pending Phase 3",
       "hook.mixed-line-ending: https://github.com/pre-commit/pre-commit-hooks@v6.0.0 action/runtime equivalence pending Phase 3",
       "hook.shfmt: https://github.com/scop/pre-commit-shfmt@v3.13.1-1 action/runtime equivalence pending Phase 3",
-      "hook.golangci-lint: https://github.com/golangci/golangci-lint@v2.12.2 action/runtime equivalence pending Phase 3",
-      "hook.terraform_fmt: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 action/runtime equivalence pending Phase 3",
-      "hook.terraform_validate: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 action/runtime equivalence pending Phase 3",
-      "hook.terraform_tflint: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 action/runtime equivalence pending Phase 3",
-      "lint.shell.scripts: shellcheck-py==0.11.0.1 with ShellCheck 0.11.0 inner executable equivalence pending Phase 3",
-      "lint.shell.bootstrap: shellcheck-py==0.11.0.1 with ShellCheck 0.11.0 inner executable equivalence pending Phase 3",
-      "lint.yaml.config: yamllint==1.38.0 console and command provenance equivalence pending Phase 3",
       "lint.markdown.keydocs: DavidAnson/markdownlint-cli2-action@21c1be1b93ad9ed58fa840aacc3f279cde2a72ff action/runtime equivalence pending Phase 3",
       "syntax.yaml.config: python-version=3.14 interpreter pin verification pending Phase 3 (thin-probe descope amendment 2026-09-09; Phase 4 restores interpreter provenance)",
       "generated.commands-doc: python-version=3.14 interpreter pin verification pending Phase 3 (thin-probe descope amendment 2026-09-09; Phase 4 restores interpreter provenance)",
       "test.python: python-version=3.14 interpreter pin verification pending Phase 3 (thin-probe descope amendment 2026-09-09; Phase 4 restores interpreter provenance)",
       "test.hooks: python-version=3.14 interpreter pin verification pending Phase 3 (thin-probe descope amendment 2026-09-09; Phase 4 restores interpreter provenance)",
       "generated.cursor: python-version=3.14 interpreter pin verification pending Phase 3 (thin-probe descope amendment 2026-09-09; Phase 4 restores interpreter provenance)",
-      "package.coordinator: python-version=3.14 interpreter pin verification pending Phase 3 (thin-probe descope amendment 2026-09-09; Phase 4 restores interpreter provenance)"
+      "package.coordinator: python-version=3.14 interpreter pin verification pending Phase 3 (thin-probe descope amendment 2026-09-09; Phase 4 restores interpreter provenance)",
+      "hook.golangci-lint: https://github.com/golangci/golangci-lint@v2.12.2 direct executable provisioning pending Phase 3",
+      "hook.terraform_fmt: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 wrapper and underlying tool pins pending Phase 3",
+      "hook.terraform_validate: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 wrapper and underlying tool pins pending Phase 3",
+      "hook.terraform_tflint: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 wrapper and underlying tool pins pending Phase 3",
+      "hook.golangci-lint: https://github.com/golangci/golangci-lint@v2.12.2 action/runtime equivalence pending Phase 3",
+      "hook.terraform_fmt: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 action/runtime equivalence pending Phase 3",
+      "hook.terraform_validate: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 action/runtime equivalence pending Phase 3",
+      "hook.terraform_tflint: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 action/runtime equivalence pending Phase 3"
     ],
     "security": [
       "hook.check-credentials: deterministic candidate prerequisite provisioning pending Phase 3 for security",
       "hook.detect-private-key: deterministic candidate prerequisite provisioning pending Phase 3 for security",
       "hook.gitleaks: deterministic candidate prerequisite provisioning pending Phase 3 for security",
-      "hook.terraform_trivy: deterministic candidate prerequisite provisioning pending Phase 3 for security",
-      "hook.gitleaks: v8.30.0 hook versus GITLEAKS_VERSION=8.30.1 CI conflict pending Phase 3",
       "hook.terraform_trivy: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 wrapper and underlying tool pins pending Phase 3",
       "hook.terraform_trivy: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 action/runtime equivalence pending Phase 3"
     ],
@@ -3088,14 +3060,7 @@
       "hook.validate-bootstrap: deterministic candidate prerequisite provisioning pending Phase 3 for release",
       "hook.check-bats-assertions: deterministic candidate prerequisite provisioning pending Phase 3 for release",
       "hook.check-array-expansion: deterministic candidate prerequisite provisioning pending Phase 3 for release",
-      "hook.cargo-fmt-check: deterministic candidate prerequisite provisioning pending Phase 3 for release",
-      "hook.cargo-clippy: deterministic candidate prerequisite provisioning pending Phase 3 for release",
       "hook.pyright: deterministic candidate prerequisite provisioning pending Phase 3 for release",
-      "hook.golangci-lint: deterministic candidate prerequisite provisioning pending Phase 3 for release",
-      "hook.terraform_fmt: deterministic candidate prerequisite provisioning pending Phase 3 for release",
-      "hook.terraform_validate: deterministic candidate prerequisite provisioning pending Phase 3 for release",
-      "hook.terraform_tflint: deterministic candidate prerequisite provisioning pending Phase 3 for release",
-      "hook.terraform_trivy: deterministic candidate prerequisite provisioning pending Phase 3 for release",
       "dependency.lock.config: deterministic candidate prerequisite provisioning pending Phase 3 for release",
       "dependency.lock.delegate: deterministic candidate prerequisite provisioning pending Phase 3 for release",
       "package.coordinator: deterministic candidate prerequisite provisioning pending Phase 3 for release",
@@ -3103,24 +3068,10 @@
       "package.release-archive: deterministic candidate prerequisite provisioning pending Phase 3 for release",
       "package.release-manifest: deterministic candidate prerequisite provisioning pending Phase 3 for release",
       "hook.shfmt: https://github.com/scop/pre-commit-shfmt@v3.13.1-1 action-to-engine equivalence pending Phase 3",
-      "hook.gitleaks: v8.30.0 hook versus GITLEAKS_VERSION=8.30.1 CI conflict pending Phase 3",
-      "hook.golangci-lint: https://github.com/golangci/golangci-lint@v2.12.2 direct executable provisioning pending Phase 3",
-      "hook.terraform_fmt: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 wrapper and underlying tool pins pending Phase 3",
-      "hook.terraform_validate: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 wrapper and underlying tool pins pending Phase 3",
-      "hook.terraform_tflint: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 wrapper and underlying tool pins pending Phase 3",
-      "hook.terraform_trivy: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 wrapper and underlying tool pins pending Phase 3",
       "hook.trailing-whitespace: https://github.com/pre-commit/pre-commit-hooks@v6.0.0 action/runtime equivalence pending Phase 3",
       "hook.end-of-file-fixer: https://github.com/pre-commit/pre-commit-hooks@v6.0.0 action/runtime equivalence pending Phase 3",
       "hook.mixed-line-ending: https://github.com/pre-commit/pre-commit-hooks@v6.0.0 action/runtime equivalence pending Phase 3",
       "hook.shfmt: https://github.com/scop/pre-commit-shfmt@v3.13.1-1 action/runtime equivalence pending Phase 3",
-      "hook.golangci-lint: https://github.com/golangci/golangci-lint@v2.12.2 action/runtime equivalence pending Phase 3",
-      "hook.terraform_fmt: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 action/runtime equivalence pending Phase 3",
-      "hook.terraform_validate: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 action/runtime equivalence pending Phase 3",
-      "hook.terraform_tflint: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 action/runtime equivalence pending Phase 3",
-      "hook.terraform_trivy: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 action/runtime equivalence pending Phase 3",
-      "lint.shell.scripts: shellcheck-py==0.11.0.1 with ShellCheck 0.11.0 inner executable equivalence pending Phase 3",
-      "lint.shell.bootstrap: shellcheck-py==0.11.0.1 with ShellCheck 0.11.0 inner executable equivalence pending Phase 3",
-      "lint.yaml.config: yamllint==1.38.0 console and command provenance equivalence pending Phase 3",
       "lint.markdown.keydocs: DavidAnson/markdownlint-cli2-action@21c1be1b93ad9ed58fa840aacc3f279cde2a72ff action/runtime equivalence pending Phase 3",
       "syntax.yaml.config: python-version=3.14 interpreter pin verification pending Phase 3 (thin-probe descope amendment 2026-09-09; Phase 4 restores interpreter provenance)",
       "generated.commands-doc: python-version=3.14 interpreter pin verification pending Phase 3 (thin-probe descope amendment 2026-09-09; Phase 4 restores interpreter provenance)",
@@ -3129,7 +3080,17 @@
       "generated.cursor: python-version=3.14 interpreter pin verification pending Phase 3 (thin-probe descope amendment 2026-09-09; Phase 4 restores interpreter provenance)",
       "package.coordinator: python-version=3.14 interpreter pin verification pending Phase 3 (thin-probe descope amendment 2026-09-09; Phase 4 restores interpreter provenance)",
       "package.release-archive: python-version=3.14 interpreter pin verification pending Phase 3 (thin-probe descope amendment 2026-09-09; Phase 4 restores interpreter provenance)",
-      "package.release-manifest: python-version=3.14 interpreter pin verification pending Phase 3 (thin-probe descope amendment 2026-09-09; Phase 4 restores interpreter provenance)"
+      "package.release-manifest: python-version=3.14 interpreter pin verification pending Phase 3 (thin-probe descope amendment 2026-09-09; Phase 4 restores interpreter provenance)",
+      "hook.golangci-lint: https://github.com/golangci/golangci-lint@v2.12.2 direct executable provisioning pending Phase 3",
+      "hook.terraform_fmt: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 wrapper and underlying tool pins pending Phase 3",
+      "hook.terraform_validate: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 wrapper and underlying tool pins pending Phase 3",
+      "hook.terraform_tflint: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 wrapper and underlying tool pins pending Phase 3",
+      "hook.terraform_trivy: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 wrapper and underlying tool pins pending Phase 3",
+      "hook.golangci-lint: https://github.com/golangci/golangci-lint@v2.12.2 action/runtime equivalence pending Phase 3",
+      "hook.terraform_fmt: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 action/runtime equivalence pending Phase 3",
+      "hook.terraform_validate: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 action/runtime equivalence pending Phase 3",
+      "hook.terraform_tflint: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 action/runtime equivalence pending Phase 3",
+      "hook.terraform_trivy: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 action/runtime equivalence pending Phase 3"
     ]
   }
 }

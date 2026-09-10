@@ -149,8 +149,6 @@ def _parsed_command_component(probe: str, resolved: str) -> str:
 
 
 def _command_component(probe: str, executable: str | None = None) -> str:
-    if executable == "./node_modules/.bin/bats" and probe == "bats":
-        raise ProbeError("npm bats launcher unsupported pending Phase 3")
     resolved = _resolved_executable(probe, executable)
     return _parsed_command_component(probe, resolved)
 
