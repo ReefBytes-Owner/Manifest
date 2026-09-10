@@ -65,53 +65,107 @@ is always partial and cannot certify a whole profile.
 ## The shadow CI path
 
 `.github/workflows/ci.yml` runs `shadow-checks-structure`,
-`shadow-checks-lint`, and `shadow-checks-test` alongside (never instead of)
-the pre-existing `lint`/`test`/`validate` jobs. Each shadow job first resolves
-a base revision (the PR base SHA for `pull_request` events, or a merge-base
-against the default branch for `push` events) then invokes the shared command
-exactly once (`uv run manifest check full --group <group> --project-config
-config/project-checks.json --base <resolved-sha> --json --output ...`) and
-uploads its report as a run-attempt-scoped artifact
-(`shadow-receipt-<group>-${{ github.run_attempt }}`) so a workflow re-run
-cannot mix evidence from a prior attempt. `shadow-checks-aggregate` runs with
-`if: always()`, rejects any producer whose per-step outcome is not exactly
-`"success"` (an allow-list check, so a skipped or cancelled producer is
-rejected the same as an explicit failure), then builds the current-run
-context (`tools/project_checks/ci_context_cli.py`, read-only via `gh api`)
-and calls `manifest check-aggregate`, writing its own receipt
+`shadow-checks-lint`, `shadow-checks-test`, `shadow-checks-security`, and
+`shadow-checks-package` alongside (never instead of) the pre-existing
+`lint`/`test`/`validate` jobs. Each shadow job first resolves a base revision,
+then invokes the shared command exactly once (`uv run manifest check full
+--group <group> --project-config config/project-checks.json --base
+<resolved-sha> --json --output ...`) and uploads its report as a
+run-attempt-scoped artifact (`shadow-receipt-<group>-${{ github.run_attempt
+}}`) so a workflow re-run cannot mix evidence from a prior attempt.
+`shadow-checks-aggregate` runs with `if: always()`, rejects any producer that
+wrote no receipt evidence, then builds the current-run context
+(`tools/project_checks/ci_context_cli.py`, read-only via `gh api`) and calls
+`manifest check-aggregate`, writing its own receipt
 (`shadow-receipt-aggregate-${{ github.run_attempt }}`) and publishing the
 verdict to the job summary (`$GITHUB_STEP_SUMMARY`) so it is visible without
 opening step logs.
 
-The rejection step reads each producer's `steps.shadow.outcome` **job
-output**, not `needs.<job>.result`. All three producer jobs set job-level
-`continue-on-error: true`, and GitHub reports a job that failed only because
-of that job-level setting as `result: "success"` in the `needs` context of a
-downstream job — so a `needs.*.result` check can never observe a failed
-producer. Each producer job therefore exports its check step's `outcome`
-(which continue-on-error does not rewrite) as a job output, and the aggregate
-job reads that instead.
+### Base revision (fixed: was degenerate on `push`)
 
-All four jobs (`shadow-checks-structure`, `shadow-checks-lint`,
-`shadow-checks-test`, `shadow-checks-aggregate`) set job-level
-`continue-on-error: true`. This is deliberately at the **job** level, not
-just on individual steps: a step-only `continue-on-error` still lets an
-unrelated step (checkout, `uv` install, context build, receipt download)
-fail and redden the whole job — and therefore the workflow's overall
-conclusion — which job-level `continue-on-error` prevents. Combined with the
-aggregate job's `if: always()` and read-only `permissions:`, the shadow path
-is **never a required status** and cannot gate a merge, and it cannot turn
-the workflow conclusion red either. Branch protection is untouched; that is
-a separate, later phase (Phase 5).
+Each shadow job's "Resolve base revision" step reads `github.event.before`
+(via `env:`, never interpolated into the script body) for `push` events,
+falling back to `HEAD~1` when `before` is the all-zeros SHA GitHub sends for
+a new or force-pushed ref, and to the empty-tree object hash
+(`4b825dc642cb6eb9a060e54bf8d69288fbee4904`) for a repository's first commit.
+`pull_request` events still use `github.event.pull_request.base.sha`. Before
+this fix, `push` resolved its base with `git merge-base HEAD
+"origin/${DEFAULT_BRANCH}"` — but `push` triggers only on `branches: [main]`,
+and after a `fetch-depth: 0` checkout `origin/main` already equals `HEAD`
+once the push has landed, so that merge-base was HEAD itself: `git diff
+--name-only HEAD HEAD` returns no changed paths, and every path-filtered
+check silently reads `NOT_APPLICABLE` instead of running. The `before`-based
+resolution above diffs against the ref's actual prior state instead.
 
-`manifest check-aggregate full` itself is also expected to report `BLOCKED`
-today for a second, independent reason beyond `coverage_pending`: `full`'s
-registry closure spans five groups (`structure`, `lint`, `test`, `security`,
-`package`), but only three (`structure`, `lint`, `test`) have a shadow
-producer job — `security` and `package` have none. `check-aggregate` reports
-missing producer groups as `BLOCKED`, so a `BLOCKED` aggregate report is the
-expected shape until a producer exists for every group `full` requires, not
-just until `coverage_pending` clears.
+### Producer-rejection signal (fixed: was rejecting every real run)
+
+The rejection step reads each producer's `steps.shadow.outputs.receipt_written`
+job output, not `steps.shadow.outcome` and not `needs.<job>.result`.
+`needs.*.result` is unusable: the producer jobs set job-level
+`continue-on-error: true`, which makes GitHub report even a failed producer
+as `result: "success"` in the `needs` context. `outcome` looked like a
+working substitute but was not: `manifest check` exits `2` (`FAIL`) or `3`
+(`BLOCKED`) exactly when a group legitimately produced a receipt, so
+`outcome` was `"failure"` both when a producer crashed with **no** receipt
+and when it ran cleanly and reported FAIL/BLOCKED **with** one. Gating on
+`outcome` therefore rejected every real run once any group returned
+FAIL/BLOCKED — which, before Phase 3 clears `coverage_pending`, is every
+group — so `manifest check-aggregate` never actually ran and every real run
+published `Status: UNKNOWN (no aggregate receipt was written)`.
+
+The fix: the shadow step itself now captures `manifest check`'s exit code,
+always exits `0` (the shadow path must never turn the job red on its own),
+and separately checks whether the file it declared with `--output` actually
+exists, exporting that as the `receipt_written` job output
+(`"true"`/`"false"`). The aggregate's rejection step rejects any producer
+whose `receipt_written` is not exactly `"true"` — an allow-list check, so a
+skipped, cancelled, or crashed-with-no-receipt producer is rejected the same
+as an explicit crash. A producer that ran and returned FAIL/BLOCKED **with**
+a receipt is accepted at this gate; the receipt's own status is what then
+feeds `manifest check-aggregate`'s verdict, not this gate. A producer that
+never wrote a receipt at all — the guard's real purpose — is still rejected.
+
+All six jobs (`shadow-checks-structure`, `shadow-checks-lint`,
+`shadow-checks-test`, `shadow-checks-security`, `shadow-checks-package`,
+`shadow-checks-aggregate`) set job-level `continue-on-error: true`. This is
+deliberately at the **job** level, not just on individual steps: a step-only
+`continue-on-error` still lets an unrelated step (checkout, `uv` install,
+context build, receipt download) fail and redden the whole job — and
+therefore the workflow's overall conclusion — which job-level
+`continue-on-error` prevents. Combined with the aggregate job's `if:
+always()` and read-only `permissions:`, the shadow path is **never a
+required status** and cannot gate a merge, and it cannot turn the workflow
+conclusion red either. Branch protection is untouched; that is a separate,
+later phase (Phase 5).
+
+### Why the aggregate still reports `BLOCKED`
+
+Both fixes above make `manifest check-aggregate` actually *run* on every
+real invocation instead of being skipped, but its verdict is still
+`BLOCKED` today, for reasons unrelated to either defect:
+
+- `full`'s registry closure (`resolve_checks(registry, "full", None)`) spans
+  four groups today — `structure`, `lint`, `test`, `package` — not five:
+  `full`'s profile list contains no `security`-group check id, so
+  `security.semgrep` and `dependency.audit.*` are never part of `full`'s
+  expected evidence, only the `security` profile's. `shadow-checks-security`
+  still runs and uploads a receipt (there is a real, if currently empty,
+  `security`-group closure to shadow, and this chunk wires every group
+  `ci_context_cli.py` can recognize so none is silently dropped later), but
+  because `full` does not request that group, `aggregate.py` reports it as
+  `"producer job references unexpected group: 'security'"` — an accurate
+  diagnostic, not a bug, and one more reason (alongside `coverage_pending`)
+  the aggregate stays `BLOCKED` until a later phase either adds
+  `security.semgrep` to `full` or stops aggregating against `full` for that
+  group.
+- Every check in every group still has at least one open `coverage_pending`
+  obligation (see [Coverage limits](#coverage-limits)), which alone forces
+  `BLOCKED` regardless of the above.
+
+A `BLOCKED` aggregate report is therefore still the expected, honest shape
+today — the two defects fixed here mean it is now a *real* `BLOCKED` verdict
+computed from actual receipts, not a fabricated `UNKNOWN` from a rejection
+step that never let the aggregate step run.
 
 ## Toolchain provisioning
 

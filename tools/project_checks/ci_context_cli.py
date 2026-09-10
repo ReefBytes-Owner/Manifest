@@ -47,9 +47,9 @@ PASS = 0
 BLOCKED = 3
 
 # Exact-match allowlist of the shadow-group job names ci.yml declares
-# ("Shadow Checks (structure|lint|test)"). Deliberately NOT a loose suffix
-# regex -- see the module docstring note above.
-_SHADOW_GROUPS = ("structure", "lint", "test")
+# ("Shadow Checks (structure|lint|test|security|package)"). Deliberately NOT
+# a loose suffix regex -- see the module docstring note above.
+_SHADOW_GROUPS = ("structure", "lint", "test", "security", "package")
 _GROUP_JOB_NAME = re.compile(r"^Shadow Checks \((" + "|".join(_SHADOW_GROUPS) + r")\)$")
 
 

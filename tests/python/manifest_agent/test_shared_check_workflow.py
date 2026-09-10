@@ -18,7 +18,10 @@ that it is required.
 
 from __future__ import annotations
 
+import os
 import re
+import subprocess
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -33,8 +36,11 @@ SHADOW_GROUP_JOBS = {
     "shadow-checks-structure": "structure",
     "shadow-checks-lint": "lint",
     "shadow-checks-test": "test",
+    "shadow-checks-security": "security",
+    "shadow-checks-package": "package",
 }
 SHADOW_AGGREGATE_JOB = "shadow-checks-aggregate"
+ZERO_SHA = "0000000000000000000000000000000000000000"
 
 WRITE_PERMISSION_VALUES = {"write"}
 
@@ -50,6 +56,26 @@ def _jobs() -> dict[str, Any]:
 
 def _run_texts(job: dict[str, Any]) -> list[str]:
     return [step["run"] for step in job.get("steps", []) if "run" in step]
+
+
+def _manifest_check_lines(job: dict[str, Any]) -> list[str]:
+    # The shared-check invocation now lives inside a multi-line script (it
+    # also captures the exit code and writes a receipt-presence output), so
+    # it must be located line-by-line rather than assuming a step's whole
+    # `run:` block is nothing but the command.
+    return [
+        line.strip()
+        for run in _run_texts(job)
+        for line in run.splitlines()
+        if re.search(r"\bmanifest\s+check\b", line) and not line.strip().startswith("#")
+    ]
+
+
+def _step_with_run_matching(job: dict[str, Any], pattern: str) -> dict[str, Any]:
+    (step,) = [
+        step for step in job.get("steps", []) if re.search(pattern, step.get("run", ""))
+    ]
+    return step
 
 
 class TestShadowGroupJobsExist:
@@ -74,15 +100,12 @@ class TestShadowGroupJobShape:
         self, job_name: str, group: str
     ) -> None:
         job = _jobs()[job_name]
-        check_steps = [
-            run for run in _run_texts(job) if re.search(r"\bmanifest\s+check\b", run)
-        ]
-        assert len(check_steps) == 1, (
-            f"{job_name}: expected exactly one step invoking the shared "
-            f"`manifest check` command, found {len(check_steps)}: {check_steps}"
+        check_lines = _manifest_check_lines(job)
+        assert len(check_lines) == 1, (
+            f"{job_name}: expected exactly one line invoking the shared "
+            f"`manifest check` command, found {len(check_lines)}: {check_lines}"
         )
-        (command,) = check_steps
-        command = command.strip()
+        (command,) = check_lines
         assert command.startswith("uv run manifest check "), (
             f"{job_name}: shared-check step must invoke `uv run manifest "
             f"check ...` verbatim, not a drifted variant: {command!r}"
@@ -119,10 +142,7 @@ class TestShadowGroupJobShape:
         from manifest_agent.checks.cli import check as check_command
 
         job = _jobs()[job_name]
-        (command,) = [
-            run for run in _run_texts(job) if re.search(r"\bmanifest\s+check\b", run)
-        ]
-        command = command.strip()
+        (command,) = _manifest_check_lines(job)
         assert command.startswith("uv run manifest check ")
         argv = command[len("uv run manifest check ") :].split()
         # BASE_SHA is populated at runtime from a prior step's output via
@@ -229,17 +249,34 @@ class TestShadowAggregateJob:
         missing = [name for name in SHADOW_GROUP_JOBS if name not in needs]
         assert not missing, f"aggregate job is missing needs: {missing}"
 
-    def test_rejects_unsuccessful_upstream_conclusions(self) -> None:
-        # The rejection must be an allow-list check (`!= "success"`), not a
+    def test_rejects_producers_with_no_receipt_evidence(self) -> None:
+        # The rejection must be an allow-list check (`!= "true"`), not a
         # deny-list of specific bad values — a deny-list silently treats an
-        # unanticipated conclusion value as a pass.
+        # unanticipated value as a pass. This asserts against the
+        # `receipt_written` signal, not `steps.shadow.outcome`: `outcome` is
+        # "failure" both when a producer crashed with no receipt AND when it
+        # ran cleanly and reported FAIL/BLOCKED with one, so gating on it
+        # rejected every real run once any group returned FAIL/BLOCKED (see
+        # docs/SHARED_CHECKS.md). The old outcome-based assertion is
+        # deliberately gone, not just relaxed.
         job = _jobs()[SHADOW_AGGREGATE_JOB]
         run_text = "\n".join(_run_texts(job))
-        assert re.search(r'!=\s*["\']success["\']', run_text), (
-            "aggregate job must explicitly reject any producer result that "
-            "is not exactly 'success' (so skipped/cancelled/failed producers "
-            "are all rejected, not just a hardcoded 'failure' case)"
+        assert not re.search(r'!=\s*["\']success["\']', run_text), (
+            "aggregate job must no longer gate on `steps.shadow.outcome == "
+            "'success'` -- that rejects every real run once any group "
+            "returns FAIL/BLOCKED, which is the defect this chunk fixes"
         )
+        assert re.search(r'!=\s*["\']true["\']', run_text), (
+            "aggregate job must explicitly reject any producer whose "
+            "receipt-written evidence is not exactly 'true' (so a skipped, "
+            "cancelled, or crashed-with-no-receipt producer is rejected, "
+            "not just a hardcoded case)"
+        )
+        for env_value in re.findall(r"needs\.[\w-]+\.outputs\.(\w+)", run_text):
+            assert env_value == "shadow_receipt_written", (
+                f"aggregate rejection step reads producer output {env_value!r}; "
+                "expected shadow_receipt_written for every producer"
+            )
 
     def test_rejection_step_is_not_step_level_continue_on_error(self) -> None:
         # The rejection text alone proves nothing if the step that runs it
@@ -250,16 +287,22 @@ class TestShadowAggregateJob:
         # overall workflow green; this step must still surface its own
         # failure so later steps in the same job do not run on bad evidence.
         job = _jobs()[SHADOW_AGGREGATE_JOB]
-        (reject_step,) = [
-            step
-            for step in job.get("steps", [])
-            if re.search(r'!=\s*["\']success["\']', step.get("run", ""))
-        ]
+        reject_step = _step_with_run_matching(job, r'!=\s*["\']true["\']')
         assert reject_step.get("continue-on-error") is not True, (
             "the producer-rejection step must not itself be "
             "`continue-on-error: true` at step level, or its failure would "
             "never short-circuit the remaining aggregate steps"
         )
+
+    def test_downloads_receipts_for_every_shadow_group(self) -> None:
+        job = _jobs()[SHADOW_AGGREGATE_JOB]
+        download_step = _step_with_run_matching(job, r"gh run download")
+        run_text = download_step["run"]
+        for group in SHADOW_GROUP_JOBS.values():
+            assert group in run_text, (
+                f"aggregate job's receipt-download step does not mention "
+                f"group {group!r}: {run_text!r}"
+            )
 
     def test_credentials_are_read_only(self) -> None:
         job = _jobs()[SHADOW_AGGREGATE_JOB]
@@ -287,3 +330,136 @@ class TestShadowAggregateJob:
                 f"legacy job {legacy!r} must not depend on the shadow "
                 f"aggregate job — it must never gate the merge"
             )
+
+
+@pytest.mark.parametrize("job_name", sorted(SHADOW_GROUP_JOBS))
+class TestPushBaseResolution:
+    # Defect 1: `push` triggers only on `branches: [main]`, and after a
+    # `fetch-depth: 0` checkout `origin/main == HEAD` once the push has
+    # landed, so `git merge-base HEAD origin/main` degenerated to HEAD
+    # itself -- every path-filtered check then diffed HEAD against HEAD and
+    # read NOT_APPLICABLE. These assert the base-resolution step no longer
+    # contains that pattern and explicitly branches on `github.event.before`,
+    # including the all-zeros fallback GitHub sends for a new/force-pushed ref.
+    def test_resolve_step_does_not_diff_against_a_degenerate_merge_base(
+        self, job_name: str
+    ) -> None:
+        job = _jobs()[job_name]
+        base_step = _step_with_run_matching(job, r"sha=")
+        run_text = base_step["run"]
+        assert not re.search(r'git merge-base HEAD "origin/', run_text), (
+            f"{job_name}: base-resolution step still computes a merge-base "
+            f"against origin/<default>, which is HEAD itself on a push "
+            f"event after a fetch-depth: 0 checkout -- the degenerate base "
+            f"this chunk fixes"
+        )
+
+    def test_resolve_step_branches_on_event_before(self, job_name: str) -> None:
+        job = _jobs()[job_name]
+        base_step = _step_with_run_matching(job, r"sha=")
+        env = base_step.get("env", {})
+        assert env.get("EVENT_BEFORE") == "${{ github.event.before }}", (
+            f"{job_name}: base-resolution step must read github.event.before "
+            f"via env:, got {env!r}"
+        )
+        run_text = base_step["run"]
+        assert ZERO_SHA in run_text, (
+            f"{job_name}: base-resolution step must explicitly handle the "
+            f"all-zeros SHA GitHub sends for a new/force-pushed ref, "
+            f"expected literal {ZERO_SHA!r} in the script"
+        )
+
+    def test_resolved_base_is_not_head_for_a_normal_push(self, job_name: str) -> None:
+        # Execute the extracted script for real (no network, no checkout --
+        # only the branch logic) with env simulating an ordinary push whose
+        # `before` differs from HEAD, and confirm the resolved `sha=` output
+        # is that `before` value, not something that reduces to HEAD.
+        job = _jobs()[job_name]
+        base_step = _step_with_run_matching(job, r"sha=")
+        script = base_step["run"]
+        before_sha = "cafef00d" * 5
+        result = _run_bash_step(
+            script,
+            env={
+                "EVENT_NAME": "push",
+                "EVENT_BEFORE": before_sha,
+                "PR_BASE_SHA": "",
+            },
+        )
+        assert result["sha"] == before_sha, (
+            f"{job_name}: expected resolved base {before_sha!r}, got "
+            f"{result.get('sha')!r} (output: {result})"
+        )
+
+    def test_resolved_base_falls_back_on_zero_sha(self, job_name: str) -> None:
+        job = _jobs()[job_name]
+        base_step = _step_with_run_matching(job, r"sha=")
+        script = base_step["run"]
+        result = _run_bash_step(
+            script,
+            env={"EVENT_NAME": "push", "EVENT_BEFORE": ZERO_SHA, "PR_BASE_SHA": ""},
+        )
+        # This repo checkout has a real parent commit, so the fallback must
+        # resolve to HEAD~1, never the all-zeros literal or HEAD itself.
+        assert result["sha"] not in (ZERO_SHA, ""), (
+            f"{job_name}: all-zeros before must fall back to a real "
+            f"revision, got {result}"
+        )
+
+
+def _run_bash_step(script: str, env: dict[str, str]) -> dict[str, str]:
+    """Execute an extracted workflow `run:` script for real and parse its
+    `$GITHUB_OUTPUT` writes into a dict. No network; runs in this checkout."""
+    with tempfile.NamedTemporaryFile(mode="w", delete=False) as output_file:
+        output_path = output_file.name
+    try:
+        full_env = {**os.environ, **env, "GITHUB_OUTPUT": output_path}
+        subprocess.run(
+            ["bash", "-c", script],
+            cwd=ROOT,
+            env=full_env,
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        parsed: dict[str, str] = {}
+        with open(output_path, encoding="utf-8") as handle:
+            for line in handle:
+                if "=" in line:
+                    key, _, value = line.strip().partition("=")
+                    parsed[key] = value
+        return parsed
+    finally:
+        Path(output_path).unlink(missing_ok=True)
+
+
+class TestCiContextAllowlistCoversNewGroups:
+    # tools/project_checks/ci_context_cli.py recognizes shadow-group jobs by
+    # an EXACT-match allowlist regex, deliberately not a loose suffix search
+    # (see that module's docstring). The new security/package jobs must
+    # match it precisely, and the aggregate job's own name must still not.
+    def test_security_and_package_job_names_match_the_allowlist(self) -> None:
+        from tools.project_checks.ci_context_cli import _GROUP_JOB_NAME
+
+        jobs = _jobs()
+        for job_name, group in (
+            ("shadow-checks-security", "security"),
+            ("shadow-checks-package", "package"),
+        ):
+            declared_name = jobs[job_name]["name"]
+            match = _GROUP_JOB_NAME.match(declared_name)
+            assert match is not None, (
+                f"{job_name}: declared name {declared_name!r} does not "
+                f"match the ci_context_cli.py allowlist"
+            )
+            assert match.group(1) == group
+
+    def test_aggregate_job_name_still_does_not_match(self) -> None:
+        from tools.project_checks.ci_context_cli import _GROUP_JOB_NAME
+
+        declared_name = _jobs()[SHADOW_AGGREGATE_JOB]["name"]
+        assert _GROUP_JOB_NAME.match(declared_name) is None, (
+            f"the aggregate job's own name {declared_name!r} must never "
+            f"match the shadow-group allowlist"
+        )
