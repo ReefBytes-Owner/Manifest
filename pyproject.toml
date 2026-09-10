@@ -78,6 +78,15 @@ dev = [
     "manifest-model-policy==0.1.0",
     "pytest>=9.1,<10",
     "pytest-asyncio>=1.4,<2",
+    # C7f: package.coordinator/config (tools/project_checks/packages.py
+    # `_backend()`) runs `importlib.util.find_spec("hatchling.build")` under
+    # `sys.executable` -- the interpreter already running `manifest check`
+    # (Correction 4: every literal "python3" check argv rewrites to it, never
+    # a PATH/store lookup). That is THIS project's own dev venv, not the
+    # toolchain store's separate python-env bundle, so hatchling has to be
+    # importable here for that check to ever leave BLOCKED "preprovisioned
+    # build backend unavailable". Matches [build-system] requires above.
+    "hatchling>=1.27,<2",
 ]
 
 [tool.ruff]

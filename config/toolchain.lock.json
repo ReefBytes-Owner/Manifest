@@ -61,7 +61,7 @@
       "platforms": {
         "linux-x64": {
           "url": "file://config/toolchain/uv.lock",
-          "sha256": "722280c7aff85338b61395626d7865a4de4e081320941943f0323f767f214b27",
+          "sha256": "42d573143665e273fe24fbfc65ac6495ec9a6139619d0bc211005484e0bbbc6d",
           "exe_sha256": null,
           "path_in_archive": ".",
           "console_scripts": [
@@ -88,8 +88,8 @@
         },
         "darwin-arm64": {
           "url": "file://config/toolchain/uv.lock",
-          "sha256": "722280c7aff85338b61395626d7865a4de4e081320941943f0323f767f214b27",
-          "exe_sha256": "71f38158fabe4ca940f0a9638eeac43bf9f0d3e87d8442f675e821e81af329a3",
+          "sha256": "42d573143665e273fe24fbfc65ac6495ec9a6139619d0bc211005484e0bbbc6d",
+          "exe_sha256": "707ce0248b2b40f40df98199918e2960bb16bfb0db503f510b7072cef73b25e8",
           "path_in_archive": ".",
           "console_scripts": [
             "bin/python",

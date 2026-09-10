@@ -989,9 +989,15 @@ def _fake_uv(path: Path) -> None:
         "    if f'project-version = {version}' not in lock:\n"
         "        print('lockfile needs to be updated', file=sys.stderr); raise SystemExit(1)\n"
         "    raise SystemExit(0)\n"
-        "expected_prefix = ['build', '--offline', '--no-python-downloads', '--no-build-isolation', '--no-create-gitignore', '--out-dir']\n"
-        "if args[:6] != expected_prefix or len(args) != 8 or args[7] != str(project): raise SystemExit(98)\n"
-        "out = pathlib.Path(args[6]); out.mkdir(parents=True, exist_ok=True)\n"
+        "expected_prefix = ['build', '--offline', '--no-python-downloads', '--no-build-isolation', '--no-create-gitignore', '--python']\n"
+        "if (\n"
+        "    args[:6] != expected_prefix\n"
+        "    or len(args) != 10\n"
+        "    or args[6] != 'fake-python'\n"
+        "    or args[7] != '--out-dir'\n"
+        "    or args[9] != str(project)\n"
+        "): raise SystemExit(98)\n"
+        "out = pathlib.Path(args[8]); out.mkdir(parents=True, exist_ok=True)\n"
         "shutil.copyfile(os.environ['FAKE_WHEEL'], out / 'manifest_agent-0.1-py3-none-any.whl')\n"
     )
     path.chmod(0o755)
@@ -1002,6 +1008,14 @@ def _mock_uv_resolution(monkeypatch, packages_module, fake_uv: Path) -> None:
     through `toolchain_resolve.resolve_env`. These golden fixtures still
     exercise the REAL `_lock`/`_build` logic against a fake `uv` script; only
     the resolution seam moves, mirroring where the trust boundary now lives.
+
+    C7f: `_build` also resolves `store:python-env/bin/python` (so `uv build
+    --no-build-isolation` runs the build backend under an interpreter that
+    actually has it, rather than falling back to whatever it finds itself).
+    That seam is mocked here too -- these fixtures build with `hatchling`
+    importable directly in the test process (`monkeypatch.syspath_prepend`),
+    so the exact fake path only has to match what `_fake_uv`'s `build`
+    branch asserts, not resolve to anything real.
     """
     monkeypatch.setattr(
         packages_module.toolchain_resolve,
@@ -1010,6 +1024,11 @@ def _mock_uv_resolution(monkeypatch, packages_module, fake_uv: Path) -> None:
             str(fake_uv),
             {**base_env, "PATH": str(fake_uv.parent)},
         ),
+    )
+    monkeypatch.setattr(
+        packages_module.toolchain_resolve,
+        "resolve_tool",
+        lambda ref, root: ("fake-python", ""),
     )
 
 

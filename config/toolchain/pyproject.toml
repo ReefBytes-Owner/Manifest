@@ -32,6 +32,11 @@ dependencies = [
     # FLAGGED: no version pinned by the registry or docs/SHARED_CHECKS.md;
     # pinned to PyPI latest as of 2026-09-10.
     "pip-audit==2.10.1",
+    # C7f: package.coordinator/config runs a real build of the root project
+    # under this interpreter (build-backend = "hatchling.build" in the root
+    # pyproject.toml); without hatchling importable here that check BLOCKs
+    # "build backend unavailable". Matches the root project's own pin.
+    "hatchling>=1.27,<2",
 ]
 
 [tool.uv]
