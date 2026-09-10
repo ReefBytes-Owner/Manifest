@@ -68,7 +68,8 @@
             "bin/ruff",
             "bin/yamllint",
             "bin/pip-audit",
-            "bin/pytest"
+            "bin/pytest",
+            "bin/semgrep"
           ]
         },
         "darwin-arm64": {
@@ -80,7 +81,8 @@
             "bin/ruff",
             "bin/yamllint",
             "bin/pip-audit",
-            "bin/pytest"
+            "bin/pytest",
+            "bin/semgrep"
           ]
         }
       }

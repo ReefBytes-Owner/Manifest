@@ -687,18 +687,6 @@
       "expected_version": "command:cargo=UNPINNED",
       "required_modules": []
     },
-    "hook.pyright": {
-      "executable": "pyright",
-      "version_argv": [
-        "python3",
-        "-I",
-        "tools/project_checks/tool_versions.py",
-        "command-version",
-        "pyright"
-      ],
-      "expected_version": "command:pyright=UNPINNED",
-      "required_modules": []
-    },
     "hook.golangci-lint": {
       "executable": "python3",
       "version_argv": [
@@ -844,6 +832,85 @@
       "required_modules": []
     },
     "debt.checks": {
+      "executable": "python3",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "python-wrapper"
+      ],
+      "expected_version": "ok",
+      "required_modules": []
+    },
+    "types.python": {
+      "executable": "python3",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "python-wrapper"
+      ],
+      "expected_version": "ok",
+      "required_modules": []
+    },
+    "security.semgrep": {
+      "executable": "python3",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "python-wrapper"
+      ],
+      "expected_version": "ok",
+      "required_modules": []
+    },
+    "package.node-runtime": {
+      "executable": "python3",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "python-wrapper"
+      ],
+      "expected_version": "ok",
+      "required_modules": []
+    },
+    "dependency.lock.root": {
+      "executable": "python3",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "python-wrapper",
+        "--command",
+        "uv"
+      ],
+      "expected_version": "command:uv=0.12.6",
+      "required_modules": []
+    },
+    "dependency.lock.node": {
+      "executable": "python3",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "python-wrapper"
+      ],
+      "expected_version": "ok",
+      "required_modules": []
+    },
+    "dependency.audit.python": {
+      "executable": "python3",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "python-wrapper"
+      ],
+      "expected_version": "ok",
+      "required_modules": []
+    },
+    "dependency.audit.node": {
       "executable": "python3",
       "version_argv": [
         "python3",
@@ -2248,31 +2315,6 @@
       "pass_filenames": false
     },
     {
-      "id": "hook.pyright",
-      "category": "type",
-      "group": "lint",
-      "argv": [
-        "pyright"
-      ],
-      "cwd": ".",
-      "inputs": [
-        "."
-      ],
-      "dependencies": [],
-      "timeout_seconds": 20,
-      "selection": "project",
-      "tool": "hook.pyright",
-      "version": "command:pyright=UNPINNED",
-      "include_regex": "",
-      "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))",
-      "types": [],
-      "types_or": [
-        "python",
-        "pyi"
-      ],
-      "pass_filenames": false
-    },
-    {
       "id": "hook.golangci-lint",
       "category": "lint",
       "group": "lint",
@@ -2652,6 +2694,167 @@
       "version": "ok",
       "pass_filenames": false,
       "honors_status_contract": true
+    },
+    {
+      "id": "types.python",
+      "category": "type",
+      "group": "lint",
+      "argv": [
+        "python3",
+        "tools/project_checks/analysis_checks.py",
+        "types.python",
+        "--root",
+        "."
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 120,
+      "selection": "project",
+      "tool": "types.python",
+      "version": "ok",
+      "pass_filenames": false,
+      "honors_status_contract": true
+    },
+    {
+      "id": "security.semgrep",
+      "category": "security",
+      "group": "security",
+      "argv": [
+        "python3",
+        "tools/project_checks/analysis_checks.py",
+        "security.semgrep",
+        "--root",
+        "."
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 120,
+      "selection": "project",
+      "tool": "security.semgrep",
+      "version": "ok",
+      "pass_filenames": false,
+      "honors_status_contract": true
+    },
+    {
+      "id": "package.node-runtime",
+      "category": "package",
+      "group": "package",
+      "argv": [
+        "python3",
+        "tools/project_checks/dependency_checks.py",
+        "package.node-runtime",
+        "--root",
+        "."
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 180,
+      "selection": "project",
+      "tool": "package.node-runtime",
+      "version": "ok",
+      "pass_filenames": false,
+      "honors_status_contract": true
+    },
+    {
+      "id": "dependency.lock.root",
+      "category": "dependency",
+      "group": "package",
+      "argv": [
+        "python3",
+        "tools/project_checks/packages.py",
+        "dependency.lock.root",
+        "--root",
+        "."
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 60,
+      "selection": "project",
+      "tool": "dependency.lock.root",
+      "version": "command:uv=0.12.6",
+      "pass_filenames": false,
+      "honors_status_contract": true
+    },
+    {
+      "id": "dependency.lock.node",
+      "category": "dependency",
+      "group": "package",
+      "argv": [
+        "python3",
+        "tools/project_checks/dependency_checks.py",
+        "dependency.lock.node",
+        "--root",
+        "."
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 60,
+      "selection": "project",
+      "tool": "dependency.lock.node",
+      "version": "ok",
+      "pass_filenames": false,
+      "honors_status_contract": true
+    },
+    {
+      "id": "dependency.audit.python",
+      "category": "dependency",
+      "group": "security",
+      "argv": [
+        "python3",
+        "tools/project_checks/dependency_checks.py",
+        "dependency.audit.python",
+        "--root",
+        "."
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 180,
+      "selection": "project",
+      "tool": "dependency.audit.python",
+      "version": "ok",
+      "pass_filenames": false,
+      "honors_status_contract": true
+    },
+    {
+      "id": "dependency.audit.node",
+      "category": "dependency",
+      "group": "security",
+      "argv": [
+        "python3",
+        "tools/project_checks/dependency_checks.py",
+        "dependency.audit.node",
+        "--root",
+        "."
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 180,
+      "selection": "project",
+      "tool": "dependency.audit.node",
+      "version": "ok",
+      "pass_filenames": false,
+      "honors_status_contract": true
     }
   ],
   "candidate_preparations": [
@@ -2774,7 +2977,6 @@
       "hook.check-array-expansion",
       "hook.cargo-fmt-check",
       "hook.cargo-clippy",
-      "hook.pyright",
       "hook.golangci-lint",
       "hook.terraform_fmt",
       "hook.terraform_validate",
@@ -2784,7 +2986,11 @@
       "package.coordinator",
       "package.config",
       "debt.constitution",
-      "debt.bundle-links"
+      "debt.bundle-links",
+      "types.python",
+      "package.node-runtime",
+      "dependency.lock.root",
+      "dependency.lock.node"
     ],
     "security": [
       "hook.check-credentials",
@@ -2792,7 +2998,8 @@
       "hook.gitleaks",
       "hook.terraform_trivy",
       "debt.constitution",
-      "debt.bundle-links"
+      "debt.bundle-links",
+      "security.semgrep"
     ],
     "release": [
       "structure.symlinks",
@@ -2854,7 +3061,6 @@
       "hook.check-array-expansion",
       "hook.cargo-fmt-check",
       "hook.cargo-clippy",
-      "hook.pyright",
       "hook.golangci-lint",
       "hook.terraform_fmt",
       "hook.terraform_validate",
@@ -2869,7 +3075,12 @@
       "debt.constitution.release",
       "debt.bundle-links.release",
       "debt.constitution",
-      "debt.bundle-links"
+      "debt.bundle-links",
+      "types.python",
+      "package.node-runtime",
+      "dependency.lock.root",
+      "dependency.lock.node",
+      "security.semgrep"
     ]
   },
   "coverage_pending": {
@@ -2969,7 +3180,6 @@
       "hook.validate-bootstrap: deterministic candidate prerequisite provisioning pending Phase 3 for full",
       "hook.check-bats-assertions: deterministic candidate prerequisite provisioning pending Phase 3 for full",
       "hook.check-array-expansion: deterministic candidate prerequisite provisioning pending Phase 3 for full",
-      "hook.pyright: deterministic candidate prerequisite provisioning pending Phase 3 for full",
       "dependency.lock.config: deterministic candidate prerequisite provisioning pending Phase 3 for full",
       "dependency.lock.delegate: deterministic candidate prerequisite provisioning pending Phase 3 for full",
       "package.coordinator: deterministic candidate prerequisite provisioning pending Phase 3 for full",
@@ -2993,14 +3203,19 @@
       "hook.golangci-lint: https://github.com/golangci/golangci-lint@v2.12.2 action/runtime equivalence pending Phase 3",
       "hook.terraform_fmt: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 action/runtime equivalence pending Phase 3",
       "hook.terraform_validate: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 action/runtime equivalence pending Phase 3",
-      "hook.terraform_tflint: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 action/runtime equivalence pending Phase 3"
+      "hook.terraform_tflint: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 action/runtime equivalence pending Phase 3",
+      "types.python: deterministic candidate prerequisite provisioning pending Phase 3 for full",
+      "package.node-runtime: deterministic candidate prerequisite provisioning pending Phase 3 for full",
+      "dependency.lock.root: deterministic candidate prerequisite provisioning pending Phase 3 for full",
+      "dependency.lock.node: deterministic candidate prerequisite provisioning pending Phase 3 for full"
     ],
     "security": [
       "hook.check-credentials: deterministic candidate prerequisite provisioning pending Phase 3 for security",
       "hook.detect-private-key: deterministic candidate prerequisite provisioning pending Phase 3 for security",
       "hook.gitleaks: deterministic candidate prerequisite provisioning pending Phase 3 for security",
       "hook.terraform_trivy: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 wrapper and underlying tool pins pending Phase 3",
-      "hook.terraform_trivy: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 action/runtime equivalence pending Phase 3"
+      "hook.terraform_trivy: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 action/runtime equivalence pending Phase 3",
+      "security.semgrep: deterministic candidate prerequisite provisioning pending Phase 3 for security"
     ],
     "release": [
       "structure.symlinks: deterministic candidate prerequisite provisioning pending Phase 3 for release",
@@ -3060,7 +3275,6 @@
       "hook.validate-bootstrap: deterministic candidate prerequisite provisioning pending Phase 3 for release",
       "hook.check-bats-assertions: deterministic candidate prerequisite provisioning pending Phase 3 for release",
       "hook.check-array-expansion: deterministic candidate prerequisite provisioning pending Phase 3 for release",
-      "hook.pyright: deterministic candidate prerequisite provisioning pending Phase 3 for release",
       "dependency.lock.config: deterministic candidate prerequisite provisioning pending Phase 3 for release",
       "dependency.lock.delegate: deterministic candidate prerequisite provisioning pending Phase 3 for release",
       "package.coordinator: deterministic candidate prerequisite provisioning pending Phase 3 for release",
@@ -3090,7 +3304,12 @@
       "hook.terraform_fmt: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 action/runtime equivalence pending Phase 3",
       "hook.terraform_validate: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 action/runtime equivalence pending Phase 3",
       "hook.terraform_tflint: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 action/runtime equivalence pending Phase 3",
-      "hook.terraform_trivy: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 action/runtime equivalence pending Phase 3"
+      "hook.terraform_trivy: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 action/runtime equivalence pending Phase 3",
+      "types.python: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "package.node-runtime: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "dependency.lock.root: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "dependency.lock.node: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "security.semgrep: deterministic candidate prerequisite provisioning pending Phase 3 for release"
     ]
   }
 }

@@ -406,6 +406,59 @@ deliberately excluded); mixed `toolchain_digest` across producer groups is
 rejected by `aggregate_results`; an expired `security` receipt is rejected
 (and a fresh one is accepted).
 
+## Types, source security, node runtime, dependency integrity (C5)
+
+Five new checks (`config/project-checks.json`). **None of them can PASS
+locally**: pyright, semgrep, and pip-audit are not installed in this
+environment, and the toolchain store is unprovisioned (`exe_sha256: null`,
+C7). Every one BLOCKs honestly — that is the correct, verified outcome for
+this chunk, not a gap. `hook.pyright` (PATH, unpinned) is removed the same
+change that adds `types.python`.
+
+| Rule | Tool / config | Scope | Trigger | Failure | Exception | Test |
+|---|---|---|---|---|---|---|
+| No new/regressed type errors | `types.python` → `store:node-env/bin/pyright`, `pyrightconfig.json` (`typeCheckingMode: basic`, `reportMissingImports: true`) | `src`, `tools`, `configs/claude/scripts`, `configs/claude/scripts/manifest_model_policy`, `plugins/manifest-delegate`, `tests/python` | `full`, `release` | New pyright `error`-severity diagnostic → FAIL `new debt`; missing pyright/store or missing `pyrightconfig.json` → BLOCKED | Reviewed `config/debt-baseline.json` entry (`debt.py` identities, same file as `debt.constitution`) | `tests/python/manifest_agent/test_analysis_checks.py` (fake-store PASS/FAIL/baseline-excused + real-lock BLOCKED); `tests/fixtures/types/pkg_a.py`+`pkg_b.py` (real cross-package type error) |
+| Source security (Python + Bash) | `security.semgrep` → `store:python-env/bin/semgrep`, `config/semgrep/manifest.yml` (9 local rules, ≤15) | Authored Python/Bash | `security`, `release` | ERROR-severity finding → FAIL; missing semgrep/store → BLOCKED | Reviewed, **expiring-only**, `config/debt-baseline.json` entry | `test_analysis_checks.py` (argv contains `--metrics=off`, no `p/...` config); `tests/fixtures/semgrep/<rule-id>/{positive,negative}.*`, one hit each rule (real-semgrep-gated, skips honestly when semgrep is absent) |
+| Node runtime builds offline | `package.node-runtime` → `npm ci --ignore-scripts --offline` (isolated copy of `package.json`/`package-lock.json`, never the tracked project dir) then `node build.mjs --check` (`NODE_PATH` points at the isolated install) | `plugins/stitch-design/runtime/node` | `full`, `release` | `npm ci`/`node build.mjs --check` fails → FAIL; no offline npm cache → BLOCKED | none | `test_dependency_checks.py` (fake npm+node PASS/FAIL/BLOCKED) |
+| Root/node lock integrity | `dependency.lock.root` (`uv lock --check` at repo root, reuses `packages.py::_lock`); `dependency.lock.node` (`npm ci --dry-run --ignore-scripts --offline`) | root `uv.lock`; `plugins/stitch-design/runtime/node/package-lock.json` | `full`, `release` | Lock/manifest mismatch → FAIL; no offline uv/npm cache → BLOCKED | none | `test_project_check_bodies.py` (root reuses the existing `dependency.lock.config` fixture pattern); `test_dependency_checks.py` |
+| Dependency advisories | `dependency.audit.python` (`uv export --frozen` → `pip-audit --format json`); `dependency.audit.node` (`npm audit --omit=dev --audit-level=high --json`) | root `uv.lock`; node project lock | **registered, not wired into any profile** (C8) | Known advisory with no valid baseline entry → FAIL `new debt`; feed unreachable → BLOCKED | Time-limited `config/debt-baseline.json` entry, `check: "advisory"`, identity from advisory ID + package + version | `test_dependency_checks.py` (stub `tests/fixtures/advisory/{pip-audit,npm-audit}-stub.json`, no network; BLOCKED-when-unreachable proven with a fake tool printing a network-error diagnostic) |
+
+**Why `dependency.audit.*` stays out of every profile.** Both transmit
+dependency metadata (package names/versions) to an external feed — PyPI/OSV
+for `pip-audit`, the npm registry for `npm audit` — which is the parent
+spec's outstanding "dependency-metadata upload restrictions" decision (open
+question 1 in phase-3-5-decisions.md). The bodies and their BLOCKED path are
+built and tested here; enabling them in the `security` profile is chunk C8,
+gated on that decision plus network (C7-adjacent).
+
+**Why `types.python`/`security.semgrep` cannot use the runner's automatic
+`store:` argv rewrite.** Both need custom JSON parsing and
+`debt.py`-identity routing, which requires the repo's own status contract
+(exit 0/2/3, `honors_status_contract: true`) — and
+`registry.py::_validate_status_contract` requires `argv[0]` to be `python3`
+(interpreter) invoking `tools/project_checks/*.py`, not a bare `store:...`
+reference. `store:node-env/bin/pyright` and `store:python-env/bin/semgrep`
+are still the mechanism: `analysis_checks.py::resolve_scanner` calls
+`toolchain.resolve()` directly (the same hash-verified store API the
+runner's generic preflight uses) from inside the wrapper, so a swapped
+scanner with an unchanged version string is still caught, and a missing or
+unattested store entry still BLOCKs with the standard `toolchain: <tool>
+unattested for <platform>` reason string — proven in
+`test_analysis_checks.py` against the real, committed, unattested
+`config/toolchain.lock.json` (`exe_sha256: null`), not a fixture stand-in.
+
+**No TypeScript compiler check — data-backed, not just asserted.** There is
+no TS project: `plugins/stitch-design/runtime/node` is `build.mjs`
+(esbuild/Babel bundling) with zero `.ts`/`.tsx` sources and no
+`tsconfig.json`; the repo's only tracked `tsconfig.json` is a
+project-scaffold **template** for other people's future projects, not this
+repo's own build. `test_dependency_checks.py::
+test_no_tsconfig_json_tracked_means_no_typescript_compiler_check` asserts
+`git ls-files '*tsconfig.json'` has no non-template hit and that no
+registered check argv names `tsc` — if a real `tsconfig.json` ever lands,
+this test starts failing, which is the intended signal to re-evaluate the
+decision rather than silently staying green.
+
 ## Coverage limits
 
 `config/project-checks.json` still carries a nonempty `coverage_pending` list

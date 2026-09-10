@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 
 from manifest_agent.checks.registry import load_registry, resolve_checks
+from tests.python.manifest_agent import _c5_ids
 from tools.project_checks.generated import TASK7_DISPOSITIONS as GENERATED
 from tools.project_checks.hook_lint import TASK7_DISPOSITIONS as HOOK_LINT
 from tools.project_checks.hooks import TASK7_DISPOSITIONS as HOOKS
@@ -37,7 +38,6 @@ FILENAMELESS_HOOK_IDS = frozenset(
         "hook.check-credentials",
         "hook.check-cursor-rules-drift",
         "hook.gitleaks",
-        "hook.pyright",
     }
 )
 QUICK_IDS = frozenset(
@@ -58,11 +58,17 @@ RETAINED_IDS = frozenset(DISPOSITIONS)
 # exceptions (docs/SHARED_CHECKS.md "debt.constitution" / "debt.bundle-links").
 DEBT_IDS = frozenset({"debt.constitution", "debt.bundle-links"})
 DEBT_RELEASE_IDS = frozenset({"debt.constitution.release", "debt.bundle-links.release"})
+# C5_* (types/security/dependency-integrity new checks): see _c5_ids.py.
+C5_FULL = _c5_ids.C5_FULL_RELEASE_IDS
+C5_SEC = _c5_ids.C5_SECURITY_RELEASE_IDS
+C5_DECLARED_ONLY_IDS = _c5_ids.C5_DECLARED_ONLY_IDS
+SUPERSEDED = _c5_ids.SUPERSEDED_IDS
+LIVE_RETAINED_IDS = RETAINED_IDS - SUPERSEDED
 EXPECTED_PROFILES = {
     "quick": QUICK_IDS,
-    "full": RETAINED_IDS - SECURITY_IDS - RELEASE_ONLY_IDS | DEBT_IDS,
-    "security": SECURITY_IDS | DEBT_IDS,
-    "release": RETAINED_IDS | DEBT_IDS | DEBT_RELEASE_IDS,
+    "full": LIVE_RETAINED_IDS - SECURITY_IDS - RELEASE_ONLY_IDS | DEBT_IDS | C5_FULL,
+    "security": SECURITY_IDS | DEBT_IDS | C5_SEC,
+    "release": LIVE_RETAINED_IDS | DEBT_IDS | DEBT_RELEASE_IDS | C5_FULL | C5_SEC,
 }
 GRAPH_CATEGORIES = frozenset(
     {"type", "dead-code", "test", "security", "generated", "dependency", "package"}
@@ -81,6 +87,8 @@ def _check_by_id(registry: dict) -> dict[str, dict]:
 
 
 def _expected_group(check_id: str) -> str:
+    if check_id in _c5_ids.GROUP_OVERRIDES:
+        return _c5_ids.GROUP_OVERRIDES[check_id]
     if check_id.startswith(("hook.", "lint.", "syntax.")):
         return "lint"
     if check_id.startswith("test."):
@@ -131,10 +139,13 @@ def _assert_retained_contract(preservation: dict, registry: dict) -> None:
     # migrated or new.
     assert len(declared) == len(set(declared))
     assert retained == RETAINED_IDS
-    assert set(declared) == RETAINED_IDS | DEBT_IDS | DEBT_RELEASE_IDS
+    c5_ids = C5_FULL | C5_SEC | C5_DECLARED_ONLY_IDS
+    assert set(declared) == LIVE_RETAINED_IDS | DEBT_IDS | DEBT_RELEASE_IDS | c5_ids
     assert all("pass_filenames" in check for check in checks)
     by_id = _check_by_id(registry)
     for check_id, (argv, selection) in DISPOSITIONS.items():
+        if check_id in SUPERSEDED:  # hook.pyright: oracle-only, see _c5_ids.py
+            continue
         assert tuple(by_id[check_id]["argv"]) == tuple(argv)
         assert by_id[check_id]["selection"] == selection
         assert by_id[check_id]["group"] == _expected_group(check_id)
@@ -144,6 +155,8 @@ def _assert_retained_contract(preservation: dict, registry: dict) -> None:
 def _assert_hook_contract(preservation: dict, registry: dict) -> None:
     by_id = _check_by_id(registry)
     for check_id, source in _hook_sources(preservation).items():
+        if check_id in SUPERSEDED:  # hook.pyright: oracle-only, see _c5_ids.py
+            continue
         hook = source["hook"]
         check = by_id[check_id]
         expected_files = hook["files"]["value"] if hook["files"]["present"] else ""
@@ -166,9 +179,10 @@ def _assert_profile_contract(registry: dict) -> None:
     }
     assert {profile: len(ids) for profile, ids in EXPECTED_PROFILES.items()} == {
         "quick": 31,
-        "full": 65 + len(DEBT_IDS),
-        "security": 4 + len(DEBT_IDS),
-        "release": 71 + len(DEBT_IDS) + len(DEBT_RELEASE_IDS),
+        "full": 64 + len(DEBT_IDS) + len(C5_FULL),
+        "security": 4 + len(DEBT_IDS) + len(C5_SEC),
+        "release": 70
+        + sum(len(x) for x in (DEBT_IDS, DEBT_RELEASE_IDS, C5_FULL, C5_SEC)),
     }
     assert all(
         by_id[check_id]["selection"] == "project"
@@ -289,8 +303,9 @@ def test_registry_schema_loads_and_exactly_closes_retained_profiles():
 
     _assert_retained_contract(preservation, raw_registry)
     _assert_profile_contract(raw_registry)
+    c5_ids = C5_FULL | C5_SEC | C5_DECLARED_ONLY_IDS
     assert {check.id for check in registry["checks"]} == (
-        RETAINED_IDS | DEBT_IDS | DEBT_RELEASE_IDS
+        LIVE_RETAINED_IDS | DEBT_IDS | DEBT_RELEASE_IDS | c5_ids
     )
     for profile, expected_ids in EXPECTED_PROFILES.items():
         assert {check.id for check in resolve_checks(registry, profile, None)} == set(

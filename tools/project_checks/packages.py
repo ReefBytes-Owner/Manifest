@@ -23,6 +23,7 @@ BLOCKED = 3
 _PROJECTS = {
     "dependency.lock.config": "configs/claude",
     "dependency.lock.delegate": "plugins/manifest-delegate",
+    "dependency.lock.root": ".",
     "package.coordinator": ".",
     "package.config": "configs/claude",
 }
@@ -356,6 +357,16 @@ CHECK_IDS = (
     "package.release-manifest",
 )
 
+# `dependency.lock.root` (Phase 3 chunk C5) shares this module's `_lock()`
+# body but is NOT part of the frozen shadow-CI migration set `CHECK_IDS`
+# feeds into `TASK7_DISPOSITIONS` -- it has no legacy pre-commit/CI job in
+# `config/check-preservation.json` to preserve 1:1 (same reasoning as C3's
+# `debt.*` ids; see test_check_profile_parity.py's `DISPOSITIONS`/
+# `RETAINED_IDS`). Kept as a distinct tuple so the oracle-backed set and the
+# runtime argparse choices cannot silently drift apart.
+ADDITIONAL_CHECK_IDS = ("dependency.lock.root",)
+ALL_CHECK_IDS = CHECK_IDS + ADDITIONAL_CHECK_IDS
+
 TASK7_DISPOSITIONS = {
     check_id: (
         (
@@ -381,7 +392,7 @@ TASK7_DISPOSITIONS = {
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("check_id", choices=CHECK_IDS)
+    parser.add_argument("check_id", choices=ALL_CHECK_IDS)
     parser.add_argument("--root", required=True, type=Path)
     parser.add_argument("--output-dir", type=Path)
     parser.add_argument("--archive-base-url")

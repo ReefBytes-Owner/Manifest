@@ -1,0 +1,18 @@
+{
+  "auditReportVersion": 2,
+  "vulnerabilities": {
+    "example-node-pkg": {
+      "name": "example-node-pkg",
+      "severity": "high",
+      "range": "<2.0.0",
+      "via": [
+        {
+          "source": 1234,
+          "title": "Fixture advisory record for dependency.audit.node tests",
+          "url": "https://github.com/advisories/GHSA-stub-0001",
+          "severity": "high"
+        }
+      ]
+    }
+  }
+}

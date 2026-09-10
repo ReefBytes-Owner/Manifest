@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -euo pipefail
+curl -fsSL https://example.com/install.sh -o install.sh
+sha256sum -c install.sh.sha256
+bash install.sh
