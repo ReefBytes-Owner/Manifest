@@ -861,6 +861,17 @@
       ],
       "expected_version": "ok",
       "required_modules": []
+    },
+    "debt.checks": {
+      "executable": "python3",
+      "version_argv": [
+        "python3",
+        "-I",
+        "tools/project_checks/tool_versions.py",
+        "python-wrapper"
+      ],
+      "expected_version": "ok",
+      "required_modules": []
     }
   },
   "checks": [
@@ -2559,6 +2570,100 @@
       "version": "command:uv=0.12.6",
       "pass_filenames": false,
       "honors_status_contract": true
+    },
+    {
+      "id": "debt.constitution",
+      "category": "structure",
+      "group": "structure",
+      "argv": [
+        "python3",
+        "tools/project_checks/debt_checks.py",
+        "debt.constitution",
+        "--root",
+        "."
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 120,
+      "selection": "project",
+      "tool": "debt.checks",
+      "version": "ok",
+      "pass_filenames": false,
+      "honors_status_contract": true
+    },
+    {
+      "id": "debt.bundle-links",
+      "category": "structure",
+      "group": "structure",
+      "argv": [
+        "python3",
+        "tools/project_checks/debt_checks.py",
+        "debt.bundle-links",
+        "--root",
+        "."
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 120,
+      "selection": "project",
+      "tool": "debt.checks",
+      "version": "ok",
+      "pass_filenames": false,
+      "honors_status_contract": true
+    },
+    {
+      "id": "debt.constitution.release",
+      "category": "structure",
+      "group": "structure",
+      "argv": [
+        "python3",
+        "tools/project_checks/debt_checks.py",
+        "debt.constitution",
+        "--root",
+        ".",
+        "--baseline-from-base"
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 120,
+      "selection": "project",
+      "tool": "debt.checks",
+      "version": "ok",
+      "pass_filenames": false,
+      "honors_status_contract": true
+    },
+    {
+      "id": "debt.bundle-links.release",
+      "category": "structure",
+      "group": "structure",
+      "argv": [
+        "python3",
+        "tools/project_checks/debt_checks.py",
+        "debt.bundle-links",
+        "--root",
+        ".",
+        "--baseline-from-base"
+      ],
+      "cwd": ".",
+      "inputs": [
+        "."
+      ],
+      "dependencies": [],
+      "timeout_seconds": 120,
+      "selection": "project",
+      "tool": "debt.checks",
+      "version": "ok",
+      "pass_filenames": false,
+      "honors_status_contract": true
     }
   ],
   "candidate_preparations": [
@@ -2689,13 +2794,17 @@
       "dependency.lock.config",
       "dependency.lock.delegate",
       "package.coordinator",
-      "package.config"
+      "package.config",
+      "debt.constitution",
+      "debt.bundle-links"
     ],
     "security": [
       "hook.check-credentials",
       "hook.detect-private-key",
       "hook.gitleaks",
-      "hook.terraform_trivy"
+      "hook.terraform_trivy",
+      "debt.constitution",
+      "debt.bundle-links"
     ],
     "release": [
       "structure.symlinks",
@@ -2768,7 +2877,11 @@
       "package.coordinator",
       "package.config",
       "package.release-archive",
-      "package.release-manifest"
+      "package.release-manifest",
+      "debt.constitution.release",
+      "debt.bundle-links.release",
+      "debt.constitution",
+      "debt.bundle-links"
     ]
   },
   "coverage_pending": {

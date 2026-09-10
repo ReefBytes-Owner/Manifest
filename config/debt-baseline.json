@@ -1,0 +1,5 @@
+{
+  "version": 2,
+  "_comment": "Identity-based debt ratchet (Phase 3, C3; replaces the count-only baselines configs/claude/config/constitution_baseline.json and tools/bundle_link_baseline.json for the debt.constitution / debt.bundle-links project checks). Starts empty on purpose: every finding already present on the immediately-prior base tree is not 'new debt' under rule 1 regardless of whether an entry exists here (see src/manifest_agent/checks/debt.py), so no entry is needed merely to keep the repository's current state green. An entry belongs here ONLY for a finding that is new relative to the base tree and that a human reviewer has decided to accept, with an owner and an expiry no more than 180 days after introduced_base's commit date. This file is a REVIEWED RECORD, never something a check or an agent writes to directly -- see `manifest check debt.constitution --propose-baseline --output PATH` (writes a proposal OUTSIDE this repository for human review) and docs/SHARED_CHECKS.md.",
+  "entries": []
+}

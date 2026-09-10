@@ -326,16 +326,27 @@ def materialize_candidate(source: Path, base_sha: str, destination: Path) -> Can
             changed,
             destination / ".git/preparation-receipt.json",
         )
-        _atomic_json(destination / ".git/candidate-state.json", {})
-        _atomic_json(
-            destination / ".git/candidate-state.json",
-            {"digest": candidate_digest(destination)},
-        )
+        _seal_candidate_state(destination, base)
         return candidate
     except (OSError, ValueError, RuntimeError) as error:
         if isinstance(error, CandidateBlockedError):
             raise
         raise CandidateBlockedError("candidate materialization blocked") from error
+
+
+def _seal_candidate_state(destination: Path, base: str) -> None:
+    """Write the integrity-checked digest, then a small informational
+    sidecar so a project check body (running with cwd inside this candidate,
+    no other view of run context) can locate the protected base commit for
+    debt-ratchet comparison (C3) without widening candidate-state.json's own
+    strict, digest-only contract (see ``runner.py``'s validation of it).
+    """
+    _atomic_json(destination / ".git/candidate-state.json", {})
+    _atomic_json(
+        destination / ".git/candidate-state.json",
+        {"digest": candidate_digest(destination)},
+    )
+    (destination / ".git/candidate-base-sha").write_text(base + "\n")
 
 
 def _atomic_json(path: Path, value: dict) -> None:

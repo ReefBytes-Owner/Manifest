@@ -48,11 +48,20 @@ QUICK_IDS = frozenset(
     | {"structure.case-collision", "structure.symlinks"}
 )
 RETAINED_IDS = frozenset(DISPOSITIONS)
+# C3 (identity-based debt ratchet): new controls, not part of the frozen
+# shadow-CI migration DISPOSITIONS above -- they have no legacy pre-commit/CI
+# job to preserve 1:1, so they are additive to the registry rather than drawn
+# from `config/check-preservation.json`. `full`/`security` get the
+# candidate-baseline variant; `release` additionally requires the
+# `--baseline-from-base` variant so a candidate can never ship its own
+# exceptions (docs/SHARED_CHECKS.md "debt.constitution" / "debt.bundle-links").
+DEBT_IDS = frozenset({"debt.constitution", "debt.bundle-links"})
+DEBT_RELEASE_IDS = frozenset({"debt.constitution.release", "debt.bundle-links.release"})
 EXPECTED_PROFILES = {
     "quick": QUICK_IDS,
-    "full": RETAINED_IDS - SECURITY_IDS - RELEASE_ONLY_IDS,
-    "security": SECURITY_IDS,
-    "release": RETAINED_IDS,
+    "full": RETAINED_IDS - SECURITY_IDS - RELEASE_ONLY_IDS | DEBT_IDS,
+    "security": SECURITY_IDS | DEBT_IDS,
+    "release": RETAINED_IDS | DEBT_IDS | DEBT_RELEASE_IDS,
 }
 GRAPH_CATEGORIES = frozenset(
     {"type", "dead-code", "test", "security", "generated", "dependency", "package"}
@@ -114,8 +123,14 @@ def _assert_retained_contract(preservation: dict, registry: dict) -> None:
         if control["disposition"] == "retained"
         for check_id in control["check_ids"]
     }
-    assert len(declared) == len(set(declared)) == 71
-    assert set(declared) == retained == RETAINED_IDS
+    # The registry carries the frozen shadow-CI migration set (`retained`,
+    # cross-checked against `RETAINED_IDS`) plus C3's additive debt.* ids,
+    # which have no legacy pre-commit/CI job to preserve 1:1. Exact equality
+    # (not a subset check) still catches an accidental drop of ANY check,
+    # migrated or new.
+    assert len(declared) == len(set(declared))
+    assert retained == RETAINED_IDS
+    assert set(declared) == RETAINED_IDS | DEBT_IDS | DEBT_RELEASE_IDS
     assert all("pass_filenames" in check for check in checks)
     by_id = _check_by_id(registry)
     for check_id, (argv, selection) in DISPOSITIONS.items():
@@ -150,9 +165,9 @@ def _assert_profile_contract(registry: dict) -> None:
     }
     assert {profile: len(ids) for profile, ids in EXPECTED_PROFILES.items()} == {
         "quick": 31,
-        "full": 65,
-        "security": 4,
-        "release": 71,
+        "full": 65 + len(DEBT_IDS),
+        "security": 4 + len(DEBT_IDS),
+        "release": 71 + len(DEBT_IDS) + len(DEBT_RELEASE_IDS),
     }
     assert all(
         by_id[check_id]["selection"] == "project"
@@ -168,6 +183,7 @@ def _assert_profile_contract(registry: dict) -> None:
         by_id[check_id]["selection"] == DISPOSITIONS[check_id][1]
         for check_ids in EXPECTED_PROFILES.values()
         for check_id in check_ids
+        if check_id in DISPOSITIONS  # C3 debt.* ids: additive, not migrated
     )
 
 
@@ -253,7 +269,9 @@ def test_registry_schema_loads_and_exactly_closes_retained_profiles():
 
     _assert_retained_contract(preservation, raw_registry)
     _assert_profile_contract(raw_registry)
-    assert {check.id for check in registry["checks"]} == RETAINED_IDS
+    assert {check.id for check in registry["checks"]} == (
+        RETAINED_IDS | DEBT_IDS | DEBT_RELEASE_IDS
+    )
     for profile, expected_ids in EXPECTED_PROFILES.items():
         assert {check.id for check in resolve_checks(registry, profile, None)} == set(
             expected_ids

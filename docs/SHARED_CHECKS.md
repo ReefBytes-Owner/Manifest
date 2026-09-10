@@ -177,6 +177,90 @@ including the swapped-launcher and store-changed-mid-run cases), and
 contains `"provision"`; the allow-list is exactly `python3` + `bash` +
 repo-relative scripts).
 
+## Identity-based debt ratchet
+
+Debt allowances are per-**finding identity**, not per-file/rule count. A
+count cannot see a same-count replacement: fix one violation and introduce a
+different one in the same file, and the count is unchanged — the swap is
+invisible. `src/manifest_agent/checks/debt.py` keys each finding on
+
+```
+identity = sha256(check_id | repo_path | anchor | normalized_message | ordinal)
+```
+
+`anchor` is the innermost enclosing function/class (`""` at file level;
+never a line number, which churns on unrelated edits).
+`normalized_message` collapses digits, whitespace runs, and quoted paths, so
+"function is 72 lines" and "...73 lines" share an identity while the finding
+persists. `ordinal` is the 0-based, line-ordered index among otherwise-equal
+findings in one file — this is what catches the same-count replacement: a
+genuinely different finding landing in the same "slot" gets a different
+identity from whatever occupied that slot before.
+
+**Authority boundary**: `config/debt-baseline.json` (schema v2) is a
+**reviewed record, never agent-granted authority**. `--propose-baseline
+--output PATH` writes a complete proposal to a path *outside* the source
+tree; nothing in `debt.py` or the checks below may write the committed file
+in place, and no automatic path may apply a proposal. A human reviews and
+commits it, the same as any other source change.
+
+Verdict rules (`debt.py::evaluate`), against the candidate tree `F_cand` and
+the **protected base tree** `F_base` (`git archive <base_sha>`, materialized
+to a sibling temp dir outside the source worktree — `git archive` failure is
+BLOCKED, never an empty pass):
+
+| Condition | Verdict |
+|---|---|
+| In `F_cand`, not in `F_base`, no baseline entry | FAIL `new debt` |
+| Baseline entry's `expires` is before today | FAIL `expired exception` |
+| In `F_cand`, not in `F_base`, entry has `retired_base != null` | FAIL `restored debt` — a retired entry can never excuse a reappearance |
+| Baseline entry not retired, but its finding is no longer in `F_cand` | FAIL `stale entry: retire it` |
+| Baseline entry missing a required field, `expires` more than 180 days after `introduced_base`'s commit date, or a secret-shaped `reason` (`manifest_agent.process.redact_text`) | BLOCKED `invalid baseline` |
+
+`release` runs with `--baseline-from-base`: only the **base tree's**
+baseline excuses anything, so a candidate can never ship its own exception —
+its own baseline additions are reported under `proposed_exceptions` (data
+for a reviewer) but never applied.
+
+| Check | Scope | Trigger | Exception |
+|---|---|---|---|
+| `debt.constitution` | Code Constitution findings (`configs/claude/scripts/constitution_check.py --format json`) over tracked `*.py`/`*.sh`, non-advisory checks only (same scope as the retired count baseline) | `full`, `security`; `release` also runs `debt.constitution.release` (`--baseline-from-base`) | reviewed `config/debt-baseline.json` entry |
+| `debt.bundle-links` | `tools/check_bundle_link_references.py --json` violations | `full`, `security`; `release` also runs `debt.bundle-links.release` (`--baseline-from-base`) | reviewed `config/debt-baseline.json` entry |
+
+Both are `honors_status_contract` (`tools/project_checks/debt_checks.py`,
+exit 0/2/3). `configs/claude/scripts/constitution/baseline.py` (count-based)
+and `tools/bundle_link_baseline.py` are unchanged and keep gating their
+existing fast paths (`hook.constitution-check`'s pre-write path;
+`structure.bundle-references`'s own count ratchet) — this chunk adds the
+identity ratchet as new, additive project checks rather than rewiring those
+existing entry points, so neither baseline file's current behavior
+regresses. `config/debt-baseline.json` starts empty: every finding already
+present on the immediately-prior base tree is not "new debt" under the
+first rule regardless of whether an entry exists, so no entry is needed just
+to keep the repository's current state green — an entry is added only for a
+finding a human has reviewed and decided to accept.
+
+`constitution_check.py --update-baseline` is retired; propose an update to
+the identity ratchet with:
+
+```bash
+manifest check debt.constitution --propose-baseline --output /somewhere/outside/the/repo/proposal.json
+```
+
+Spec row: `rule` no new/expired/restored/stale structural debt → `tool`
+`src/manifest_agent/checks/debt.py`, `tools/project_checks/debt_checks.py`,
+`config/debt-baseline.json` → `scope` authored Python/Bash (constitution),
+plugin skill docs (bundle links) → `trigger` `full`/`security`/`release` →
+`failure` FAIL per the verdict table, BLOCKED on an unavailable base tree or
+an invalid baseline entry → `exception` reviewed baseline entry with owner +
+≤180-day expiry, never agent- or check-applied → `test`
+`tests/python/manifest_agent/test_debt.py` (identity scheme, the
+same-count-replacement proof, all five verdict rules, propose-baseline
+containment), `tests/python/constitution/test_anchor.py` (Python/Bash
+anchor computation), `tests/python/manifest_agent/test_debt_checks_cli.py`
+(end-to-end: BLOCKED on an unresolvable base, PASS on a clean repo, and the
+propose-baseline containment guarantee from the real CLI).
+
 ## Coverage limits
 
 `config/project-checks.json` still carries a nonempty `coverage_pending` list
