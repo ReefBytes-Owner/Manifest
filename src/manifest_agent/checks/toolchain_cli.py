@@ -1,7 +1,7 @@
 """Click adapter for `manifest provision` -- the only network-permitted path.
 
 `manifest check` never imports this module; a registry-level test
-(`test_check_registry.py::test_no_check_or_preparation_argv_invokes_provision`)
+(`test_toolchain_registry_guards.py::test_no_check_or_preparation_argv_invokes_provision`)
 asserts no check or preparation argv contains the string "provision".
 """
 
@@ -66,9 +66,19 @@ def _run_imports(
                 )
             )
             continue
+        # import_binary() itself refuses non-binary kinds and hash mismatches.
         ctx = provision_mod.ProvisionContext(store, lock, platform_id)
         outcomes.append(provision_mod.import_binary(ctx, name, entry, path))
     return outcomes
+
+
+def _resolve_safe_store(store_option: Path | None) -> Path:
+    """Resolve the store location through the enforced safety check, whether
+    it came from `--store` or the documented environment-variable precedence."""
+    env = dict(os.environ)
+    if store_option is not None:
+        env["MANIFEST_TOOLCHAIN_STORE"] = str(store_option)
+    return toolchain.store_root(env)
 
 
 @click.command("provision")
@@ -104,8 +114,16 @@ def _run_imports(
 def provision(context: click.Context, **options: Any) -> None:
     """Populate the content-addressed toolchain store from a reviewed lock."""
     platform_id = options["platform_id"] or toolchain.current_platform()
-    store = options["store"] or toolchain.store_root(os.environ)
     as_json = options["as_json"]
+    if options["imports"] and (options["offline"] or options["only"]):
+        raise click.UsageError("--import cannot be combined with --offline or --only")
+    try:
+        store = _resolve_safe_store(options["store"])
+    except toolchain.UnsafeStoreLocationError as error:
+        report = {"status": "blocked", "problems": [str(error)]}
+        click.echo(_render(report, as_json), nl=False)
+        context.exit(3)
+        return
     try:
         lock = _load_lock(options["lock"])
     except (OSError, ValueError) as error:

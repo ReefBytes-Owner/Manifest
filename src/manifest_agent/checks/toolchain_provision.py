@@ -113,7 +113,11 @@ def _platform_entry(
     entry: Mapping, bundle: str, platform: str
 ) -> dict | ProvisionOutcome:
     platform_entry = entry.get("platforms", {}).get(platform)
-    if platform_entry is None or platform_entry.get("sha256") is None:
+    if (
+        platform_entry is None
+        or platform_entry.get("sha256") is None
+        or platform_entry.get("exe_sha256") is None
+    ):
         return ProvisionOutcome(
             bundle, "blocked", f"toolchain: {bundle} unattested for {platform}"
         )
@@ -143,7 +147,18 @@ def _provision_binary_entry(
 def import_binary(
     ctx: ProvisionContext, bundle: str, entry: Mapping, source: Path
 ) -> ProvisionOutcome:
-    """Adopt an existing on-disk binary ONLY if its sha256 matches the lock."""
+    """Adopt an existing on-disk binary ONLY if its sha256 matches the lock.
+
+    Only `binary`-kind bundles can be adopted this way: a `python-env`/
+    `node-env` bundle has several console scripts, not one file to import.
+    """
+    if entry.get("kind") != "binary":
+        return ProvisionOutcome(
+            bundle,
+            "blocked",
+            f"toolchain: {bundle} is kind {entry.get('kind')!r}, "
+            "--import only adopts binary-kind tools",
+        )
     platform_entry = _platform_entry(entry, bundle, ctx.platform)
     if isinstance(platform_entry, ProvisionOutcome):
         return platform_entry
@@ -152,7 +167,7 @@ def import_binary(
             bundle, "blocked", f"toolchain: {bundle} import source missing"
         )
     actual_sha = toolchain.sha256_file(source)
-    if actual_sha != platform_entry["sha256"]:
+    if actual_sha != platform_entry["exe_sha256"]:
         return ProvisionOutcome(
             bundle, "blocked", f"toolchain: {bundle} digest mismatch"
         )
@@ -186,8 +201,11 @@ def validate_offline(
     """
     problems: list[str] = []
     for bundle, entry in (lock.get("tools") or {}).items():
-        expected = entry.get("platforms", {}).get(platform, {}).get("sha256")
-        if expected is None:
+        platform_entry = entry.get("platforms", {}).get(platform, {})
+        if (
+            platform_entry.get("sha256") is None
+            or platform_entry.get("exe_sha256") is None
+        ):
             continue  # unattested is not this store's fault; not "incomplete"
         for relative in _relative_scripts(entry, platform):
             relative = relative.format(bundle=bundle)

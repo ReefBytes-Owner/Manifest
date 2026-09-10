@@ -25,7 +25,16 @@ def _tar_gz_with(name: str, content: bytes) -> bytes:
     return buffer.getvalue()
 
 
-def _lock_for(bundle: str, sha256: str, *, path_in_archive: str = "demo") -> dict:
+def _lock_for(
+    bundle: str,
+    sha256: str | None,
+    *,
+    exe_sha256: str | None = "unset",
+    path_in_archive: str = "demo",
+) -> dict:
+    """`exe_sha256` (the lock's resolve-time trust anchor) defaults to
+    `sha256` (the archive hash) unless a distinct value is given -- most
+    fixtures here don't extract a differently-hashed file."""
     return {
         "schema_version": 1,
         "tools": {
@@ -36,6 +45,7 @@ def _lock_for(bundle: str, sha256: str, *, path_in_archive: str = "demo") -> dic
                     "linux-x64": {
                         "url": f"https://example.invalid/{bundle}.tar.gz",
                         "sha256": sha256,
+                        "exe_sha256": sha256 if exe_sha256 == "unset" else exe_sha256,
                         "path_in_archive": path_in_archive,
                     }
                 },
@@ -49,7 +59,8 @@ class TestProvisionBinary:
         content = b"#!/bin/sh\necho demo\n"
         archive = _tar_gz_with("demo", content)
         sha = hashlib.sha256(archive).hexdigest()
-        lock = _lock_for("demo", sha)
+        exe_sha = hashlib.sha256(content).hexdigest()
+        lock = _lock_for("demo", sha, exe_sha256=exe_sha)
         store = tmp_path / "store"
 
         outcomes = provision_mod.provision(
@@ -60,11 +71,10 @@ class TestProvisionBinary:
         exe_path = store / "tools/demo/1.0.0/bin/demo"
         assert exe_path.read_bytes() == content
         manifest = json.loads((store / "manifest.json").read_text())
-        assert manifest["tools"]["demo"]["executables"]["bin/demo"]["sha256"] == (
-            hashlib.sha256(content).hexdigest()
-        )
+        assert manifest["tools"]["demo"]["executables"]["bin/demo"]["sha256"] == exe_sha
 
-        # And resolve() now succeeds against exactly this store + lock.
+        # And resolve() now succeeds against exactly this store + lock,
+        # anchored on the lock's exe_sha256 -- not the store manifest's.
         resolved = toolchain.resolve(
             "store:demo/bin/demo", lock=lock, store=store, platform="linux-x64"
         )
@@ -96,6 +106,20 @@ class TestProvisionBinary:
             )
         ]
 
+    def test_provision_unattested_when_exe_sha256_is_null(self, tmp_path):
+        """The archive sha256 alone is not enough to provision: exe_sha256
+        null is unattested too -- committed-but-unfilled locks (like the
+        real `config/toolchain.lock.json` today) must stay BLOCKED."""
+        lock = _lock_for("demo", "1" * 64, exe_sha256=None)
+        outcomes = provision_mod.provision(
+            lock, tmp_path / "store", platform="linux-x64", fetcher=lambda url: b""
+        )
+        assert outcomes == [
+            provision_mod.ProvisionOutcome(
+                "demo", "blocked", "toolchain: demo unattested for linux-x64"
+            )
+        ]
+
     def test_only_filters_to_named_bundles(self, tmp_path):
         content = b"demo"
         archive = _tar_gz_with("demo", content)
@@ -123,6 +147,7 @@ class TestProvisionBinary:
                         "linux-x64": {
                             "url": "file://x",
                             "sha256": "2" * 64,
+                            "exe_sha256": "2" * 64,
                             "path_in_archive": ".",
                         }
                     },
@@ -178,6 +203,22 @@ class TestImportBinary:
         assert outcome.status == "blocked"
         assert "import source missing" in outcome.reason
 
+    def test_import_refuses_a_non_binary_kind_bundle(self, tmp_path):
+        """`--import` only adopts `binary`-kind tools; a `python-env`/
+        `node-env` bundle (multi-script, no single "the binary") must be
+        refused, not silently mis-adopted as one raw file."""
+        lock = _lock_for("demo", "a" * 64)
+        lock["tools"]["demo"]["kind"] = "python-env"
+        source = tmp_path / "external-binary"
+        source.write_bytes(b"irrelevant")
+        store = tmp_path / "store"
+        ctx = provision_mod.ProvisionContext(store, lock, "linux-x64")
+        outcome = provision_mod.import_binary(
+            ctx, "demo", lock["tools"]["demo"], source
+        )
+        assert outcome.status == "blocked"
+        assert "kind" in outcome.reason
+
 
 class TestValidateOffline:
     def test_empty_store_against_attested_lock_is_incomplete(self, tmp_path):
@@ -192,7 +233,8 @@ class TestValidateOffline:
         content = b"demo"
         archive = _tar_gz_with("demo", content)
         sha = hashlib.sha256(archive).hexdigest()
-        lock = _lock_for("demo", sha)
+        exe_sha = hashlib.sha256(content).hexdigest()
+        lock = _lock_for("demo", sha, exe_sha256=exe_sha)
         store = tmp_path / "store"
         provision_mod.provision(
             lock, store, platform="linux-x64", fetcher=lambda u: archive
@@ -202,7 +244,7 @@ class TestValidateOffline:
         assert problems == []
 
     def test_unattested_entries_do_not_count_against_completeness(self, tmp_path):
-        lock = _lock_for("demo", None)
+        lock = _lock_for("demo", None, exe_sha256=None)
         complete, problems = provision_mod.validate_offline(
             lock, tmp_path / "store", "linux-x64"
         )
@@ -223,6 +265,7 @@ class TestValidateOffline:
                         "linux-x64": {
                             "url": "file://config/toolchain/pyproject.toml",
                             "sha256": "a" * 64,
+                            "exe_sha256": "a" * 64,
                             "path_in_archive": ".",
                             "console_scripts": ["bin/ruff", "bin/yamllint"],
                         }

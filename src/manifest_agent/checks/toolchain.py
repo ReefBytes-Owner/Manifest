@@ -88,16 +88,36 @@ def current_platform() -> str:
     return f"{system}-{machine}"
 
 
-def store_root(env: Mapping[str, str]) -> Path:
-    """Resolve the toolchain store location, honoring the documented precedence."""
+class UnsafeStoreLocationError(ValueError):
+    """The resolved store location is inside a forbidden root."""
+
+
+def store_root(env: Mapping[str, str], *forbidden_roots: Path) -> Path:
+    """Resolve the toolchain store location, honoring the documented precedence.
+
+    Enforced, not merely documented: the resolved location must not be, or
+    be inside, the process's current working directory (the repository
+    checkout `manifest check`/`manifest provision` always run from) or any
+    caller-supplied `forbidden_roots` (e.g. the disposable candidate).
+    """
     override = env.get(STORE_ENV_VAR, "")
     if override:
-        return Path(override)
-    xdg_cache = env.get(XDG_CACHE_ENV_VAR, "")
-    if xdg_cache:
-        return Path(xdg_cache) / "manifest" / "toolchain"
-    home = env.get("HOME", "") or os.path.expanduser("~")
-    return Path(home) / DEFAULT_CACHE_RELATIVE
+        resolved = Path(override)
+    else:
+        xdg_cache = env.get(XDG_CACHE_ENV_VAR, "")
+        if xdg_cache:
+            resolved = Path(xdg_cache) / "manifest" / "toolchain"
+        else:
+            home = env.get("HOME", "") or os.path.expanduser("~")
+            resolved = Path(home) / DEFAULT_CACHE_RELATIVE
+    absolute = Path(os.path.abspath(resolved))
+    for forbidden in (Path.cwd(), *forbidden_roots):
+        forbidden = Path(os.path.abspath(forbidden))
+        if absolute == forbidden or absolute.is_relative_to(forbidden):
+            raise UnsafeStoreLocationError(
+                f"toolchain store must not resolve inside {forbidden}"
+            )
+    return resolved
 
 
 def sha256_file(path: Path) -> str:
@@ -113,19 +133,36 @@ def lock_digest(lock: Mapping) -> str:
     return hashlib.sha256(serialized).hexdigest()
 
 
-def lock_digest_for_registry(document: Mapping, registry_path: Path) -> dict[str, str]:
-    """Compute the (`toolchain_lock`, `toolchain_lock_digest`) registry fields.
+def lock_digest_for_registry(
+    document: Mapping, registry_path: Path
+) -> dict[str, object]:
+    """Compute the (`toolchain_lock`, `toolchain_lock_digest`,
+    `toolchain_lock_document`) registry fields.
 
     The digest is folded into `config_digest` for free: it becomes part of
     the normalized registry document that `runner._config_digest` hashes.
+    `toolchain_lock_document` is what `runner.py` actually resolves `store:`
+    tools against -- without it, every `store:` reference would BLOCK as
+    unattested even after a successful `manifest provision` (this was a real
+    defect in the first cut: the digest was folded in, but the lock content
+    itself never reached the runner for a registry loaded from a real file).
     """
     relative = document.get("toolchain_lock", "") or ""
-    digest = ""
+    digest, lock_document = "", {}
     if relative:
         candidate = registry_path.resolve().parent.parent / relative
         if candidate.is_file():
-            digest = hashlib.sha256(candidate.read_bytes()).hexdigest()
-    return {"toolchain_lock": relative, "toolchain_lock_digest": digest}
+            raw = candidate.read_bytes()
+            digest = hashlib.sha256(raw).hexdigest()
+            try:
+                lock_document = json.loads(raw)
+            except ValueError:
+                lock_document = {}
+    return {
+        "toolchain_lock": relative,
+        "toolchain_lock_digest": digest,
+        "toolchain_lock_document": lock_document,
+    }
 
 
 def load_lock_file(path: Path) -> dict:
@@ -142,6 +179,15 @@ def load_store_manifest(store: Path) -> dict | None:
         return None
 
 
+def _safe_relative(value: str) -> bool:
+    """A store-manifest-provided relative path is untrusted: reject absolute
+    paths and `..` traversal before ever joining it onto the store root."""
+    if not value:
+        return False
+    path = Path(value)
+    return not path.is_absolute() and ".." not in path.parts
+
+
 def resolve(
     store_reference: str, *, lock: Mapping, store: Path, platform: str
 ) -> ResolvedTool | BlockedReason:
@@ -151,6 +197,13 @@ def resolve(
     exactly: every BLOCKED path below returns one of its distinct reason
     strings, and nothing here can return PASS -- callers still run the
     existing version probe once resolution succeeds.
+
+    Trust boundary: the lock is trusted, the store is not. The executable's
+    hash is verified against the lock's `exe_sha256` -- never against the
+    store's own `manifest.json`, which a store-writer fully controls and
+    could rewrite consistently with a swapped binary. The store manifest is
+    consulted only to *locate* the file and for `source_sha256`/staleness
+    bookkeeping; it never supplies a security-relevant hash.
     """
     parsed = parse_store_executable(store_reference)
     if parsed is None:
@@ -158,7 +211,8 @@ def resolve(
     bundle, relative = parsed
     entry = (lock.get("tools") or {}).get(bundle)
     platform_entry = (entry or {}).get("platforms", {}).get(platform)
-    if entry is None or platform_entry is None or platform_entry.get("sha256") is None:
+    exe_sha256 = (platform_entry or {}).get("exe_sha256")
+    if entry is None or platform_entry is None or exe_sha256 is None:
         return BlockedReason(f"toolchain: {bundle} unattested for {platform}")
 
     manifest = load_store_manifest(store)
@@ -174,7 +228,7 @@ def resolve(
         return BlockedReason(
             f"toolchain: {bundle} not provisioned (run manifest provision)"
         )
-    if bundle_manifest.get("source_sha256") != platform_entry["sha256"]:
+    if bundle_manifest.get("source_sha256") != platform_entry.get("sha256"):
         return BlockedReason("toolchain: store stale (lock changed)")
 
     exe_info = (bundle_manifest.get("executables") or {}).get(relative)
@@ -182,22 +236,33 @@ def resolve(
         return BlockedReason(
             f"toolchain: {bundle} not provisioned (run manifest provision)"
         )
-    return _verify_exe(bundle, relative, exe_info, store)
+    return _verify_exe(bundle, exe_info, store, exe_sha256)
 
 
-def _verify_exe(bundle: str, relative: str, exe_info: Mapping, store: Path):
-    exe_path = store / exe_info.get("path", "")
-    if not exe_info.get("path") or not exe_path.is_file():
+def _verify_exe(bundle: str, exe_info: Mapping, store: Path, exe_sha256: str):
+    """Re-hash the store's file at the path it claims -- against the lock's
+    `exe_sha256`, never the store manifest's own recorded hash."""
+    relative_path = exe_info.get("path", "")
+    if not _safe_relative(relative_path):
+        return BlockedReason(
+            f"toolchain: {bundle} not provisioned (run manifest provision)"
+        )
+    exe_path = store / relative_path
+    if not exe_path.is_file():
         return BlockedReason(
             f"toolchain: {bundle} not provisioned (run manifest provision)"
         )
     actual = sha256_file(exe_path)
-    if actual != exe_info.get("sha256"):
+    if actual != exe_sha256:
         return BlockedReason(f"toolchain: {bundle} digest mismatch")
 
     interpreter_path = None
     interpreter_relative = exe_info.get("interpreter")
     if interpreter_relative:
+        if not _safe_relative(interpreter_relative):
+            return BlockedReason(
+                f"toolchain: {bundle} not provisioned (run manifest provision)"
+            )
         interpreter_path = store / interpreter_relative
         if not interpreter_path.is_file():
             return BlockedReason(
@@ -252,21 +317,36 @@ def fingerprint_for(
     return fingerprint(store_root(env), {resolved.bundle: resolved})
 
 
+def integrity_reason(
+    store_before: Mapping[str, str],
+    store_after: Mapping[str, str],
+    changed: bool,
+    identity_error: str,
+) -> str:
+    """Empty unless the store or the candidate changed during a check's run."""
+    if store_before != store_after:
+        return "toolchain: store changed during run"
+    return "candidate identity changed" if changed else identity_error
+
+
 def resolve_for_preflight(
-    tool: Mapping, env: Mapping[str, str], lock: Mapping
+    tool: Mapping, env: Mapping[str, str], lock: Mapping, candidate_root: Path
 ) -> tuple[ResolvedTool | None, tuple[str, ...], dict[str, str], str | None]:
     """Resolve a `store:` executable for the runner's preflight step.
 
+    `candidate_root` is an enforced forbidden root: the store must not
+    resolve inside the disposable candidate the check is running against.
     Returns `(resolved_tool, version_argv, env, blocked_reason)`; plain-name
     tools pass through unchanged (`resolved=None, blocked_reason=None`).
     """
     if parse_store_executable(tool["executable"]) is None:
         return None, tuple(tool["version_argv"]), env, None
+    try:
+        store = store_root(env, candidate_root)
+    except UnsafeStoreLocationError as error:
+        return None, (), env, f"toolchain: {error}"
     outcome = resolve(
-        tool["executable"],
-        lock=lock,
-        store=store_root(env),
-        platform=current_platform(),
+        tool["executable"], lock=lock, store=store, platform=current_platform()
     )
     if isinstance(outcome, BlockedReason):
         return None, (), env, outcome.reason

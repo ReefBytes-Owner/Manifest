@@ -34,6 +34,22 @@ def test_no_tool_executable_or_version_argv_invokes_provision():
         )
 
 
+def test_loading_the_real_registry_populates_the_lock_document():
+    """The specific defect a review round caught: `load_registry` folded the
+    lock's digest into `config_digest` but never handed the parsed lock
+    content itself to the runner, so every `store:` tool would BLOCK as
+    unattested even after a successful `manifest provision`. This loads the
+    REAL `config/project-checks.json` + `config/toolchain.lock.json` --
+    not a hand-built fixture -- and asserts the document actually arrived."""
+    registry = load_registry(REGISTRY_PATH)
+    assert registry["toolchain_lock"] == "config/toolchain.lock.json"
+    assert len(registry["toolchain_lock_digest"]) == 64
+    document = registry["toolchain_lock_document"]
+    assert document["schema_version"] == 1
+    assert "gitleaks" in document["tools"]
+    assert document["tools"]["gitleaks"]["kind"] == "binary"
+
+
 @pytest.mark.parametrize("name", ["python3", "bash"])
 def test_always_present_interpreter_allow_list(name):
     """The allow-list a schema/registry migration to `store:` must respect --

@@ -13,7 +13,7 @@ import json
 import tarfile
 from pathlib import Path
 
-from click.testing import CliRunner
+from click.testing import CliRunner, Result
 
 from manifest_agent.cli import cli
 
@@ -27,7 +27,14 @@ def _tar_gz_with(name: str, content: bytes) -> bytes:
     return buffer.getvalue()
 
 
-def _write_lock(tmp_path: Path, *, sha256: str | None, archive_path: Path) -> Path:
+def _write_lock(
+    tmp_path: Path,
+    *,
+    sha256: str | None,
+    archive_path: Path,
+    exe_sha256: str | None = "unset",
+) -> Path:
+    """`exe_sha256` defaults to `sha256` unless a distinct value is given."""
     lock = {
         "schema_version": 1,
         "tools": {
@@ -38,6 +45,7 @@ def _write_lock(tmp_path: Path, *, sha256: str | None, archive_path: Path) -> Pa
                     "the-platform": {
                         "url": f"file://{archive_path}",
                         "sha256": sha256,
+                        "exe_sha256": sha256 if exe_sha256 == "unset" else exe_sha256,
                         "path_in_archive": "demo",
                     }
                 },
@@ -49,16 +57,8 @@ def _write_lock(tmp_path: Path, *, sha256: str | None, archive_path: Path) -> Pa
     return lock_path
 
 
-def _runner() -> CliRunner:
-    return CliRunner()
-
-
-def test_offline_against_empty_store_exits_3(tmp_path):
-    archive_path = tmp_path / "demo.tar.gz"
-    archive_path.write_bytes(_tar_gz_with("demo", b"content"))
-    lock_path = _write_lock(tmp_path, sha256="a" * 64, archive_path=archive_path)
-    store = tmp_path / "store"
-    result = _runner().invoke(
+def _invoke(lock_path: Path, store: Path, *extra: str) -> Result:
+    return CliRunner().invoke(
         cli,
         [
             "provision",
@@ -68,10 +68,17 @@ def test_offline_against_empty_store_exits_3(tmp_path):
             str(store),
             "--platform",
             "the-platform",
-            "--offline",
-            "--json",
+            *extra,
         ],
     )
+
+
+def test_offline_against_empty_store_exits_3(tmp_path):
+    archive_path = tmp_path / "demo.tar.gz"
+    archive_path.write_bytes(_tar_gz_with("demo", b"content"))
+    lock_path = _write_lock(tmp_path, sha256="a" * 64, archive_path=archive_path)
+    store = tmp_path / "store"
+    result = _invoke(lock_path, store, "--offline", "--json")
     assert result.exit_code == 3, result.output
     payload = json.loads(result.output)
     assert payload["status"] == "incomplete"
@@ -84,41 +91,19 @@ def test_provision_then_offline_check_succeeds(tmp_path):
     archive_path = tmp_path / "demo.tar.gz"
     archive_path.write_bytes(archive_bytes)
     sha = hashlib.sha256(archive_bytes).hexdigest()
-    lock_path = _write_lock(tmp_path, sha256=sha, archive_path=archive_path)
+    exe_sha = hashlib.sha256(content).hexdigest()
+    lock_path = _write_lock(
+        tmp_path, sha256=sha, archive_path=archive_path, exe_sha256=exe_sha
+    )
     store = tmp_path / "store"
 
-    provision_result = _runner().invoke(
-        cli,
-        [
-            "provision",
-            "--lock",
-            str(lock_path),
-            "--store",
-            str(store),
-            "--platform",
-            "the-platform",
-            "--json",
-        ],
-    )
+    provision_result = _invoke(lock_path, store, "--json")
     assert provision_result.exit_code == 0, provision_result.output
     payload = json.loads(provision_result.output)
     assert payload["status"] == "complete"
     assert payload["outcomes"][0]["status"] == "provisioned"
 
-    offline_result = _runner().invoke(
-        cli,
-        [
-            "provision",
-            "--lock",
-            str(lock_path),
-            "--store",
-            str(store),
-            "--platform",
-            "the-platform",
-            "--offline",
-            "--json",
-        ],
-    )
+    offline_result = _invoke(lock_path, store, "--offline", "--json")
     assert offline_result.exit_code == 0, offline_result.output
     assert json.loads(offline_result.output)["status"] == "complete"
 
@@ -129,23 +114,29 @@ def test_provision_digest_mismatch_exits_3(tmp_path):
     archive_path.write_bytes(archive_bytes)
     lock_path = _write_lock(tmp_path, sha256="0" * 64, archive_path=archive_path)
     store = tmp_path / "store"
-    result = _runner().invoke(
-        cli,
-        [
-            "provision",
-            "--lock",
-            str(lock_path),
-            "--store",
-            str(store),
-            "--platform",
-            "the-platform",
-            "--json",
-        ],
-    )
+    result = _invoke(lock_path, store, "--json")
     assert result.exit_code == 3, result.output
     payload = json.loads(result.output)
     assert payload["status"] == "blocked"
     assert "digest mismatch" in payload["outcomes"][0]["reason"]
+
+
+def test_provision_refuses_when_exe_sha256_is_unset(tmp_path):
+    """Archive `sha256` alone is not enough: `exe_sha256: null` must still
+    BLOCK as unattested, matching the committed real lock's current state."""
+    archive_bytes = _tar_gz_with("demo", b"content")
+    archive_path = tmp_path / "demo.tar.gz"
+    archive_path.write_bytes(archive_bytes)
+    sha = hashlib.sha256(archive_bytes).hexdigest()
+    lock_path = _write_lock(
+        tmp_path, sha256=sha, archive_path=archive_path, exe_sha256=None
+    )
+    store = tmp_path / "store"
+    result = _invoke(lock_path, store, "--json")
+    assert result.exit_code == 3, result.output
+    payload = json.loads(result.output)
+    assert payload["status"] == "blocked"
+    assert "unattested" in payload["outcomes"][0]["reason"]
 
 
 def test_import_wrong_hash_is_refused(tmp_path):
@@ -155,23 +146,49 @@ def test_import_wrong_hash_is_refused(tmp_path):
     store = tmp_path / "store"
     external = tmp_path / "external-binary"
     external.write_bytes(b"not the pinned bytes")
-    result = _runner().invoke(
-        cli,
-        [
-            "provision",
-            "--lock",
-            str(lock_path),
-            "--store",
-            str(store),
-            "--platform",
-            "the-platform",
-            "--import",
-            f"demo={external}",
-            "--json",
-        ],
-    )
+    result = _invoke(lock_path, store, "--import", f"demo={external}", "--json")
     assert result.exit_code == 3, result.output
     payload = json.loads(result.output)
     assert payload["status"] == "blocked"
     assert "digest mismatch" in payload["outcomes"][0]["reason"]
     assert not (store / "tools").exists()
+
+
+def test_import_combined_with_offline_is_a_usage_error(tmp_path):
+    archive_path = tmp_path / "demo.tar.gz"
+    archive_path.write_bytes(_tar_gz_with("demo", b"irrelevant"))
+    lock_path = _write_lock(tmp_path, sha256="f" * 64, archive_path=archive_path)
+    store = tmp_path / "store"
+    external = tmp_path / "external-binary"
+    external.write_bytes(b"irrelevant")
+    result = _invoke(
+        lock_path, store, "--import", f"demo={external}", "--offline", "--json"
+    )
+    assert result.exit_code == 2, result.output
+    assert "cannot be combined" in result.output
+
+
+def test_import_combined_with_only_is_a_usage_error(tmp_path):
+    archive_path = tmp_path / "demo.tar.gz"
+    archive_path.write_bytes(_tar_gz_with("demo", b"irrelevant"))
+    lock_path = _write_lock(tmp_path, sha256="f" * 64, archive_path=archive_path)
+    store = tmp_path / "store"
+    external = tmp_path / "external-binary"
+    external.write_bytes(b"irrelevant")
+    result = _invoke(
+        lock_path, store, "--import", f"demo={external}", "--only", "demo", "--json"
+    )
+    assert result.exit_code == 2, result.output
+    assert "cannot be combined" in result.output
+
+
+def test_store_inside_repo_cwd_is_refused(tmp_path):
+    archive_path = tmp_path / "demo.tar.gz"
+    archive_path.write_bytes(_tar_gz_with("demo", b"content"))
+    lock_path = _write_lock(tmp_path, sha256="a" * 64, archive_path=archive_path)
+    unsafe_store = Path.cwd() / ".manifest-toolchain-store-test"
+    result = _invoke(lock_path, unsafe_store, "--offline", "--json")
+    assert result.exit_code == 3, result.output
+    payload = json.loads(result.output)
+    assert payload["status"] == "blocked"
+    assert "must not resolve inside" in payload["problems"][0]

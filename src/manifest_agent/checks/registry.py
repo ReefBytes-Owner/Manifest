@@ -417,9 +417,7 @@ def load_registry(path: Path) -> dict[str, Any]:
     """Load a registry after structural and semantic validation."""
     document = read_validated_document(path)
     _validate_semantics(document)
-    normalized = _normalize(document)
-    normalized.update(lock_digest_for_registry(document, path))
-    return normalized
+    return _normalize(document) | lock_digest_for_registry(document, path)
 
 
 def resolve_checks(

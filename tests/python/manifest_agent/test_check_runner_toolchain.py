@@ -57,6 +57,7 @@ def _provision_store(store, *, script: str | None = None) -> tuple[dict, str]:
                     "the-platform": {
                         "url": "https://example.invalid/demo.tar.gz",
                         "sha256": exe_sha,
+                        "exe_sha256": exe_sha,
                         "path_in_archive": "demo",
                     }
                 },

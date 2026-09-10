@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://manifest.local/schemas/toolchain.lock.schema.json",
   "title": "Manifest toolchain lock",
-  "description": "Content-addressed provisioning lock for manifest provision. Every tool entry names the artifact kind, its per-platform source, and a sha256 that a real download must satisfy. An entry with sha256: null is unattested and must resolve to BLOCKED, never PASS.",
+  "description": "Content-addressed provisioning lock for manifest provision. Every tool entry names the artifact kind, its per-platform source, a sha256 that a real download must satisfy, and an exe_sha256 that is the sole trust anchor toolchain.resolve() verifies the materialized executable against (never the store's own manifest.json). An entry with sha256 or exe_sha256: null is unattested and must resolve to BLOCKED, never PASS.",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema_version", "tools"],
@@ -46,10 +46,17 @@
     "platformEntry": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["url", "sha256", "path_in_archive"],
+      "required": ["url", "sha256", "exe_sha256", "path_in_archive"],
       "properties": {
         "url": { "$ref": "#/$defs/nonEmptyString" },
-        "sha256": { "$ref": "#/$defs/sha256OrNull" },
+        "sha256": {
+          "$ref": "#/$defs/sha256OrNull",
+          "description": "Hash of the downloaded archive/binary, verified by manifest provision before extraction."
+        },
+        "exe_sha256": {
+          "$ref": "#/$defs/sha256OrNull",
+          "description": "Hash of the materialized executable itself -- the trust anchor `toolchain.resolve()` verifies at every preflight. Null is unattested and must resolve to BLOCKED, never PASS; the store's own manifest.json is never trusted for this value."
+        },
         "path_in_archive": { "$ref": "#/$defs/nonEmptyString" },
         "console_scripts": {
           "description": "python-env / node-env only: console-script relative paths hashed after materialization.",

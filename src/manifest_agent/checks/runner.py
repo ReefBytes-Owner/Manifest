@@ -68,26 +68,6 @@ def _identity_error(candidate: Candidate) -> str:
     return ""
 
 
-def _integrity_diagnostic(
-    candidate: Candidate,
-    before: tuple[dict, dict, dict],
-    resolved: toolchain.ResolvedTool | None,
-    env: dict[str, str],
-) -> str:
-    """Empty unless the candidate or the resolved store tool changed mid-check."""
-    files, git_files, store = before
-    if store != toolchain.fingerprint_for(resolved, env):
-        return "toolchain: store changed during run"
-    try:
-        changed = files != _walk(
-            candidate.root, exclude=(".git",)
-        ) or git_files != _walk(candidate.root / ".git")
-        identity_error = _identity_error(candidate)
-    except (CandidateBlockedError, OSError) as error:
-        changed, identity_error = True, redact_text(str(error))
-    return "candidate identity changed" if changed else identity_error
-
-
 def execute_check(
     check: CheckSpec,
     candidate: Candidate,
@@ -112,8 +92,15 @@ def execute_check(
     env = toolchain.resolved_env(env, resolved) if resolved is not None else env
     store_before = toolchain.fingerprint_for(resolved, env)
     result = run_argv(argv, cwd=cwd, env=env, timeout_seconds=check.timeout_seconds)
-    diagnostic = _integrity_diagnostic(
-        candidate, (before, git_before, store_before), resolved, env
+    try:
+        changed = before != _walk(
+            candidate.root, exclude=(".git",)
+        ) or git_before != _walk(candidate.root / ".git")
+        identity_error = _identity_error(candidate)
+    except (CandidateBlockedError, OSError) as error:
+        changed, identity_error = True, redact_text(str(error))
+    diagnostic = toolchain.integrity_reason(
+        store_before, toolchain.fingerprint_for(resolved, env), changed, identity_error
     )
     if diagnostic:
         return CheckResult(
@@ -224,11 +211,15 @@ def _module_result(tool: dict, cwd: Path, env: dict[str, str]) -> ProcessResult 
 
 
 def _preflight_tool(
-    tool: dict, cwd: Path, env: dict[str, str], lock: dict | None = None
+    tool: dict,
+    cwd: Path,
+    env: dict[str, str],
+    lock: dict | None = None,
+    candidate_root: Path | None = None,
 ) -> ToolOutcome:
     lock = lock or {}
     resolved, version_argv, env, blocked_reason = toolchain.resolve_for_preflight(
-        tool, env, lock
+        tool, env, lock, candidate_root or cwd
     )
     if blocked_reason is not None:
         blocked = ProcessResult(None, "", "", 0.0, error=blocked_reason)
@@ -367,6 +358,7 @@ def _prepare_for_checks(
                 cwd,
                 env,
                 registry.get("toolchain_lock_document", {}),
+                candidate.root,
             )
         failure = _preflight_error(tool_results[tool_key])
         if failure:
@@ -439,7 +431,7 @@ def _run_check(
     lock = context.registry.get("toolchain_lock_document", {})
     if tool_key not in context.tool_results:
         context.tool_results[tool_key] = _preflight_tool(
-            context.registry["tools"][check.tool], cwd, env, lock
+            context.registry["tools"][check.tool], cwd, env, lock, candidate.root
         )
     outcome = context.tool_results[tool_key]
     failure = _preflight_error(outcome)
