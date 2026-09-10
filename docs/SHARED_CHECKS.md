@@ -371,18 +371,18 @@ instead of silently resolving whatever happens to be on `PATH`. Test:
 |---|---|---|---|
 | `lint.shell.scripts`, `lint.shell.bootstrap`, `hook.shellcheck` | `distribution:shellcheck-py=0.11.0.1;command:shellcheck=0.11.0` | `command:shellcheck=0.11.0` | **Attested for `linux-x64` and `darwin-arm64` (C7) from the pinned release archives; passes once `manifest provision` has populated the store.** Body resolves `store:shellcheck/bin/shellcheck` via `tools/project_checks/toolchain_resolve.py`; the registry-level version probe (drift detection only, not a security control) is unchanged. |
 | `hook.shfmt` | `"ok"` (unpinned placeholder) | `command:shfmt=3.13.1`; body argv is `-d` (check-only), never `-w` | **Attested for both platforms (C7); BLOCKED only until `manifest provision` runs.** Body resolves `store:shfmt/bin/shfmt`. |
-| `lint.yaml.config`, `hook.yamllint` | `distribution:pyyaml=6.0.2;distribution:yamllint=1.38.0;command:yamllint=1.38.0` | `distribution:yamllint=1.38.0` | **Yes — BLOCKED unattested until C7 (twice over: `python-env` is also not yet an implemented provision kind).** Body resolves `store:python-env/bin/yamllint`. |
-| `hook.markdownlint-cli2` | already `command:markdownlint-cli2=0.23.0` | unchanged | **Yes — BLOCKED unattested until C7.** Direct-argv check; registry `tool.executable` and `check.argv[0]` are both `store:node-env/bin/markdownlint-cli2` (same generic runner rewrite `test.bats` already used — no wrapper body needed). |
+| `lint.yaml.config`, `hook.yamllint` | `distribution:pyyaml=6.0.2;distribution:yamllint=1.38.0;command:yamllint=1.38.0` | `distribution:yamllint=1.38.0` | **Attested for `darwin-arm64` (C7b); `linux-x64` stays BLOCKED pending a CI attestation run.** Body resolves `store:python-env/bin/yamllint`; the registry version probe now runs under `store:python-env/bin/python`. |
+| `hook.markdownlint-cli2` | already `command:markdownlint-cli2=0.23.0` | unchanged | **Attested for `darwin-arm64` (C7b); `linux-x64` pending CI attestation.** Direct-argv check; registry `tool.executable` and `check.argv[0]` are both `store:node-env/bin/markdownlint-cli2` (same generic runner rewrite `test.bats` already used — no wrapper body needed). |
 | `test.bats` | `./node_modules/.bin/bats` | `command:bats=1.11.1`; argv is `store:node-env/bin/bats` | Yes (unchanged from before this chunk). |
-| `test.bundle-partition` | `"ok"` + hardcoded BLOCKED (`npx` control) | `command:bats=1.11.1`; runs `tests/bats/bundle_partition.bats` | **Yes — BLOCKED unattested until C7.** Body resolves `store:node-env/bin/bats`. |
+| `test.bundle-partition` | `"ok"` + hardcoded BLOCKED (`npx` control) | `command:bats=1.11.1`; runs `tests/bats/bundle_partition.bats` | **Attested for `darwin-arm64` (C7b); `linux-x64` pending CI attestation.** Body resolves `store:node-env/bin/bats`; the preflight now names `--executable store:node-env/bin/bats` explicitly (C7c). |
 | `hook.gitleaks` | `command:gitleaks=8.30.0` | `command:gitleaks=8.30.1` | **Attested for `linux-x64` and `darwin-arm64` (C7) from the pinned release archives; passes once `manifest provision` has populated the store.** Body resolves `store:gitleaks/bin/gitleaks` via `tools/project_checks/toolchain_resolve.py`; C2b left this on `shutil.which("gitleaks")` (out of that chunk's explicit scope, created by C6b afterwards), which C2c's audit caught and closed. |
-| `dependency.lock.config`, `dependency.lock.delegate`, `dependency.lock.root`, `package.coordinator`, `package.config` | `command:uv=0.12.6` | unchanged | **Attested for both platforms (C7); BLOCKED only until `manifest provision` runs.** Body resolves `store:uv/bin/uv` via `packages.py::_uv`. |
-| `dependency.lock.node`, `package.node-runtime` | `"ok"` | unchanged | **Yes — BLOCKED unavailable until C7 (twice over: the `binary`-kind provisioner records only `bin/node`, not `bin/npm`, so `npm` needs a provisioner extension too).** Body resolves `store:node/bin/node` / `store:node/bin/npm` via `dependency_checks.py`. |
-| `hook.ruff`, `hook.ruff-format` | `distribution:ruff=0.15.20` | unchanged | **Yes (C2c) — BLOCKED unattested until C7 (twice over: `python-env` is also not yet an implemented provision kind).** Direct-argv checks; `tool.executable`/`check.argv[0]` are `store:python-env/bin/ruff`. |
-| `hook.eslint` | `command:eslint=9.18.0` | unchanged | **Yes (C2c) — BLOCKED unattested until C7 (twice over: `node-env` is not yet an implemented provision kind).** Direct-argv check; `tool.executable`/`check.argv[0]` are `store:node-env/bin/eslint`. |
-| `test.python`, `test.hooks` | `distribution:pytest=8.3.4` | unchanged | **Yes (C2c) — BLOCKED unattested until C7 (twice over, `python-env`).** Direct-argv checks; `tool.executable`/`check.argv[0]` are `store:python-env/bin/pytest`. |
-| `hook.check-yaml`, `hook.check-json`, `hook.check-added-large-files`, `hook.check-case-conflict`, `hook.check-merge-conflict`, `hook.check-executables-have-shebangs`, `hook.check-shebang-scripts-are-executable`, `hook.detect-private-key`, `hook.check-ast`, `hook.debug-statements` | `distribution:pre-commit-hooks=6.0.0` | unchanged | **Yes (C2c) — BLOCKED unattested until C7 (twice over, `python-env`).** Direct-argv checks; each `tool.executable`/`check.argv[0]` is `store:python-env/bin/<console-script>` (e.g. `store:python-env/bin/check-yaml`). |
-| `hook.trailing-whitespace`, `hook.end-of-file-fixer`, `hook.mixed-line-ending` | `distribution:pre-commit-hooks=6.0.0` | unchanged | **Yes (C2c) — BLOCKED unattested until C7 (twice over, `python-env`).** Wrapper body: `hooks.py::_pinned_fixer` delegates to the new `tools/project_checks/hook_fixers.py::run`, which resolves `store:python-env/bin/<console-script>` and then re-applies the same pinned-distribution/entry-point/source-provenance checks as before against the resolved executable. |
+| `dependency.lock.config`, `dependency.lock.delegate`, `dependency.lock.root`, `package.coordinator`, `package.config`, `package.release-archive`, `package.release-manifest` | `command:uv=0.12.6` | unchanged | **Attested for both platforms (C7); BLOCKED only until `manifest provision` runs.** Body resolves `store:uv/bin/uv` via `packages.py::_uv`; the preflight now names `--executable store:uv/bin/uv` explicitly (C7c) instead of trusting whatever `uv` was first on `PATH`. |
+| `dependency.lock.node`, `package.node-runtime` | `"ok"` | unchanged | **`node` attested for both platforms (C7); `store:node/bin/npm` still has no store entry of its own** — `package.node-runtime`'s own isolated-copy flow shells `npm` from the tracked project, unaffected by C7b (which extracts `npm-cli.js` only for `node-env` materialization, not as a general store executable — see C7b above). Body resolves `store:node/bin/node` / `store:node/bin/npm` via `dependency_checks.py`. |
+| `hook.ruff`, `hook.ruff-format` | `distribution:ruff=0.15.20` | unchanged | **Attested for `darwin-arm64` (C7b); `linux-x64` pending CI attestation.** Direct-argv checks; `tool.executable`/`check.argv[0]` are `store:python-env/bin/ruff`; the registry version probe runs under `store:python-env/bin/python`. |
+| `hook.eslint` | `command:eslint=9.18.0` | unchanged | **Attested for `darwin-arm64` (C7b); `linux-x64` pending CI attestation.** Direct-argv check; `tool.executable`/`check.argv[0]` are `store:node-env/bin/eslint`. |
+| `test.python`, `test.hooks` | `distribution:pytest=8.3.4` | unchanged | **Attested for `darwin-arm64` (C7b); `linux-x64` pending CI attestation.** Direct-argv checks; `tool.executable`/`check.argv[0]` are `store:python-env/bin/pytest`; the registry version probe runs under `store:python-env/bin/python`. |
+| `hook.check-yaml`, `hook.check-json`, `hook.check-added-large-files`, `hook.check-case-conflict`, `hook.check-merge-conflict`, `hook.check-executables-have-shebangs`, `hook.check-shebang-scripts-are-executable`, `hook.detect-private-key`, `hook.check-ast`, `hook.debug-statements` | `distribution:pre-commit-hooks=6.0.0` | unchanged | **Attested for `darwin-arm64` (C7b); `linux-x64` pending CI attestation.** Direct-argv checks; each `tool.executable`/`check.argv[0]` is `store:python-env/bin/<console-script>` (e.g. `store:python-env/bin/check-yaml`); the registry version probe runs under `store:python-env/bin/python`. |
+| `hook.trailing-whitespace`, `hook.end-of-file-fixer`, `hook.mixed-line-ending` | `distribution:pre-commit-hooks=6.0.0` | unchanged | **Attested for `darwin-arm64` (C7b); `linux-x64` pending CI attestation.** Wrapper body: `hooks.py::_pinned_fixer` delegates to `tools/project_checks/hook_fixers.py::run`, which resolves `store:python-env/bin/<console-script>` and then re-applies the same pinned-distribution/entry-point/source-provenance checks as before against the resolved executable. |
 
 **Honesty caveat (updated, C2c)**: every engine-bearing check body under
 `tools/project_checks/` now resolves its engine through the hash-verified
@@ -417,14 +417,109 @@ a real download would have BLOCKed on "digest mismatch"; the reviewed pins
 themselves did not change. `tests/python/manifest_agent/test_toolchain_c7_attestation.py`
 pins the invariant (archive digest ≠ executable digest for tar entries) and,
 when a Homebrew `gitleaks 8.30.1` with different bytes is present, proves
-`--import` of that same-version-different-build is still BLOCKed. **Still
-unattested: `python-env` and `node-env`** — their provisioner kind does not
-exist yet (`_IMPLEMENTED_KINDS` is `{"binary"}`), so every check that
-resolves a `store:python-env/...` or `store:node-env/...` console script
-(ruff, yamllint, pytest, the pre-commit-hooks scripts, eslint,
-markdownlint-cli2, bats) keeps BLOCKing honestly until C7b implements them.
-`bin/npm` likewise still needs the `binary` provisioner to record a second
-executable from the `node` archive.
+`--import` of that same-version-different-build is still BLOCKed.
+
+**C7b (`python-env`/`node-env` provisioner kinds).** `_IMPLEMENTED_KINDS` now
+includes `python-env` and `node-env`. `config/toolchain/pyproject.toml` +
+`config/toolchain/uv.lock` and `config/toolchain/package.json` +
+`config/toolchain/package-lock.json` pin the exact tool versions the
+registry names (`ruff==0.15.20`, `pytest==8.3.4`, `pre-commit-hooks==6.0.0`,
+`yamllint==1.38.0`+`pyyaml==6.0.2`, `semgrep`/`pip-audit`/`pyright` at
+current-latest — flagged in the pyproject/package.json comments, since no
+version for those three is named anywhere in the registry or this doc —
+`eslint==9.18.0`, `markdownlint-cli2==0.23.0`, `bats==1.11.1`). The lock's
+`python-env`/`node-env` `url` points at the lockfile itself
+(`file://config/toolchain/uv.lock` / `file://config/toolchain/package-lock.json`);
+`sha256` is that lockfile's own digest.
+
+Materialization uses only store-attested engines, never anything ambient:
+`store:uv/bin/uv sync --locked --no-dev --project config/toolchain`
+(`UV_PROJECT_ENVIRONMENT` redirected into the store) for `python-env`;
+`store:node/bin/node <npm-cli.js> ci` for `node-env`, where `npm-cli.js` and
+its own bundled dependencies are extracted straight out of the SAME
+hash-verified `node` archive the `node` bundle already trusts (the "extract
+an additional path from an already-downloaded archive" option Correction 3
+offered, rather than adding a schema `extra_paths` field and a general
+`bin/npm` store entry — simpler and equally sound, at the cost of `npm`
+existing only inside the `node-env` materialization, not as its own store
+executable). The venv's own interpreter (`bin/python`) is the ambient
+`python3` — out of scope for pinning by design (Correction 3, rule 2) — so
+`bin/python` joins `python-env`'s `console_scripts` and every
+`distribution-version` probe for a python-env tool now runs as
+`store:python-env/bin/python -I tools/project_checks/tool_versions.py
+distribution-version <dist>` instead of the ambient interpreter, so the
+version actually reported is the one the check body will really run.
+
+**The trust anchor for env kinds is the installed DISTRIBUTION SET's digest,
+not any one console script's bytes** (Correction 3, rule 3): a generated
+launcher's bytes embed an absolute, store-location-dependent path and can
+never match a value committed ahead of provisioning. `exe_sha256` is the
+sha256 over every installed distribution's `*.dist-info/RECORD` (python-env)
+or the canonical JSON of `node_modules/.package-lock.json`'s `packages`
+object (node-env) — computed by `toolchain_env.distribution_set_digest`, a
+pure function of on-disk bytes with zero network/lock/store-manifest
+dependency, which is what makes it independently testable against a
+hand-built fake env. RECORD entries pip/uv generate OUTSIDE site-packages
+(`../../../bin/<name>,sha256=...,size` — the console-script launchers
+themselves) are excluded from the digest for the same reason `bin/python`'s
+bytes are out of scope: including them made the digest non-reproducible
+across two otherwise-identical materializations at different store
+locations, which was caught and fixed during this session's real
+attestation run (see below). `toolchain.resolve()` for an env bundle now
+checks, in order: (a) store staleness (existing `source_sha256` check); (b)
+the recomputed distribution-set digest against the lock's `exe_sha256` →
+`digest mismatch` on any difference; (c) the requested console script exists
+under the env's `bin/`; (d) its launcher (a `#!` shebang, or the real target
+of a symlink — e.g. every `node_modules/.bin/*` entry `npm ci` writes)
+resolves to somewhere inside the store → anywhere else is `digest mismatch`.
+`bin/python` itself is exempt from (d) — it is legitimately a symlink to the
+ambient/uv-managed interpreter by design; every OTHER console script's
+shebang names `bin/python`, which IS inside the store, so this exemption
+cannot smuggle an outside launcher past the check for anything else.
+
+**Real attestation, this session (darwin-arm64 only; network available).** A
+real `store:uv/bin/uv sync` and a real `store:node/bin/node <npm-cli.js> ci`
+were run through the actual provisioner against the committed lockfiles;
+`python-env`'s `exe_sha256` is `71f38158fabe4ca940f0a9638eeac43bf9f0d3e87d8442f675e821e81af329a3`,
+`node-env`'s is `a6158fdd7343c327dd071389818dc4fbcc5381aae7116107909edeeb176288fd`.
+Both were independently re-derived from a SECOND, differently-rooted
+materialization and matched exactly (after the RECORD-launcher-exclusion
+fix above), confirming location-independence rather than assuming it. A real
+`manifest provision --lock config/toolchain.lock.json --store <tmp>
+--platform darwin-arm64` provisions all seven bundles (five binaries plus
+both env kinds) in one pass; `--offline` against that same store reports
+`complete`. **`linux-x64` env hashes stay `null`** — attesting them requires
+a real materialization on that platform, which this session cannot do; the
+procedure is: run the same `manifest provision --platform linux-x64`
+sequence in CI, read the `exe_sha256` values `distribution_set_digest`
+computed there out of the store (or a small script calling it directly), and
+commit them in a reviewed PR — never copy darwin's values across platforms.
+
+**C7c (preflight targets the store engine, not `PATH`).** A handful of
+checks whose body itself resolves a store engine (`hook.shfmt`,
+`hook.gitleaks`, `hook.shellcheck`/`lint.shell.scripts`/`lint.shell.bootstrap`,
+`test.bundle-partition`, and the seven `uv`-driven `python-wrapper` checks —
+`dependency.lock.{root,config,delegate}`,
+`package.{coordinator,config,release-archive,release-manifest}`) kept
+`tool.executable` as the repo-owned `python3` wrapper, so
+`toolchain.resolve_for_preflight` never resolved a `store:` reference for
+them at all — the version PREFLIGHT silently trusted whatever `uv`/`shfmt`/
+`gitleaks`/`shellcheck`/`bats` happened to be first on `PATH`, even though
+the check BODY was already correctly store-resolved. `version_argv` now
+names the engine explicitly (`--executable store:uv/bin/uv` /
+`--executable store:shfmt/bin/shfmt` / etc.); `resolve_for_preflight`
+resolves every distinct `store:` token found in `tool.executable` OR
+`version_argv` (not just `tool.executable`), BLOCKs the whole preflight if
+any of them fails to resolve, and merges their bin dirs into the child
+`PATH` (store first, then `os.defpath` — never the caller's `PATH`).
+`tool_versions.py::_resolved_executable` now accepts an absolute
+`--executable` path (only ever supplied pre-rewritten by
+`toolchain.rewrite_argv` from a hash-verified store reference) and never
+falls back to a `PATH` search when that explicit executable is missing.
+Proven with a real PATH impostor in
+`tests/python/manifest_agent/test_toolchain_c7c_preflight.py`: a fake `uv`
+reporting a wrong version sits first on `PATH`, and the probe still reports
+the real store `uv`'s version.
 
 **C2c's registry guard (non-reopenable).**
 `tests/python/manifest_agent/test_toolchain_registry_guards.py` now asserts
@@ -560,12 +655,16 @@ rejected by `aggregate_results`; an expired `security` receipt is rejected
 
 ## Types, source security, node runtime, dependency integrity (C5)
 
-Five new checks (`config/project-checks.json`). **None of them can PASS
-locally**: pyright, semgrep, and pip-audit are not installed in this
-environment, and the toolchain store is unprovisioned (`exe_sha256: null`,
-C7). Every one BLOCKs honestly — that is the correct, verified outcome for
-this chunk, not a gap. `hook.pyright` (PATH, unpinned) is removed the same
-change that adds `types.python`.
+Five new checks (`config/project-checks.json`). At the time this chunk
+landed, **none of them could PASS locally**: pyright, semgrep, and pip-audit
+were not installed, and the toolchain store was unprovisioned
+(`exe_sha256: null`, C7). `pyright` and `semgrep` are now attested for
+`darwin-arm64` via `node-env`/`python-env` (C7b) — `types.python` and
+`security.semgrep` can PASS on that platform once `manifest provision` has
+run; `linux-x64` stays BLOCKED pending a CI attestation run, and
+`pip-audit`'s two audit checks stay unwired into any profile regardless
+(C8). `hook.pyright` (PATH, unpinned) is removed the same change that adds
+`types.python`.
 
 | Rule | Tool / config | Scope | Trigger | Failure | Exception | Test |
 |---|---|---|---|---|---|---|
