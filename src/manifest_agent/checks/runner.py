@@ -90,6 +90,7 @@ def execute_check(
         return unavailable
     execution_paths = forwarded_paths(candidate.root, cwd, selected)
     argv = check.argv + execution_paths if check.pass_filenames else check.argv
+    argv = toolchain.resolve_interpreter_argv(argv)
     argv = toolchain.rewrite_argv(argv, resolved)
     env = toolchain.resolved_env(env, resolved) if resolved is not None else env
     store_before = toolchain.fingerprint_for(resolved, env)
@@ -204,8 +205,9 @@ def _module_result(tool: dict, cwd: Path, env: dict[str, str]) -> ProcessResult 
         "print('missing required Python module: '+','.join(missing) if missing else 'modules available');"
         "raise SystemExit(bool(missing))"
     )
+    executable = toolchain.resolve_interpreter_argv((tool["executable"],))[0]
     return run_argv(
-        (tool["executable"], "-c", program, *modules),
+        (executable, "-c", program, *modules),
         cwd=cwd,
         env=env,
         timeout_seconds=10.0,

@@ -21,6 +21,7 @@ import json
 import os
 import platform as _platform
 import re
+import sys
 from collections.abc import Mapping
 from pathlib import Path
 
@@ -30,6 +31,10 @@ STORE_ENV_VAR = "MANIFEST_TOOLCHAIN_STORE"
 XDG_CACHE_ENV_VAR = "XDG_CACHE_HOME"
 DEFAULT_CACHE_RELATIVE = Path(".cache") / "manifest" / "toolchain"
 
+# "Always present" no longer means "found on PATH" (Correction 4): `python3`
+# means the interpreter already running `manifest check`, rewritten by
+# `resolve_interpreter_argv` to `sys.executable`, never a PATH search; `bash`
+# is still a genuine `os.defpath` lookup.
 ALWAYS_PRESENT_EXECUTABLES = frozenset({"python3", "bash"})
 
 _STORE_EXECUTABLE = re.compile(
@@ -56,9 +61,11 @@ def parse_store_executable(value: str) -> tuple[str, str] | None:
 def is_legal_plain_executable(value: str) -> bool:
     """Whether a non-`store:` executable name is on the always-present allow-list.
 
-    Only interpreters guaranteed present without provisioning (`python3`,
-    `bash`) or a repository-relative script path may bypass the store; any
-    other bare command name (resolved by searching `PATH`) is exactly the
+    Only interpreters guaranteed present without provisioning (`python3` --
+    meaning the runner's OWN interpreter, resolved by `resolve_interpreter_argv`,
+    never a `PATH` search; `bash` -- a genuine `os.defpath` lookup for the
+    system shell) or a repository-relative script path may bypass the store;
+    any other bare command name (resolved by searching `PATH`) is exactly the
     trust gap 3a closes and must migrate to a `store:` form instead.
     """
     if value in ALWAYS_PRESENT_EXECUTABLES:
@@ -299,6 +306,15 @@ def rewrite_argv(
     return (str(resolved.executable), *argv[1:])
 
 
+def resolve_interpreter_argv(argv: tuple[str, ...]) -> tuple[str, ...]:
+    """Rewrite every literal `python3` token to `sys.executable` -- the
+    interpreter already running `manifest check`, never a `PATH` search
+    (Correction 4). `bash` is untouched."""
+    if not argv:
+        return argv
+    return tuple(sys.executable if token == "python3" else token for token in argv)
+
+
 def resolved_env(env: Mapping[str, str], resolved: ResolvedTool) -> dict[str, str]:
     """Build the child PATH from store bin dirs + `os.defpath` -- never the user PATH."""
     result = dict(env)
@@ -404,7 +420,8 @@ def resolve_for_preflight(
     """
     refs = _store_refs(tool)
     if not refs:
-        return None, tuple(tool["version_argv"]), env, None
+        version_argv = resolve_interpreter_argv(tuple(tool["version_argv"]))
+        return None, version_argv, env, None
     try:
         store = store_root(env, candidate_root)
     except UnsafeStoreLocationError as error:
@@ -417,4 +434,5 @@ def resolve_for_preflight(
         resolved_by_ref[ref] = outcome
     merged = _merged_resolution(tool["executable"], resolved_by_ref)
     version_argv = rewrite_argv(tuple(tool["version_argv"]), resolved_by_ref)
+    version_argv = resolve_interpreter_argv(version_argv)
     return merged, version_argv, resolved_env(env, merged), None
