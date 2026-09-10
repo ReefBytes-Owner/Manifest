@@ -2,7 +2,7 @@
 
 > The `manifest check` / `manifest check-aggregate` shared-check entry: commands, profiles, status vocabulary, and what is not authoritative yet.
 
-**Last Updated**: 2026-09-09
+**Last Updated**: 2026-09-10
 
 ## What this is
 
@@ -326,6 +326,58 @@ fixture corpora are unverified pending Phase 3 (C7)). `shfmt` and
 `markdownlint-cli2-action` explicitly remain **wrapper→engine unconfirmed,
 pending C7** (reading the wrapper's `.pre-commit-hooks.yaml`/`action.yml` at
 the pinned rev needs network); their `coverage_pending` entries stay.
+
+## Receipt schema v2: no stale evidence (C4)
+
+A receipt (`run_profile`'s JSON report, or `manifest check-aggregate`'s
+merged verdict) is evidence, never permission to skip execution — Phase 3
+has no success cache, and Phase 4 adapters (`receipt_key` consumers) must
+re-run on anything less than an exact match, never degrade a partial match
+to PASS. Receipt v2 adds provenance digests on top of the unchanged v1
+fields (`src/manifest_agent/checks/receipt.py`, wired into
+`runner._report`/`build_report`):
+
+| Field | Derivation |
+|---|---|
+| `toolchain_digest` | sha256 over the sorted `{tool: sha256(exe)}` mapping of every `store:` tool actually resolved this run (`receipt.resolved_tool_digests` + `receipt.toolchain_digest`) |
+| `interpreter_version`, `interpreter_executable_sha256` | `sys.version` / `sys.executable` sha256 recorded in the store's `manifest.json` at provisioning time (`receipt.interpreter_from_store`); empty when no store is reachable |
+| `environment_digest` | sha256 of the platform triple (`toolchain.current_platform()`) plus the forwarded environment values, **excluding `HOME`** (`receipt.environment_digest`) |
+| `expires_at` | `produced + 24h` for `security`/`release` profiles only; `null` otherwise (`receipt.expires_at`) — advisory feeds are time-sensitive, other profiles do not expire on their own |
+| `receipt_key` | `sha256(profile ‖ group ‖ candidate_digest ‖ config_digest ‖ toolchain_digest ‖ environment_digest)` (`receipt.receipt_key`) — the identity a consumer checks for "evidence of exactly this state" |
+
+`schema_version` is `2`. Every profile/group receipt carries these fields;
+`aggregate.py`'s `RECEIPT_KEYS`/`RECEIPT_LOCAL_KEYS` were extended to match,
+and structurally validate them (non-empty strings; `expires_at` is a string
+or `null`) without trusting a receipt's *claimed* `receipt_key` as proof —
+`aggregate_results` recomputes what it can and cross-checks the rest:
+
+- **Mixed toolchain across groups is rejected.** If the confirmed receipts
+  for one aggregate verdict disagree on `toolchain_digest` (lint resolved
+  one `ruff` hash, test resolved another), that is not one verification —
+  `aggregate.py::_toolchain_consistency_errors` adds a `"stale receipt:
+  toolchain_digest differs across producer groups"` diagnostic and the
+  verdict is BLOCKED.
+- **Expired `security`/`release` receipts are rejected.** `receipt.is_expired`
+  compares each receipt's `expires_at` against the current time;
+  `aggregate.py::_receipt_identity_errors` adds `"stale receipt: expired"`
+  and the verdict is BLOCKED. A receipt with no `expires_at` (non-expiring
+  profile) never triggers this.
+
+A stale or unverifiable receipt is always reported as **BLOCKED "stale
+receipt"**, never PASS and never FAIL — there is no exception path.
+
+Spec row: `rule` no stale evidence → `tool` receipt v2 in
+`src/manifest_agent/checks/receipt.py` (`runner._report` /
+`aggregate.py`) → `scope` every profile/group receipt → `trigger` produce
+(`run_profile`) / aggregate (`aggregate_results`) / adapter-consume (Phase 4)
+→ `failure` BLOCKED "stale receipt" → `exception` none → `test`
+`tests/python/manifest_agent/test_check_receipt.py`: edit-after-success
+invalidates `receipt_key`; a tool swap reporting the identical version
+string still changes `toolchain_digest`/`receipt_key` (the headline case);
+an environment change invalidates `environment_digest` (and `HOME` is
+deliberately excluded); mixed `toolchain_digest` across producer groups is
+rejected by `aggregate_results`; an expired `security` receipt is rejected
+(and a fresh one is accepted).
 
 ## Coverage limits
 

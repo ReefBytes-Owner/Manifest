@@ -16,13 +16,16 @@ be upgraded to PASS by aggregation — it still forces BLOCKED.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import Any
 
+from . import receipt as _receipt
 from .models import CheckSpec
 from .path_filters import has_path_filters
 from .registry import VALID_GROUPS, applicable_pending, resolve_checks
 from .runner import _config_digest
 
+RECEIPT_SCHEMA_VERSION = 2
 RECEIPT_KEYS = frozenset(
     {
         "schema_version",
@@ -40,15 +43,36 @@ RECEIPT_KEYS = frozenset(
         "results",
         "status",
         "duration_seconds",
+        "toolchain_digest",
+        "interpreter_version",
+        "interpreter_executable_sha256",
+        "environment_digest",
+        "expires_at",
+        "receipt_key",
     }
 )
 # Receipt-local, non-authoritative fields: `run_profile` reports them for its
 # own candidate/local view, but the aggregator independently recomputes
 # `config_digest` from the loaded registry and coverage from the registry's
 # `coverage_pending` + the resolved profile, so these are only type-checked,
-# never trusted as the source of truth for the aggregate verdict.
+# never trusted as the source of truth for the aggregate verdict. The
+# provenance digests are receipt-local for the same reason -- the aggregator
+# has no independent way to recompute a producer's actual toolchain/env, so
+# it cross-checks them (identical `toolchain_digest` across every group's
+# receipt; `expires_at` freshness) instead of trusting a claimed value.
 RECEIPT_LOCAL_KEYS = frozenset(
-    {"candidate_digest", "coverage_pending", "required_ids", "duration_seconds"}
+    {
+        "candidate_digest",
+        "coverage_pending",
+        "required_ids",
+        "duration_seconds",
+        "toolchain_digest",
+        "interpreter_version",
+        "interpreter_executable_sha256",
+        "environment_digest",
+        "expires_at",
+        "receipt_key",
+    }
 )
 RESULT_KEYS = frozenset(
     {"id", "status", "returncode", "duration_seconds", "diagnostics", "selected_inputs"}
@@ -178,10 +202,12 @@ def _receipt_type_errors(receipt: Any) -> list[str]:
     return []
 
 
-def _receipt_identity_errors(receipt: dict[str, Any], trust: _Trust) -> list[str]:
+def _receipt_identity_errors(
+    receipt: dict[str, Any], trust: _Trust, now: datetime
+) -> list[str]:
     errors = []
-    if receipt["schema_version"] != 1:
-        errors.append("receipt schema_version must be 1")
+    if receipt["schema_version"] != RECEIPT_SCHEMA_VERSION:
+        errors.append(f"receipt schema_version must be {RECEIPT_SCHEMA_VERSION}")
     if receipt["profile"] != trust.profile:
         errors.append(
             f"receipt profile {receipt['profile']!r} does not match {trust.profile!r}"
@@ -199,6 +225,8 @@ def _receipt_identity_errors(receipt: dict[str, Any], trust: _Trust) -> list[str
     elif receipt["head_sha"] != trust.tested_sha:
         errors.append("receipt head_sha does not match the current run's tested_sha")
     errors.extend(_receipt_local_field_errors(receipt))
+    if _receipt.is_expired(receipt.get("expires_at"), now):
+        errors.append("stale receipt: expired")
     return errors
 
 
@@ -214,6 +242,14 @@ def _receipt_local_field_errors(receipt: dict[str, Any]) -> list[str]:
     duration = receipt["duration_seconds"]
     if isinstance(duration, bool) or not isinstance(duration, (int, float)):
         errors.append("receipt duration_seconds must be a number")
+    for key in ("toolchain_digest", "environment_digest", "receipt_key"):
+        if not isinstance(receipt[key], str) or not receipt[key]:
+            errors.append(f"receipt {key} must be a non-empty string")
+    for key in ("interpreter_version", "interpreter_executable_sha256"):
+        if not isinstance(receipt[key], str):
+            errors.append(f"receipt {key} must be a string")
+    if receipt["expires_at"] is not None and not isinstance(receipt["expires_at"], str):
+        errors.append("receipt expires_at must be a string or null")
     return errors
 
 
@@ -270,12 +306,12 @@ def _receipt_results(
 
 
 def _receipt_errors(
-    receipt: Any, trust: _Trust
+    receipt: Any, trust: _Trust, now: datetime
 ) -> tuple[list[str], dict[str, Any] | None]:
     type_errors = _receipt_type_errors(receipt)
     if type_errors:
         return type_errors, None
-    errors = _receipt_identity_errors(receipt, trust)
+    errors = _receipt_identity_errors(receipt, trust, now)
     group = receipt["group"]
     if group not in trust.expected_groups:
         errors.append(
@@ -287,18 +323,36 @@ def _receipt_errors(
     errors.extend(result_errors)
     if errors:
         return errors, None
-    return [], {"group": group, "results": results}
+    return [], {
+        "group": group,
+        "results": results,
+        "toolchain_digest": receipt["toolchain_digest"],
+    }
+
+
+def _toolchain_consistency_errors(parsed_receipts: list[dict[str, Any]]) -> list[str]:
+    """A run where one producer group resolved a different tool identity
+    than another is not one verification -- reject the mix outright rather
+    than silently trusting whichever receipt happened to sort first."""
+    digests = {parsed["toolchain_digest"] for parsed in parsed_receipts}
+    if len(digests) > 1:
+        return [
+            "stale receipt: toolchain_digest differs across producer groups: "
+            + ", ".join(sorted(digests))
+        ]
+    return []
 
 
 def _merge_receipts(
-    receipts: list[Any], trust: _Trust
+    receipts: list[Any], trust: _Trust, now: datetime
 ) -> tuple[list[str], list[dict[str, Any]], set[str]]:
     errors: list[str] = []
     merged: list[dict[str, Any]] = []
     seen_groups: set[str] = set()
     seen_ids: set[str] = set()
+    parsed_receipts: list[dict[str, Any]] = []
     for index, receipt in enumerate(receipts):
-        receipt_errors, parsed = _receipt_errors(receipt, trust)
+        receipt_errors, parsed = _receipt_errors(receipt, trust, now)
         errors.extend(f"receipt[{index}]: {message}" for message in receipt_errors)
         if parsed is None:
             continue
@@ -307,6 +361,7 @@ def _merge_receipts(
             errors.append(f"receipt[{index}]: duplicate receipt for group {group!r}")
             continue
         seen_groups.add(group)
+        parsed_receipts.append(parsed)
         for result in parsed["results"]:
             check_id = result["id"]
             if check_id in seen_ids:
@@ -317,6 +372,7 @@ def _merge_receipts(
     missing_ids = set(trust.id_to_group) - seen_ids
     if missing_ids:
         errors.append(f"missing check results: {sorted(missing_ids)}")
+    errors.extend(_toolchain_consistency_errors(parsed_receipts))
     return errors, merged, seen_groups
 
 
@@ -365,7 +421,9 @@ def aggregate_results(
         id_to_group=id_to_group,
         id_to_spec=id_to_spec,
     )
-    receipt_errors, results, received_groups = _merge_receipts(receipts, trust)
+    receipt_errors, results, received_groups = _merge_receipts(
+        receipts, trust, datetime.now(UTC)
+    )
     diagnostics.extend(receipt_errors)
 
     pending = applicable_pending(registry, profile, None, full_checks)

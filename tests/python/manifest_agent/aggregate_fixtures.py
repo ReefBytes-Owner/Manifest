@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from pathlib import Path
 
+from manifest_agent.checks import receipt as _receipt
 from manifest_agent.checks.registry import load_registry
 from tests.python.manifest_agent.check_registry_fixtures import _check
 
@@ -12,6 +13,9 @@ REPOSITORY = "acme/example"
 WORKFLOW = "ci.yml"
 RUN_ID = "1001"
 TESTED_SHA = "a" * 40
+# Every fixture receipt agrees on this toolchain identity by default -- tests
+# that need to exercise "mixed toolchain across groups" override it directly.
+DEFAULT_TOOLCHAIN_DIGEST = _receipt.toolchain_digest({"demo": "f" * 64})
 
 _PROFILES = {
     "quick": ["lint.a"],
@@ -54,7 +58,7 @@ def receipt(
     *, group: str, results: list[dict], digest: str, **overrides: object
 ) -> dict:
     built = {
-        "schema_version": 1,
+        "schema_version": 2,
         "profile": "full",
         "group": group,
         "partial": True,
@@ -69,6 +73,12 @@ def receipt(
         "results": results,
         "status": "PASS",
         "duration_seconds": 0.1,
+        "toolchain_digest": DEFAULT_TOOLCHAIN_DIGEST,
+        "interpreter_version": "",
+        "interpreter_executable_sha256": "",
+        "environment_digest": "e" * 64,
+        "expires_at": None,
+        "receipt_key": "k" * 64,
     }
     built.update(overrides)
     return built

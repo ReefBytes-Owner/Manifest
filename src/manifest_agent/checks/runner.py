@@ -11,6 +11,7 @@ from pathlib import Path
 
 from manifest_agent.process import redact_text
 
+from . import receipt as _receipt
 from . import toolchain
 from .candidate import (
     CandidateBlockedError,
@@ -284,15 +285,6 @@ def _result_dict(result: CheckResult) -> dict:
     return value
 
 
-def _reported_candidate_digest(candidate: Candidate) -> str:
-    try:
-        state = json.loads((candidate.root / ".git/candidate-state.json").read_text())
-    except (OSError, ValueError, TypeError):
-        return ""
-    digest = state.get("digest") if isinstance(state, dict) else None
-    return digest if isinstance(digest, str) else ""
-
-
 def run_profile(
     registry: dict,
     profile: str,
@@ -459,7 +451,7 @@ def _report(
     results: list[CheckResult],
     start: float,
 ) -> dict:
-    registry, candidate = context.registry, context.candidate
+    registry = context.registry
     statuses = {result.status for result in results}
     pending = applicable_pending(registry, selector.profile, selector.group, checks)
     status = (
@@ -469,20 +461,7 @@ def _report(
         if "BLOCKED" in statuses or pending
         else "PASS"
     )
-    return {
-        "schema_version": 1,
-        "profile": selector.profile,
-        "group": selector.group,
-        "partial": selector.group is not None,
-        "candidate_digest": _reported_candidate_digest(candidate),
-        "source_digest": candidate.source_digest,
-        "head_sha": candidate.head_sha,
-        "base_sha": candidate.base_sha,
-        "tree_sha": candidate.tree_sha,
-        "config_digest": _config_digest(registry),
-        "coverage_pending": pending,
-        "required_ids": [check.id for check in checks],
-        "results": [_result_dict(result) for result in results],
-        "status": status,
-        "duration_seconds": time.monotonic() - start,
-    }
+    inputs = _receipt.ReportInputs(
+        context, selector, checks, [_result_dict(result) for result in results], start
+    )
+    return _receipt.build_report(inputs, pending, status, _config_digest(registry))
