@@ -29,10 +29,16 @@ from .registry import (
 from .runner import run_profile
 
 STATUS_EXITS = {"PASS": 0, "FAIL": 2, "BLOCKED": 3}
+# MANIFEST_HOOK_ACTIVE is forwarded so a check body that itself shells out to
+# a client CLI sees the same recursion marker `manifest hook` set on this
+# process (hooks/runner.py::RECURSION_ENV_VAR) -- without it, the guard in
+# hooks/core.py only ever protected the direct `manifest check` child, never
+# a check body two levels down.
 ENVIRONMENT_KEYS = (
     "HOME",
     "LANG",
     "LC_ALL",
+    "MANIFEST_HOOK_ACTIVE",
     "MANIFEST_TOOLCHAIN_STORE",
     "PATH",
     "PYTHONDONTWRITEBYTECODE",

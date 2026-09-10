@@ -14,16 +14,44 @@ cursor,gemini}.py`, each ≤200 lines — plus shared mechanics in `core.py`,
   a truncated parse);
 - parses JSON structurally, with per-client field-type validation (malformed
   input is a protocol response, never a traceback);
-- normalizes `cwd` and any `tool_input.file_path` and rejects `..` traversal
-  segments;
+- rejects `..` traversal segments in `cwd` and any `tool_input.file_path`
+  (string-checked, not resolved — a value can be rejected for containing a
+  traversal segment even where `Path.resolve()` would land somewhere safe;
+  this is deliberately the stricter direction);
 - maps the event to a profile and invokes `manifest check <profile>` via
-  **argv only** (no shell), using the same deadline + process-group kill
-  `checks/process.py::run_argv` already implements;
+  **argv only** (no shell). The **adapter's own deadline** — the time budget
+  for the `manifest check` subprocess as a whole — is enforced by the real
+  process-group kill `checks/process.py::run_argv` already implements and
+  tests. **This does not cascade into a check body's own subprocess.** Every
+  `run_argv` call, including the ones each check body's execution makes
+  *inside* `manifest check`, starts its own new session
+  (`start_new_session=True`), and `manifest check` installs no signal handler
+  of its own — so killing the adapter's `manifest check` process group does
+  not reach a check body (pytest, semgrep, …) already running in its own,
+  separate group. A nested `run_argv` under a short outer deadline can leave
+  its own inner body running well past that deadline. Closing this gap
+  requires either propagating the deadline into `manifest check` so it
+  enforces its own budget against its check bodies, or unifying the process
+  group across nesting levels — neither is done by this chunk;
 - deduplicates repeated events by `(client, event, candidate_digest)` under an
-  `fcntl`-locked state file, so a burst of identical events runs the check
-  exactly once;
+  `fcntl`-locked state file. The lock is held for the full duration of an
+  uncached event, including the `manifest check` invocation itself: a
+  duplicate that arrives while the first event's verdict is still being
+  computed blocks on the same lock rather than answering `allow` for an
+  unknown state, and once unblocked replays the exact cached verdict. A
+  burst of identical events therefore runs the check exactly once, and every
+  member of the burst gets the same decision the first one produced —
+  including a `block`, not just a `PASS`. Cached entries expire after 24h
+  or once the newest 500 outgrow the rest, so `state.json` does not grow
+  without bound;
 - writes a receipt (same `fcntl` lock idiom as `preparation.py`) that always
-  carries `"client_version_verified": false`.
+  carries `"client_version_verified": false`;
+- refuses to re-enter when `MANIFEST_HOOK_ACTIVE` is already set. This
+  adapter sets it on the `manifest check` child it spawns, and
+  `checks/cli.py::ENVIRONMENT_KEYS` forwards it into every check body's own
+  subprocess in turn — so a check body that itself shells out to a client
+  CLI (which could re-invoke `manifest hook`) sees the marker too, not just
+  the direct child.
 
 State lives under `$XDG_STATE_HOME/manifest/hooks/` (`state.json` for dedup +
 stop-continuation, `receipts/` for receipts). Nothing is written to `~/`

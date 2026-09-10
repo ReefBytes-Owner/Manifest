@@ -37,6 +37,19 @@ def _stdout_json(result) -> dict:
     return json.loads(lines[0])
 
 
+def _reason_text(body: dict) -> str:
+    """Every client's protocol-error shape puts the human-readable reason in
+    one of these fields; pull whichever is present so tests can assert on
+    the actual cause instead of merely "a dict came back"."""
+    for field in ("reason", "user_message", "agent_message"):
+        if field in body:
+            return str(body[field])
+    hook_specific = body.get("hookSpecificOutput")
+    if isinstance(hook_specific, dict) and "permissionDecisionReason" in hook_specific:
+        return str(hook_specific["permissionDecisionReason"])
+    return json.dumps(body)
+
+
 @pytest.mark.parametrize("client", sorted(CLIENTS))
 def test_unknown_event_is_unsupported_never_emulated(hook_harness, client):
     result = hook_harness.invoke(client, "TotallyUnknownEvent", {"cwd": str(hook_harness.root)})
@@ -51,7 +64,7 @@ def test_malformed_json_is_a_protocol_response_never_a_traceback(hook_harness, c
     result = hook_harness.invoke(client, event, b"{not valid json")
     body = _stdout_json(result)
     assert "Traceback" not in result.stdout.decode()
-    assert body != {}
+    assert "json" in _reason_text(body).lower()
     assert not hook_harness.receipts()
 
 
@@ -61,7 +74,8 @@ def test_wrong_field_types_are_a_protocol_response(hook_harness, client):
     result = hook_harness.invoke(client, event, {"cwd": 12345, "session_id": []})
     body = _stdout_json(result)
     assert "Traceback" not in result.stdout.decode()
-    assert body is not None
+    reason = _reason_text(body).lower()
+    assert "cwd" in reason or "session_id" in reason
     assert not hook_harness.receipts()
 
 
@@ -75,7 +89,7 @@ def test_oversized_payload_blocks_never_truncated_parse(hook_harness, client):
     result = hook_harness.invoke(client, event, oversized)
     body = _stdout_json(result)
     assert "Traceback" not in result.stdout.decode()
-    assert body is not None
+    assert "256 kib" in _reason_text(body).lower()
     assert not hook_harness.receipts()
 
 
@@ -92,7 +106,9 @@ def test_path_traversal_in_file_path_is_blocked(hook_harness, client):
     }
     result = hook_harness.invoke(client, event, payload)
     body = _stdout_json(result)
-    assert body.get("coverage") != "supported"
+    assert body.get("coverage") != "unsupported"
+    reason = _reason_text(body).lower()
+    assert "file_path" in reason and "traversal" in reason
     assert not hook_harness.receipts()
 
 
@@ -101,7 +117,11 @@ def test_cwd_traversal_is_blocked(hook_harness, client):
     event = SUPPORTED_QUICK_EVENT[client] or "AnyEvent"
     result = hook_harness.invoke(client, event, {"cwd": "../../../etc", "command": "ls"})
     body = _stdout_json(result)
-    assert body is not None
+    reason = _reason_text(body).lower()
+    # Must be rejected for the traversal itself, not fall through to the
+    # generic "cwd is unavailable" path (which core.py also produces, for a
+    # different cause, and which a weaker assertion could not distinguish).
+    assert "traversal" in reason, f"expected a traversal-specific reason, got {body!r}"
     assert not hook_harness.receipts()
 
 

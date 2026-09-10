@@ -1,5 +1,16 @@
 """Dedup + stop-continuation state, serialized with the fcntl idiom
-`preparation.py` already uses for candidate-local receipts."""
+`preparation.py` already uses for candidate-local receipts.
+
+The lock is held for the full duration of an uncached event -- including the
+`manifest check` invocation the caller's `compute` callback performs, not
+just the bookkeeping. This is deliberate: review round 1 found that a bare
+"seen before" flag fails open -- a duplicate arriving while the first
+event's verdict was still being computed had no verdict to consult, so it
+defaulted to `allow`, which is exactly backwards for a guard that exists to
+block. Holding the lock across `compute()` means no caller can ever observe
+an "unknown" state: a duplicate either computes the verdict itself (it is
+first) or blocks until a complete verdict exists, then replays it exactly.
+"""
 
 from __future__ import annotations
 
@@ -8,8 +19,12 @@ import hashlib
 import json
 import os
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
+
+MAX_DEDUP_ENTRIES = 500
+MAX_DEDUP_AGE_SECONDS = 24 * 3600
 
 
 def _lock(state_dir: Path) -> int:
@@ -41,34 +56,76 @@ def _dedup_key(client: str, event: str, digest: str) -> str:
     return hashlib.sha256(f"{client}\0{event}\0{digest}".encode()).hexdigest()
 
 
+def _prune(state: dict) -> None:
+    """Bound state.json growth: drop entries past the age limit, then the
+    oldest survivors past the count limit."""
+    now = time.time()
+    dedup = state["dedup"]
+    fresh = {
+        key: value
+        for key, value in dedup.items()
+        if now - value.get("ts", 0) <= MAX_DEDUP_AGE_SECONDS
+    }
+    if len(fresh) > MAX_DEDUP_ENTRIES:
+        ordered = sorted(fresh.items(), key=lambda item: item[1].get("ts", 0))
+        fresh = dict(ordered[-MAX_DEDUP_ENTRIES:])
+    state["dedup"] = fresh
+
+
 @dataclass(frozen=True)
-class DedupDecision:
-    is_new: bool
-    stop_allowed: bool
+class Verdict:
+    """A cached, replayable outcome: exactly what a duplicate reproduces."""
+
+    replayed: bool
+    outcome: dict
 
 
-def check_and_record(
-    state_dir: Path, client: str, event: str, digest: str, *, is_stop: bool
-) -> DedupDecision:
-    """Serialize (client, event, digest) dedup and, for stop events, allow at
-    most one continuation per unchanged digest. A burst of N identical events
-    collapses to exactly one `is_new=True` result because the whole
-    read-modify-write happens under one flock, held for the burst's duration."""
+@dataclass(frozen=True)
+class DedupKey:
+    """What identifies one deduplicated event -- travels as one record so
+    `run_deduplicated` stays a 3-parameter call."""
+
+    client: str
+    event: str
+    digest: str
+    is_stop: bool
+
+
+def run_deduplicated(
+    state_dir: Path, key: DedupKey, compute: Callable[[], dict]
+) -> Verdict:
+    """Serialize (client, event, digest). The first caller runs `compute`
+    while holding the lock and caches its return value; every duplicate --
+    even one that arrives mid-computation -- blocks on the same lock and
+    replays that exact cached verdict, never a bare allow."""
     fd = _lock(state_dir)
     try:
         fcntl.flock(fd, fcntl.LOCK_EX)
         state = _load(state_dir)
-        key = _dedup_key(client, event, digest)
-        is_new = key not in state["dedup"]
-        state["dedup"][key] = time.time()
-        stop_allowed = True
-        if is_stop:
-            stop_key = f"{client}\0{event}"
-            stop_allowed = state["stop_continuations"].get(stop_key) != digest
-            if stop_allowed:
-                state["stop_continuations"][stop_key] = digest
+        cache_key = _dedup_key(key.client, key.event, key.digest)
+        cached = state["dedup"].get(cache_key)
+        if cached is not None:
+            return Verdict(replayed=True, outcome=cached["outcome"])
+        stop_key = f"{key.client}\0{key.event}"
+        stop_allowed = (
+            state["stop_continuations"].get(stop_key) != key.digest
+            if key.is_stop
+            else True
+        )
+        if key.is_stop and not stop_allowed:
+            outcome = {
+                "status": "SKIPPED_CONTINUATION",
+                "action": "allow",
+                "reason": "stop continuation already used for this candidate",
+            }
+        else:
+            outcome = compute()
+            if key.is_stop:
+                state["stop_continuations"][stop_key] = key.digest
+        state["dedup"][cache_key] = {"outcome": outcome, "ts": time.time()}
+        _prune(state)
         _write(state_dir, state)
-        return DedupDecision(is_new=is_new, stop_allowed=stop_allowed)
+        return Verdict(replayed=False, outcome=outcome)
     finally:
         fcntl.flock(fd, fcntl.LOCK_UN)
         os.close(fd)

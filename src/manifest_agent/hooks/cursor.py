@@ -47,10 +47,10 @@ def main(argv: list[str]) -> int:
     event = argv[0]
     try:
         payload = core.parse_event_object(core.read_bounded_stdin(sys.stdin.buffer))
-        _validate(payload)
         if event not in EVENT_PROFILE:
             print(json.dumps({"coverage": "unsupported"}))
             return 0
+        _validate(payload)
         request = core.EventRequest(
             client=CLIENT,
             event=event,
@@ -61,14 +61,15 @@ def main(argv: list[str]) -> int:
             timeout_seconds=core.default_timeout_seconds(),
         )
         outcome = core.process_event(request)
-    except core.ProtocolError as error:
+    except (core.ProtocolError, OSError, RuntimeError, ValueError) as error:
+        reason = core.safe_reason(error)
         print(
             json.dumps(
                 {
                     "continue": False,
                     "permission": "deny",
-                    "user_message": str(error),
-                    "agent_message": str(error),
+                    "user_message": reason,
+                    "agent_message": reason,
                 }
             )
         )

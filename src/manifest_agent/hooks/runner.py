@@ -14,6 +14,12 @@ from manifest_agent.process import redact_text
 from ..checks.process import run_argv
 
 DIAGNOSTIC_CAP = 4096
+# The env var a check body must see, transitively, to refuse a recursive
+# `manifest hook` re-entry (e.g. a check body that shells out to a client
+# CLI). `checks/cli.py::ENVIRONMENT_KEYS` forwards this same name into every
+# check body's own subprocess, so setting it here is what makes the
+# recursion guard in core.py reach descendants, not just this one child.
+RECURSION_ENV_VAR = "MANIFEST_HOOK_ACTIVE"
 # XDG_STATE_HOME travels with the rest so the invoked `manifest check`
 # subprocess writes its own run-telemetry record (5c) to the same sink this
 # adapter itself is configured against -- omitting it would default the
@@ -45,6 +51,7 @@ def run_manifest_check(
         "--json",
     )
     env = {key: os.environ[key] for key in FORWARDED_ENV_KEYS if key in os.environ}
+    env[RECURSION_ENV_VAR] = "1"
     result = run_argv(argv, cwd=cwd, env=env, timeout_seconds=timeout_seconds)
     if result.timed_out:
         return "BLOCKED", "manifest check exceeded the adapter deadline"

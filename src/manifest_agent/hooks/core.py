@@ -18,19 +18,30 @@ from manifest_agent.process import redact_text
 
 from ..checks.candidate import CandidateBlockedError, candidate_digest
 from .receipt import ReceiptInput, build_receipt, write_receipt
-from .runner import run_manifest_check
-from .state import check_and_record
+from .runner import RECURSION_ENV_VAR, run_manifest_check
+from .state import DedupKey, run_deduplicated
 from .telemetry import record_hook_telemetry
 
 STDIN_CAP = 256 * 1024
 DEFAULT_TIMEOUT_SECONDS = 120.0
-RECURSION_ENV_VAR = "MANIFEST_HOOK_ACTIVE"
 QUICK = "quick"
 FULL = "full"
 
 
 class ProtocolError(RuntimeError):
     """Input that must yield a protocol block response, never a traceback."""
+
+
+REASON_CAP = 2048
+
+
+def safe_reason(error: Exception) -> str:
+    """Every crash path (`ProtocolError`, or an `OSError`/`ValueError` from
+    an unwritable state dir or a bad deadline) converts to this instead of
+    propagating -- the same "catch, redact, respond" idiom
+    `checks/cli.py::_blocked_report` already uses for its own infrastructure
+    failures. Never a traceback, never empty stdout."""
+    return redact_text(str(error))[:REASON_CAP]
 
 
 def read_bounded_stdin(stream) -> bytes:
@@ -104,10 +115,12 @@ def default_state_dir() -> Path:
 
 def default_timeout_seconds() -> float:
     """`MANIFEST_HOOK_TIMEOUT_SECONDS` overrides the adapter deadline for
-    tests; a malformed value is not a value, so it falls back rather than
-    raising out of a hook that must always emit protocol JSON."""
+    tests; a malformed or non-positive value is not a usable deadline, so it
+    falls back rather than raising out of a hook that must always emit
+    protocol JSON (`run_argv` rejects `timeout_seconds <= 0` with a
+    `ValueError`, which is exactly what must never reach the caller here)."""
     override = os.environ.get("MANIFEST_HOOK_TIMEOUT_SECONDS", "")
-    if override.replace(".", "", 1).isdigit():
+    if override.replace(".", "", 1).isdigit() and float(override) > 0:
         return float(override)
     return DEFAULT_TIMEOUT_SECONDS
 
@@ -135,6 +148,29 @@ class EventRequest:
     timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS
 
 
+def _compute_verdict(request: EventRequest, root: Path, digest: str) -> dict:
+    """Run the real check, record telemetry, write the receipt, and return
+    the verdict `run_deduplicated` caches -- this is the ONLY place a
+    non-replayed outcome is produced."""
+    run_start = time.monotonic()
+    status, diagnostics = run_manifest_check(
+        profile=request.profile, project_config=request.project_config, base="HEAD",
+        cwd=root, timeout_seconds=request.timeout_seconds,
+    )
+    record_hook_telemetry(
+        request.client, request.profile, root, status, time.monotonic() - run_start
+    )
+    receipt = build_receipt(
+        ReceiptInput(
+            client=request.client, event=request.event, profile=request.profile,
+            status=status, digest=digest, diagnostics=diagnostics,
+        )
+    )
+    write_receipt(request.state_dir, receipt)
+    action = "block" if status in ("FAIL", "BLOCKED") else "allow"
+    return {"status": status, "action": action, "reason": diagnostics}
+
+
 def process_event(request: EventRequest) -> AdapterOutcome:
     """Everything after per-client parsing/validation has passed."""
     if request.profile is None:
@@ -153,34 +189,12 @@ def process_event(request: EventRequest) -> AdapterOutcome:
         digest = candidate_digest(root)
     except CandidateBlockedError as error:
         return AdapterOutcome("supported", "BLOCKED", "block", redact_text(str(error)), None)
-    is_stop = request.profile == FULL
-    decision = check_and_record(
-        request.state_dir, request.client, request.event, digest, is_stop=is_stop
+    dedup_key = DedupKey(
+        client=request.client, event=request.event, digest=digest,
+        is_stop=request.profile == FULL,
     )
-    if not decision.is_new:
-        return AdapterOutcome(
-            "supported", "SKIPPED_DUPLICATE", "allow",
-            "duplicate event for unchanged candidate", None,
-        )
-    if is_stop and not decision.stop_allowed:
-        return AdapterOutcome(
-            "supported", "SKIPPED_CONTINUATION", "allow",
-            "stop continuation already used for this candidate", None,
-        )
-    run_start = time.monotonic()
-    status, diagnostics = run_manifest_check(
-        profile=request.profile, project_config=request.project_config, base="HEAD",
-        cwd=root, timeout_seconds=request.timeout_seconds,
+    verdict = run_deduplicated(
+        request.state_dir, dedup_key, lambda: _compute_verdict(request, root, digest)
     )
-    record_hook_telemetry(
-        request.client, request.profile, root, status, time.monotonic() - run_start
-    )
-    receipt = build_receipt(
-        ReceiptInput(
-            client=request.client, event=request.event, profile=request.profile,
-            status=status, digest=digest, diagnostics=diagnostics,
-        )
-    )
-    write_receipt(request.state_dir, receipt)
-    action = "block" if status in ("FAIL", "BLOCKED") else "allow"
-    return AdapterOutcome("supported", status, action, diagnostics, receipt)
+    outcome = verdict.outcome
+    return AdapterOutcome("supported", outcome["status"], outcome["action"], outcome["reason"], None)

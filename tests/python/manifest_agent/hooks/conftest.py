@@ -95,6 +95,23 @@ class HookHarness:
 
 
 _TEMPLATE_PATH = Path(__file__).parent / "data" / "marker_project_checks.json"
+_SINGLE_CHECK_TEMPLATE_PATH = (
+    Path(__file__).parent / "data" / "single_check_project_checks.json"
+)
+
+
+def write_custom_check_project(config_path: Path, script_path: Path) -> None:
+    """Render a one-check registry whose body is an arbitrary script --
+    for tests that need a check body to do something specific (spawn a
+    nested process, fail on a read-only path, ...) rather than the generic
+    marker-append body `hook_harness` wires up by default."""
+    rendered = (
+        _SINGLE_CHECK_TEMPLATE_PATH.read_text(encoding="utf-8")
+        .replace("__PYTHON__", json.dumps(sys.executable)[1:-1])
+        .replace("__SCRIPT__", json.dumps(str(script_path))[1:-1])
+        .replace("__PYVERSION__", platform.python_version())
+    )
+    config_path.write_text(rendered, encoding="utf-8")
 
 
 def _write_project_checks(config_path: Path, marker: Path) -> None:

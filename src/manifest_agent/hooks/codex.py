@@ -36,8 +36,8 @@ def main(argv: list[str]) -> int:
     try:
         payload = core.parse_event_object(core.read_bounded_stdin(sys.stdin.buffer))
         _validate(payload)
-    except core.ProtocolError as error:
-        print(json.dumps({"coverage": "unsupported", "reason": str(error)}))
+    except (core.ProtocolError, OSError, RuntimeError, ValueError) as error:
+        print(json.dumps({"coverage": "unsupported", "reason": core.safe_reason(error)}))
         return 0
     print(json.dumps({"coverage": "unsupported"}))
     return 0

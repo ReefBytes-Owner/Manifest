@@ -43,9 +43,14 @@ _STRING_FIELDS = ("session_id", "transcript_path", "cwd", "permission_mode", "to
 _OBJECT_FIELDS = ("tool_input", "tool_response")
 
 
-def _validate(payload: dict) -> None:
+def _validate(payload: dict, event: str) -> None:
     core.require_string_fields(payload, _STRING_FIELDS)
     core.require_object_fields(payload, _OBJECT_FIELDS)
+    declared = payload.get("hook_event_name")
+    if isinstance(declared, str) and declared and declared != event:
+        raise core.ProtocolError(
+            f"hook_event_name {declared!r} does not match invoked event {event!r}"
+        )
     tool_input = payload.get("tool_input")
     if isinstance(tool_input, dict) and isinstance(tool_input.get("file_path"), str):
         core.reject_traversal(tool_input["file_path"], "tool_input.file_path")
@@ -83,10 +88,10 @@ def main(argv: list[str]) -> int:
     event = argv[0]
     try:
         payload = core.parse_event_object(core.read_bounded_stdin(sys.stdin.buffer))
-        _validate(payload)
         if event not in EVENT_PROFILE:
             print(json.dumps({"coverage": "unsupported"}))
             return 0
+        _validate(payload, event)
         request = core.EventRequest(
             client=CLIENT,
             event=event,
@@ -97,8 +102,8 @@ def main(argv: list[str]) -> int:
             timeout_seconds=core.default_timeout_seconds(),
         )
         outcome = core.process_event(request)
-    except core.ProtocolError as error:
-        print(json.dumps({"decision": "block", "reason": str(error)}))
+    except (core.ProtocolError, OSError, RuntimeError, ValueError) as error:
+        print(json.dumps({"decision": "block", "reason": core.safe_reason(error)}))
         return 0
     print(json.dumps(_format(event, outcome)))
     return 0
