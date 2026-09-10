@@ -228,16 +228,76 @@ def digest(registry):
     return _config_digest(registry)
 
 
-def test_mixed_toolchain_across_groups_is_rejected(registry, digest):
+def test_disjoint_tool_sets_across_groups_are_not_flagged(registry, digest):
+    """The real registry shape: lint resolves no `store:` tool, test resolves
+    `ruff`. A whole-digest comparison would BLOCK this legitimate run; the
+    per-tool check must not."""
     receipts, run_context = clean_pair(digest)
-    receipts[1]["toolchain_digest"] = "a-different-toolchain-digest"
+
+    report = aggregate_results(registry, "full", receipts, run_context)
+
+    assert report["status"] == "PASS", report["diagnostics"]
+
+
+def test_mixed_toolchain_across_groups_is_rejected(registry, digest):
+    """Controller ruling: the same tool resolving to two different hashes
+    across producer groups is rejected -- not whole-digest inequality,
+    which fires on every legitimate disjoint-tool-set run (see above)."""
+    receipts, run_context = clean_pair(digest)
+    receipts[0]["resolved_tools"] = {"ruff": "a" * 64}
+    receipts[1]["resolved_tools"] = {"ruff": "b" * 64}
 
     report = aggregate_results(registry, "full", receipts, run_context)
 
     assert report["status"] == "BLOCKED"
     assert any(
-        "toolchain_digest differs across producer groups" in d
+        "tool digest differs across producer groups" in d for d in report["diagnostics"]
+    )
+
+
+def test_mismatched_interpreter_across_groups_is_rejected(registry, digest):
+    """An interpreter swap is invisible to `toolchain_digest` (`python3` is
+    a plain-name tool, never store-resolved) -- the cross-group check must
+    catch it directly."""
+    receipts, run_context = clean_pair(digest)
+    receipts[0]["interpreter_version"] = "3.14.0 (a)"
+    receipts[0]["interpreter_executable_sha256"] = "a" * 64
+    receipts[1]["interpreter_version"] = "3.14.0 (b)"
+    receipts[1]["interpreter_executable_sha256"] = "b" * 64
+
+    report = aggregate_results(registry, "full", receipts, run_context)
+
+    assert report["status"] == "BLOCKED"
+    assert any(
+        "interpreter provenance differs across producer groups" in d
         for d in report["diagnostics"]
+    )
+
+
+def test_expiring_profile_receipt_with_missing_expiry_is_rejected(registry_file):
+    """`expires_at: null` on a `security`/`release` receipt must not be
+    treated as "never expires" -- a producer that omits the field must not
+    get to skip the 24h rule entirely."""
+    registry = load_two_group_registry(registry_file)
+    from manifest_agent.checks.runner import _config_digest
+
+    digest = _config_digest(registry)
+    receipts = [
+        receipt_fixture(
+            group="lint",
+            results=[result("lint.a")],
+            digest=digest,
+            profile="security",
+            expires_at=None,
+        )
+    ]
+    run_context = context(producer_jobs=[job("lint")])
+
+    report = aggregate_results(registry, "security", receipts, run_context)
+
+    assert report["status"] == "BLOCKED"
+    assert any(
+        "stale receipt" in d and "missing expiry" in d for d in report["diagnostics"]
     )
 
 

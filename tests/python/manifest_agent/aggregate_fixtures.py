@@ -5,7 +5,6 @@ from __future__ import annotations
 from collections.abc import Callable
 from pathlib import Path
 
-from manifest_agent.checks import receipt as _receipt
 from manifest_agent.checks.registry import load_registry
 from tests.python.manifest_agent.check_registry_fixtures import _check
 
@@ -13,9 +12,15 @@ REPOSITORY = "acme/example"
 WORKFLOW = "ci.yml"
 RUN_ID = "1001"
 TESTED_SHA = "a" * 40
-# Every fixture receipt agrees on this toolchain identity by default -- tests
-# that need to exercise "mixed toolchain across groups" override it directly.
-DEFAULT_TOOLCHAIN_DIGEST = _receipt.toolchain_digest({"demo": "f" * 64})
+DEFAULT_TOOLCHAIN_DIGEST = "d" * 64
+# Mirrors the real registry: only "test" resolves a `store:` tool, "lint"
+# resolves none -- a genuine disjoint-tool-set pair, not a fixture that
+# proves a property of itself. Tests exercising a real cross-group
+# disagreement override the *same* tool key with a different hash.
+DEFAULT_RESOLVED_TOOLS: dict[str, dict[str, str]] = {
+    "lint": {},
+    "test": {"ruff": "f" * 64},
+}
 
 _PROFILES = {
     "quick": ["lint.a"],
@@ -74,6 +79,7 @@ def receipt(
         "status": "PASS",
         "duration_seconds": 0.1,
         "toolchain_digest": DEFAULT_TOOLCHAIN_DIGEST,
+        "resolved_tools": dict(DEFAULT_RESOLVED_TOOLS.get(group, {})),
         "interpreter_version": "",
         "interpreter_executable_sha256": "",
         "environment_digest": "e" * 64,

@@ -44,6 +44,7 @@ RECEIPT_KEYS = frozenset(
         "status",
         "duration_seconds",
         "toolchain_digest",
+        "resolved_tools",
         "interpreter_version",
         "interpreter_executable_sha256",
         "environment_digest",
@@ -51,15 +52,10 @@ RECEIPT_KEYS = frozenset(
         "receipt_key",
     }
 )
-# Receipt-local, non-authoritative fields: `run_profile` reports them for its
-# own candidate/local view, but the aggregator independently recomputes
-# `config_digest` from the loaded registry and coverage from the registry's
-# `coverage_pending` + the resolved profile, so these are only type-checked,
-# never trusted as the source of truth for the aggregate verdict. The
-# provenance digests are receipt-local for the same reason -- the aggregator
-# has no independent way to recompute a producer's actual toolchain/env, so
-# it cross-checks them (identical `toolchain_digest` across every group's
-# receipt; `expires_at` freshness) instead of trusting a claimed value.
+# Receipt-local, non-authoritative fields: only type-checked, never trusted
+# as the verdict's authority on their own. `resolved_tools` and interpreter
+# provenance are cross-checked tool-by-tool across groups instead (see
+# `_cross_group_consistency_errors`); `expires_at` is checked for freshness.
 RECEIPT_LOCAL_KEYS = frozenset(
     {
         "candidate_digest",
@@ -67,6 +63,7 @@ RECEIPT_LOCAL_KEYS = frozenset(
         "required_ids",
         "duration_seconds",
         "toolchain_digest",
+        "resolved_tools",
         "interpreter_version",
         "interpreter_executable_sha256",
         "environment_digest",
@@ -225,7 +222,13 @@ def _receipt_identity_errors(
     elif receipt["head_sha"] != trust.tested_sha:
         errors.append("receipt head_sha does not match the current run's tested_sha")
     errors.extend(_receipt_local_field_errors(receipt))
-    if _receipt.is_expired(receipt.get("expires_at"), now):
+    expires = receipt.get("expires_at")
+    if trust.profile in _receipt.EXPIRING_PROFILES and not expires:
+        # An expiring profile with a missing/null expiry is not "never
+        # expires" -- a producer that simply omits the field must not get
+        # to skip the 24h rule. Missing is rejected the same as expired.
+        errors.append(f"stale receipt: missing expiry for {trust.profile!r} profile")
+    elif _receipt.is_expired(expires, now):
         errors.append("stale receipt: expired")
     return errors
 
@@ -250,6 +253,14 @@ def _receipt_local_field_errors(receipt: dict[str, Any]) -> list[str]:
             errors.append(f"receipt {key} must be a string")
     if receipt["expires_at"] is not None and not isinstance(receipt["expires_at"], str):
         errors.append("receipt expires_at must be a string or null")
+    resolved_tools = receipt["resolved_tools"]
+    if not isinstance(resolved_tools, dict) or not all(
+        isinstance(tool, str) and isinstance(tool_digest, str)
+        for tool, tool_digest in resolved_tools.items()
+    ):
+        errors.append(
+            "receipt resolved_tools must be a mapping of tool name to sha256 string"
+        )
     return errors
 
 
@@ -326,21 +337,45 @@ def _receipt_errors(
     return [], {
         "group": group,
         "results": results,
-        "toolchain_digest": receipt["toolchain_digest"],
+        "resolved_tools": receipt["resolved_tools"],
+        "interpreter_version": receipt["interpreter_version"],
+        "interpreter_executable_sha256": receipt["interpreter_executable_sha256"],
     }
 
 
-def _toolchain_consistency_errors(parsed_receipts: list[dict[str, Any]]) -> list[str]:
-    """A run where one producer group resolved a different tool identity
-    than another is not one verification -- reject the mix outright rather
-    than silently trusting whichever receipt happened to sort first."""
-    digests = {parsed["toolchain_digest"] for parsed in parsed_receipts}
-    if len(digests) > 1:
-        return [
-            "stale receipt: toolchain_digest differs across producer groups: "
-            + ", ".join(sorted(digests))
-        ]
-    return []
+def _cross_group_consistency_errors(parsed_receipts: list[dict[str, Any]]) -> list[str]:
+    """Per-tool + interpreter agreement across producer groups.
+
+    Whole-`toolchain_digest` equality fires on every legitimate run (groups
+    resolve disjoint tool sets); this checks the same tool for conflicting
+    hashes across groups instead, plus interpreter agreement -- `python3` is
+    a plain-name tool outside `toolchain_digest`, so a swap would otherwise
+    be invisible to any digest here."""
+    errors: list[str] = []
+    tool_digests: dict[str, set[str]] = {}
+    for parsed in parsed_receipts:
+        for tool, tool_digest in parsed["resolved_tools"].items():
+            tool_digests.setdefault(tool, set()).add(tool_digest)
+    mismatched = {
+        tool: sorted(digests)
+        for tool, digests in tool_digests.items()
+        if len(digests) > 1
+    }
+    if mismatched:
+        errors.append(
+            "stale receipt: tool digest differs across producer groups: "
+            + ", ".join(f"{tool}={pair}" for tool, pair in sorted(mismatched.items()))
+        )
+    interpreters = {
+        (parsed["interpreter_version"], parsed["interpreter_executable_sha256"])
+        for parsed in parsed_receipts
+        if parsed["interpreter_version"] or parsed["interpreter_executable_sha256"]
+    }
+    if len(interpreters) > 1:
+        errors.append(
+            "stale receipt: interpreter provenance differs across producer groups"
+        )
+    return errors
 
 
 def _merge_receipts(
@@ -372,7 +407,7 @@ def _merge_receipts(
     missing_ids = set(trust.id_to_group) - seen_ids
     if missing_ids:
         errors.append(f"missing check results: {sorted(missing_ids)}")
-    errors.extend(_toolchain_consistency_errors(parsed_receipts))
+    errors.extend(_cross_group_consistency_errors(parsed_receipts))
     return errors, merged, seen_groups
 
 

@@ -152,7 +152,8 @@ class FieldInputs:
 
 def build_fields(inputs: FieldInputs) -> dict[str, object]:
     """Every v2-only receipt field, computed from this run's actual inputs."""
-    tc_digest = toolchain_digest(resolved_tool_digests(inputs.tool_results))
+    resolved = resolved_tool_digests(inputs.tool_results)
+    tc_digest = toolchain_digest(resolved)
     env_digest = environment_digest(inputs.env, toolchain.current_platform())
     interpreter = interpreter_from_store(inputs.env, inputs.candidate_root)
     produced = inputs.produced or datetime.now(UTC)
@@ -168,6 +169,11 @@ def build_fields(inputs: FieldInputs) -> dict[str, object]:
     )
     return {
         "toolchain_digest": tc_digest,
+        # The per-tool map this run's `toolchain_digest` was hashed from --
+        # `aggregate.py` cross-checks agreement tool-by-tool, not by whole
+        # digest, since two producer groups legitimately resolve disjoint
+        # tool sets (e.g. lint never touches `store:python-env/bin/ruff`).
+        "resolved_tools": resolved,
         "interpreter_version": interpreter["version"],
         "interpreter_executable_sha256": interpreter["executable_sha256"],
         "environment_digest": env_digest,
