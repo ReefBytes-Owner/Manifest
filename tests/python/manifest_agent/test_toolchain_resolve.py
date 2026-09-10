@@ -11,7 +11,7 @@ import hashlib
 import json
 from pathlib import Path
 
-from manifest_agent.checks import toolchain
+from manifest_agent.checks import toolchain, toolchain_env
 from tests.python.manifest_agent.toolchain_fixtures import (
     _lock,
     _provision_store,
@@ -240,14 +240,23 @@ class TestResolveTrustAnchoring:
             "toolchain: shfmt not provisioned (run manifest provision)"
         )
 
-    def test_interpreter_hash_is_verified_for_python_env(self, tmp_path: Path):
-        store = tmp_path / "store"
-        interpreter_bytes = b"fake-interpreter"
-        exe_bytes = b"#!fake-interpreter\nruff\n"
-        interpreter_sha = _write(
-            store / "tools/python-env/deadbeef/bin/python3", interpreter_bytes
-        )
-        exe_sha = _write(store / "tools/python-env/deadbeef/bin/ruff", exe_bytes)
+    def _fake_python_env(
+        self, store: Path, *, record_bytes: bytes = b"pkg==1.0"
+    ) -> tuple[Path, str]:
+        """A hand-built python-env: one dist-info RECORD (the distribution-set
+        anchor -- Correction 3, rule 3) plus a `bin/ruff` console script whose
+        shebang points at `bin/python` inside the same env. Returns
+        `(source_sha256_placeholder, distribution_set_digest)`."""
+        env_root = store / "tools/python-env/deadbeef"
+        record_path = env_root / "lib/python3.11/site-packages/pkg-1.0.dist-info/RECORD"
+        record_path.parent.mkdir(parents=True)
+        record_path.write_bytes(record_bytes)
+        _write(env_root / "bin/python", b"fake-interpreter-launcher")
+        _write(env_root / "bin/ruff", f"#!{env_root / 'bin/python'}\nruff\n".encode())
+        digest = toolchain_env.distribution_set_digest(env_root, "python-env")
+        return env_root, digest
+
+    def _fake_python_env_lock_and_manifest(self, store: Path, exe_sha256: str) -> dict:
         lock = {
             "schema_version": 1,
             "tools": {
@@ -256,9 +265,9 @@ class TestResolveTrustAnchoring:
                     "version": "deadbeef",
                     "platforms": {
                         "linux-x64": {
-                            "url": "file://config/toolchain/pyproject.toml",
+                            "url": "file://config/toolchain/uv.lock",
                             "sha256": "f" * 64,
-                            "exe_sha256": exe_sha,
+                            "exe_sha256": exe_sha256,
                             "path_in_archive": ".",
                         }
                     },
@@ -272,29 +281,90 @@ class TestResolveTrustAnchoring:
                 "python-env": {
                     "source_sha256": "f" * 64,
                     "executables": {
-                        "bin/ruff": {
-                            "path": "tools/python-env/deadbeef/bin/ruff",
-                            "sha256": exe_sha,
-                            "interpreter": "tools/python-env/deadbeef/bin/python3",
-                            "interpreter_sha256": interpreter_sha,
-                        }
+                        "bin/ruff": {"path": "tools/python-env/deadbeef/bin/ruff"},
+                        "bin/python": {"path": "tools/python-env/deadbeef/bin/python"},
                     },
                 }
             },
         }
         (store / "manifest.json").write_text(json.dumps(manifest))
+        return lock
+
+    def test_python_env_resolves_when_distribution_digest_matches(self, tmp_path: Path):
+        """Correction 3's replacement anchor: `exe_sha256` is the digest of
+        the installed distribution set (every dist-info RECORD), not of one
+        console script's bytes -- those embed a store-location-dependent
+        interpreter path and can never match a committed lock."""
+        store = tmp_path / "store"
+        _, digest = self._fake_python_env(store)
+        lock = self._fake_python_env_lock_and_manifest(store, digest)
 
         outcome = toolchain.resolve(
             "store:python-env/bin/ruff", lock=lock, store=store, platform="linux-x64"
         )
         assert isinstance(outcome, toolchain.ResolvedTool)
-        assert outcome.interpreter == store / "tools/python-env/deadbeef/bin/python3"
+        assert outcome.tool_sha256 == digest
 
-        # Now swap the interpreter behind the console script -- must BLOCK.
-        (store / "tools/python-env/deadbeef/bin/python3").write_bytes(b"swapped")
-        outcome_after_swap = toolchain.resolve(
+    def test_python_env_blocks_on_tampered_record_digest_mismatch(self, tmp_path: Path):
+        """Editing one installed distribution's RECORD -- the same signal a
+        real dependency swap or supply-chain tamper would leave -- changes
+        the distribution-set digest and BLOCKs, without ever touching the
+        `bin/ruff` console script itself."""
+        store = tmp_path / "store"
+        env_root, digest = self._fake_python_env(store)
+        lock = self._fake_python_env_lock_and_manifest(store, digest)
+
+        record_path = env_root / "lib/python3.11/site-packages/pkg-1.0.dist-info/RECORD"
+        record_path.write_bytes(b"pkg==2.0-tampered")
+
+        outcome = toolchain.resolve(
             "store:python-env/bin/ruff", lock=lock, store=store, platform="linux-x64"
         )
-        assert outcome_after_swap == toolchain.BlockedReason(
+        assert outcome == toolchain.BlockedReason(
             "toolchain: python-env digest mismatch"
         )
+
+    def test_python_env_blocks_when_launcher_points_outside_store(self, tmp_path: Path):
+        """A console script whose shebang was swapped to run a system/dev
+        interpreter (outside `store`) BLOCKs even though the distribution-set
+        digest still matches -- rule 3d, the launcher-provenance check."""
+        store = tmp_path / "store"
+        env_root, digest = self._fake_python_env(store)
+        lock = self._fake_python_env_lock_and_manifest(store, digest)
+
+        outside = tmp_path / "outside-python"
+        outside.write_bytes(b"not-the-store")
+        (env_root / "bin/ruff").write_text(f"#!{outside}\nruff\n")
+        # The shebang change does not touch any dist-info RECORD, so the
+        # distribution-set digest is unchanged -- isolating the assertion to
+        # the launcher-provenance rule, not a digest coincidence.
+        assert toolchain_env.distribution_set_digest(env_root, "python-env") == digest
+
+        outcome = toolchain.resolve(
+            "store:python-env/bin/ruff", lock=lock, store=store, platform="linux-x64"
+        )
+        assert outcome == toolchain.BlockedReason(
+            "toolchain: python-env digest mismatch"
+        )
+
+    def test_python_env_bin_python_launcher_is_exempt_from_the_store_check(
+        self, tmp_path: Path
+    ):
+        """`bin/python` is the venv interpreter itself -- a symlink to the
+        ambient/uv-managed CPython by design (Correction 3, rule 2: pinning
+        the interpreter's own bytes is out of scope). Every OTHER console
+        script's shebang names `bin/python`, which IS inside the store, so
+        this exemption cannot smuggle an outside launcher past the check for
+        anything else (proven by the sibling test above)."""
+        store = tmp_path / "store"
+        env_root, digest = self._fake_python_env(store)
+        lock = self._fake_python_env_lock_and_manifest(store, digest)
+        real_python = tmp_path / "ambient-python3.11"
+        real_python.write_bytes(b"real ambient interpreter")
+        (env_root / "bin/python").unlink()
+        (env_root / "bin/python").symlink_to(real_python)
+
+        outcome = toolchain.resolve(
+            "store:python-env/bin/python", lock=lock, store=store, platform="linux-x64"
+        )
+        assert isinstance(outcome, toolchain.ResolvedTool)

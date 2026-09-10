@@ -16,7 +16,7 @@
     "syntax.yaml.config": {
       "executable": "python3",
       "version_argv": [
-        "python3",
+        "store:python-env/bin/python",
         "-I",
         "tools/project_checks/tool_versions.py",
         "python-wrapper",
@@ -79,7 +79,9 @@
         "-I",
         "tools/project_checks/tool_versions.py",
         "command-version",
-        "shellcheck"
+        "shellcheck",
+        "--executable",
+        "store:shellcheck/bin/shellcheck"
       ],
       "expected_version": "command:shellcheck=0.11.0",
       "required_modules": []
@@ -91,7 +93,9 @@
         "-I",
         "tools/project_checks/tool_versions.py",
         "command-version",
-        "shellcheck"
+        "shellcheck",
+        "--executable",
+        "store:shellcheck/bin/shellcheck"
       ],
       "expected_version": "command:shellcheck=0.11.0",
       "required_modules": []
@@ -99,7 +103,7 @@
     "lint.yaml.config": {
       "executable": "python3",
       "version_argv": [
-        "python3",
+        "store:python-env/bin/python",
         "-I",
         "tools/project_checks/tool_versions.py",
         "distribution-version",
@@ -200,7 +204,7 @@
     "test.python": {
       "executable": "store:python-env/bin/pytest",
       "version_argv": [
-        "python3",
+        "store:python-env/bin/python",
         "-I",
         "tools/project_checks/tool_versions.py",
         "distribution-version",
@@ -212,7 +216,7 @@
     "test.hooks": {
       "executable": "store:python-env/bin/pytest",
       "version_argv": [
-        "python3",
+        "store:python-env/bin/python",
         "-I",
         "tools/project_checks/tool_versions.py",
         "distribution-version",
@@ -250,7 +254,9 @@
         "-I",
         "tools/project_checks/tool_versions.py",
         "command-version",
-        "bats"
+        "bats",
+        "--executable",
+        "store:node-env/bin/bats"
       ],
       "expected_version": "command:bats=1.11.1",
       "required_modules": []
@@ -361,7 +367,9 @@
         "-I",
         "tools/project_checks/tool_versions.py",
         "command-version",
-        "shfmt"
+        "shfmt",
+        "--executable",
+        "store:shfmt/bin/shfmt"
       ],
       "expected_version": "command:shfmt=3.13.1",
       "required_modules": []
@@ -380,7 +388,7 @@
     "hook.validate-yaml-configs": {
       "executable": "python3",
       "version_argv": [
-        "python3",
+        "store:python-env/bin/python",
         "-I",
         "tools/project_checks/tool_versions.py",
         "python-wrapper",
@@ -417,7 +425,7 @@
     "hook.check-yaml": {
       "executable": "store:python-env/bin/check-yaml",
       "version_argv": [
-        "python3",
+        "store:python-env/bin/python",
         "-I",
         "tools/project_checks/tool_versions.py",
         "distribution-version",
@@ -429,7 +437,7 @@
     "hook.check-json": {
       "executable": "store:python-env/bin/check-json",
       "version_argv": [
-        "python3",
+        "store:python-env/bin/python",
         "-I",
         "tools/project_checks/tool_versions.py",
         "distribution-version",
@@ -441,7 +449,7 @@
     "hook.check-added-large-files": {
       "executable": "store:python-env/bin/check-added-large-files",
       "version_argv": [
-        "python3",
+        "store:python-env/bin/python",
         "-I",
         "tools/project_checks/tool_versions.py",
         "distribution-version",
@@ -453,7 +461,7 @@
     "hook.check-case-conflict": {
       "executable": "store:python-env/bin/check-case-conflict",
       "version_argv": [
-        "python3",
+        "store:python-env/bin/python",
         "-I",
         "tools/project_checks/tool_versions.py",
         "distribution-version",
@@ -465,7 +473,7 @@
     "hook.check-merge-conflict": {
       "executable": "store:python-env/bin/check-merge-conflict",
       "version_argv": [
-        "python3",
+        "store:python-env/bin/python",
         "-I",
         "tools/project_checks/tool_versions.py",
         "distribution-version",
@@ -477,7 +485,7 @@
     "hook.check-executables-have-shebangs": {
       "executable": "store:python-env/bin/check-executables-have-shebangs",
       "version_argv": [
-        "python3",
+        "store:python-env/bin/python",
         "-I",
         "tools/project_checks/tool_versions.py",
         "distribution-version",
@@ -489,7 +497,7 @@
     "hook.check-shebang-scripts-are-executable": {
       "executable": "store:python-env/bin/check-shebang-scripts-are-executable",
       "version_argv": [
-        "python3",
+        "store:python-env/bin/python",
         "-I",
         "tools/project_checks/tool_versions.py",
         "distribution-version",
@@ -501,7 +509,7 @@
     "hook.detect-private-key": {
       "executable": "store:python-env/bin/detect-private-key",
       "version_argv": [
-        "python3",
+        "store:python-env/bin/python",
         "-I",
         "tools/project_checks/tool_versions.py",
         "distribution-version",
@@ -513,7 +521,7 @@
     "hook.check-ast": {
       "executable": "store:python-env/bin/check-ast",
       "version_argv": [
-        "python3",
+        "store:python-env/bin/python",
         "-I",
         "tools/project_checks/tool_versions.py",
         "distribution-version",
@@ -525,7 +533,7 @@
     "hook.debug-statements": {
       "executable": "store:python-env/bin/debug-statement-hook",
       "version_argv": [
-        "python3",
+        "store:python-env/bin/python",
         "-I",
         "tools/project_checks/tool_versions.py",
         "distribution-version",
@@ -541,7 +549,9 @@
         "-I",
         "tools/project_checks/tool_versions.py",
         "command-version",
-        "shellcheck"
+        "shellcheck",
+        "--executable",
+        "store:shellcheck/bin/shellcheck"
       ],
       "expected_version": "command:shellcheck=0.11.0",
       "required_modules": []
@@ -561,7 +571,7 @@
     "hook.yamllint": {
       "executable": "python3",
       "version_argv": [
-        "python3",
+        "store:python-env/bin/python",
         "-I",
         "tools/project_checks/tool_versions.py",
         "distribution-version",
@@ -573,7 +583,7 @@
     "hook.ruff": {
       "executable": "store:python-env/bin/ruff",
       "version_argv": [
-        "python3",
+        "store:python-env/bin/python",
         "-I",
         "tools/project_checks/tool_versions.py",
         "distribution-version",
@@ -585,7 +595,7 @@
     "hook.ruff-format": {
       "executable": "store:python-env/bin/ruff",
       "version_argv": [
-        "python3",
+        "store:python-env/bin/python",
         "-I",
         "tools/project_checks/tool_versions.py",
         "distribution-version",
@@ -613,7 +623,9 @@
         "-I",
         "tools/project_checks/tool_versions.py",
         "command-version",
-        "gitleaks"
+        "gitleaks",
+        "--executable",
+        "store:gitleaks/bin/gitleaks"
       ],
       "expected_version": "command:gitleaks=8.30.1",
       "required_modules": []
@@ -750,7 +762,9 @@
         "tools/project_checks/tool_versions.py",
         "python-wrapper",
         "--command",
-        "uv"
+        "uv",
+        "--executable",
+        "store:uv/bin/uv"
       ],
       "expected_version": "command:uv=0.12.6",
       "required_modules": []
@@ -763,7 +777,9 @@
         "tools/project_checks/tool_versions.py",
         "python-wrapper",
         "--command",
-        "uv"
+        "uv",
+        "--executable",
+        "store:uv/bin/uv"
       ],
       "expected_version": "command:uv=0.12.6",
       "required_modules": []
@@ -776,7 +792,9 @@
         "tools/project_checks/tool_versions.py",
         "python-wrapper",
         "--command",
-        "uv"
+        "uv",
+        "--executable",
+        "store:uv/bin/uv"
       ],
       "expected_version": "command:uv=0.12.6",
       "required_modules": []
@@ -789,7 +807,9 @@
         "tools/project_checks/tool_versions.py",
         "python-wrapper",
         "--command",
-        "uv"
+        "uv",
+        "--executable",
+        "store:uv/bin/uv"
       ],
       "expected_version": "command:uv=0.12.6",
       "required_modules": []
@@ -802,7 +822,9 @@
         "tools/project_checks/tool_versions.py",
         "python-wrapper",
         "--command",
-        "uv"
+        "uv",
+        "--executable",
+        "store:uv/bin/uv"
       ],
       "expected_version": "command:uv=0.12.6",
       "required_modules": []
@@ -815,7 +837,9 @@
         "tools/project_checks/tool_versions.py",
         "python-wrapper",
         "--command",
-        "uv"
+        "uv",
+        "--executable",
+        "store:uv/bin/uv"
       ],
       "expected_version": "command:uv=0.12.6",
       "required_modules": []
@@ -883,7 +907,9 @@
         "tools/project_checks/tool_versions.py",
         "python-wrapper",
         "--command",
-        "uv"
+        "uv",
+        "--executable",
+        "store:uv/bin/uv"
       ],
       "expected_version": "command:uv=0.12.6",
       "required_modules": []

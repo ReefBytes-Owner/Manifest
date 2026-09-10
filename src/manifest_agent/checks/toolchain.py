@@ -22,8 +22,9 @@ import os
 import platform as _platform
 import re
 from collections.abc import Mapping
-from dataclasses import dataclass
 from pathlib import Path
+
+from . import toolchain_env
 
 STORE_ENV_VAR = "MANIFEST_TOOLCHAIN_STORE"
 XDG_CACHE_ENV_VAR = "XDG_CACHE_HOME"
@@ -36,22 +37,12 @@ _STORE_EXECUTABLE = re.compile(
 )
 
 
-@dataclass(frozen=True)
-class ResolvedTool:
-    """A store-resolved, hash-verified executable ready to run."""
-
-    bundle: str
-    executable: Path
-    interpreter: Path | None
-    path_entries: tuple[Path, ...]
-    tool_sha256: str
-
-
-@dataclass(frozen=True)
-class BlockedReason:
-    """A distinct, human-readable reason a tool could not be resolved."""
-
-    reason: str
+# Re-exported from toolchain_env (moved there to keep this file, and
+# _verify_env_exe's helpers, under the Code Constitution's 500-line ceiling
+# -- toolchain_env.py is where the rest of the python-env/node-env
+# verification logic that needs them already lives).
+ResolvedTool = toolchain_env.ResolvedTool
+BlockedReason = toolchain_env.BlockedReason
 
 
 def parse_store_executable(value: str) -> tuple[str, str] | None:
@@ -236,22 +227,28 @@ def resolve(
         return BlockedReason(
             f"toolchain: {bundle} not provisioned (run manifest provision)"
         )
+    if entry.get("kind") in ("python-env", "node-env"):
+        node_result = None
+        if entry["kind"] == "node-env" and bundle != "node":
+            node_result = resolve(
+                "store:node/bin/node", lock=lock, store=store, platform=platform
+            )
+        return toolchain_env.verify_env_exe(
+            bundle, entry["kind"], exe_info, store, exe_sha256, node_result
+        )
     return _verify_exe(bundle, exe_info, store, exe_sha256)
+
+
+def _checked_relative_path(store: Path, relative_path: str) -> Path | None:
+    return toolchain_env._checked_relative_path(store, relative_path)
 
 
 def _verify_exe(bundle: str, exe_info: Mapping, store: Path, exe_sha256: str):
     """Re-hash the store's file at the path it claims -- against the lock's
     `exe_sha256`, never the store manifest's own recorded hash."""
-    relative_path = exe_info.get("path", "")
-    if not _safe_relative(relative_path):
-        return BlockedReason(
-            f"toolchain: {bundle} not provisioned (run manifest provision)"
-        )
-    exe_path = store / relative_path
-    if not exe_path.is_file():
-        return BlockedReason(
-            f"toolchain: {bundle} not provisioned (run manifest provision)"
-        )
+    exe_path = _checked_relative_path(store, exe_info.get("path", ""))
+    if exe_path is None:
+        return toolchain_env._not_provisioned(bundle)
     actual = sha256_file(exe_path)
     if actual != exe_sha256:
         return BlockedReason(f"toolchain: {bundle} digest mismatch")
@@ -259,31 +256,45 @@ def _verify_exe(bundle: str, exe_info: Mapping, store: Path, exe_sha256: str):
     interpreter_path = None
     interpreter_relative = exe_info.get("interpreter")
     if interpreter_relative:
-        if not _safe_relative(interpreter_relative):
-            return BlockedReason(
-                f"toolchain: {bundle} not provisioned (run manifest provision)"
-            )
-        interpreter_path = store / interpreter_relative
-        if not interpreter_path.is_file():
-            return BlockedReason(
-                f"toolchain: {bundle} not provisioned (run manifest provision)"
-            )
+        interpreter_path = _checked_relative_path(store, interpreter_relative)
+        if interpreter_path is None:
+            return toolchain_env._not_provisioned(bundle)
         if sha256_file(interpreter_path) != exe_info.get("interpreter_sha256"):
             return BlockedReason(f"toolchain: {bundle} digest mismatch")
 
     bin_dirs = (exe_path.parent,)
     if interpreter_path is not None:
         bin_dirs = (exe_path.parent, interpreter_path.parent)
-    path_entries = tuple(dict.fromkeys(bin_dirs))
-    path_entries += tuple(Path(part) for part in os.defpath.split(os.pathsep) if part)
-    return ResolvedTool(bundle, exe_path, interpreter_path, path_entries, actual)
+    return ResolvedTool(
+        bundle,
+        exe_path,
+        interpreter_path,
+        toolchain_env.with_default_path(bin_dirs),
+        actual,
+    )
 
 
 def rewrite_argv(
-    argv: tuple[str, ...], resolved: ResolvedTool | None
+    argv: tuple[str, ...],
+    resolved: ResolvedTool | Mapping[str, ResolvedTool] | None,
 ) -> tuple[str, ...]:
-    """Replace a `store:` argv[0] with its resolved absolute executable path."""
-    if resolved is None or not argv or parse_store_executable(argv[0]) is None:
+    """Replace `store:` argv tokens with resolved absolute executable paths.
+
+    A single `ResolvedTool` (the common case: a check's own argv[0]) rewrites
+    only argv[0], exactly as before. A `{store_ref: ResolvedTool}` mapping
+    (built by `resolve_for_preflight` when a tool's `version_argv` embeds more
+    than one distinct `store:` reference -- e.g. a python-env console script
+    plus its own venv interpreter) rewrites every matching token, anywhere in
+    argv, not only argv[0].
+    """
+    if resolved is None or not argv:
+        return argv
+    if isinstance(resolved, Mapping):
+        return tuple(
+            str(resolved[token].executable) if token in resolved else token
+            for token in argv
+        )
+    if parse_store_executable(argv[0]) is None:
         return argv
     return (str(resolved.executable), *argv[1:])
 
@@ -329,30 +340,81 @@ def integrity_reason(
     return "candidate identity changed" if changed else identity_error
 
 
+def _store_refs(tool: Mapping) -> tuple[str, ...]:
+    """Every distinct literal `store:` token in a tool's `executable` or
+    `version_argv`, in first-seen order.
+
+    A tool whose body resolves a store engine itself (e.g. `hook.shfmt`
+    running `store:shfmt/bin/shfmt` from inside `hooks.py`) names that same
+    reference in `version_argv` (via `tool_versions.py --executable`) even
+    though `executable` itself stays the repo-owned wrapper (`python3`) --
+    that is how the preflight version probe is kept honest about which
+    binary the check body will actually run.
+    """
+    seen: dict[str, None] = {}
+    executable = tool.get("executable", "")
+    if parse_store_executable(executable) is not None:
+        seen[executable] = None
+    for token in tool.get("version_argv", ()):
+        if parse_store_executable(token) is not None:
+            seen.setdefault(token, None)
+    return tuple(seen)
+
+
+def _merged_resolution(
+    primary_ref: str, resolved_by_ref: Mapping[str, ResolvedTool]
+) -> ResolvedTool:
+    """One `ResolvedTool` standing in for every ref a preflight touched.
+
+    Its `executable`/`interpreter`/`tool_sha256` describe `primary_ref`
+    (the check's own `executable`, or the first ref when the check invokes
+    its engine entirely from inside the body); `path_entries` is the union
+    of every resolved ref's bin dirs, store entries first -- so a version
+    probe for a *different* store ref (e.g. `store:uv/bin/uv`) still finds
+    it on `PATH` without ever falling back to the ambient search.
+    """
+    primary = resolved_by_ref.get(primary_ref) or next(iter(resolved_by_ref.values()))
+    if len(resolved_by_ref) == 1:
+        return primary
+    merged_entries: dict[Path, None] = {}
+    for tool in resolved_by_ref.values():
+        for entry in tool.path_entries:
+            merged_entries.setdefault(entry, None)
+    return ResolvedTool(
+        primary.bundle,
+        primary.executable,
+        primary.interpreter,
+        tuple(merged_entries),
+        primary.tool_sha256,
+    )
+
+
 def resolve_for_preflight(
     tool: Mapping, env: Mapping[str, str], lock: Mapping, candidate_root: Path
 ) -> tuple[ResolvedTool | None, tuple[str, ...], dict[str, str], str | None]:
-    """Resolve a `store:` executable for the runner's preflight step.
+    """Resolve every `store:` reference a tool's preflight touches.
 
     `candidate_root` is an enforced forbidden root: the store must not
     resolve inside the disposable candidate the check is running against.
     Returns `(resolved_tool, version_argv, env, blocked_reason)`; plain-name
-    tools pass through unchanged (`resolved=None, blocked_reason=None`).
+    tools pass through unchanged (`resolved=None, blocked_reason=None`). A
+    `BlockedReason` from resolving ANY distinct ref blocks the whole
+    preflight -- a version probe never falls back to searching `PATH` for a
+    store engine that failed to resolve.
     """
-    if parse_store_executable(tool["executable"]) is None:
+    refs = _store_refs(tool)
+    if not refs:
         return None, tuple(tool["version_argv"]), env, None
     try:
         store = store_root(env, candidate_root)
     except UnsafeStoreLocationError as error:
         return None, (), env, f"toolchain: {error}"
-    outcome = resolve(
-        tool["executable"], lock=lock, store=store, platform=current_platform()
-    )
-    if isinstance(outcome, BlockedReason):
-        return None, (), env, outcome.reason
-    return (
-        outcome,
-        rewrite_argv(tuple(tool["version_argv"]), outcome),
-        resolved_env(env, outcome),
-        None,
-    )
+    resolved_by_ref: dict[str, ResolvedTool] = {}
+    for ref in refs:
+        outcome = resolve(ref, lock=lock, store=store, platform=current_platform())
+        if isinstance(outcome, BlockedReason):
+            return None, (), env, outcome.reason
+        resolved_by_ref[ref] = outcome
+    merged = _merged_resolution(tool["executable"], resolved_by_ref)
+    version_argv = rewrite_argv(tuple(tool["version_argv"]), resolved_by_ref)
+    return merged, version_argv, resolved_env(env, merged), None

@@ -85,13 +85,27 @@ def _distribution_component(distribution_name: str) -> str:
 
 
 def _resolved_executable(probe: str, executable: str | None) -> str:
+    """Resolve the engine a version probe actually runs.
+
+    An absolute `executable` only ever arrives here already rewritten by
+    `toolchain.rewrite_argv` from a `store:` reference the runner
+    hash-verified -- it is never taken from ambient `PATH`. Its basename
+    must still match the probe (or an allowed alias); if the file is
+    missing, that is a `ProbeError` (BLOCKED), never a `PATH` search --
+    the whole point is that a store-resolved engine has exactly one place
+    to be found.
+    """
     value = executable or probe
     candidate = PurePath(value)
-    if candidate.is_absolute() or ".." in candidate.parts:
-        raise ProbeError("command executable must be a name or contained relative path")
-    if len(candidate.parts) > 1:
-        raise ProbeError("command executable path does not match probe")
     allowed = _EXECUTABLE_ALIASES.get(probe, frozenset((probe,)))
+    if candidate.is_absolute():
+        if candidate.name not in allowed:
+            raise ProbeError("command executable name does not match probe")
+        if not os.path.isfile(value):
+            raise ProbeError(f"command is not installed: {probe}")
+        return value
+    if ".." in candidate.parts or len(candidate.parts) > 1:
+        raise ProbeError("command executable path does not match probe")
     if value not in allowed:
         raise ProbeError("command executable name does not match probe")
     resolved = shutil.which(value)
@@ -153,10 +167,16 @@ def _command_component(probe: str, executable: str | None = None) -> str:
     return _parsed_command_component(probe, resolved)
 
 
-def _python_wrapper(distributions: list[str], commands: list[str]) -> str:
+def _python_wrapper(
+    distributions: list[str], commands: list[str], executable: str | None = None
+) -> str:
+    """`executable`, when given, overrides every `--command` probe's engine --
+    a single store-resolved reference (`toolchain.resolve_for_preflight`
+    only ever rewrites the one distinct ref a `python-wrapper` invocation
+    names) rather than each command searching its own name on `PATH`."""
     components = [
         *(_distribution_component(name) for name in distributions),
-        *(_command_component(probe) for probe in commands),
+        *(_command_component(probe, executable) for probe in commands),
     ]
     if not components:
         return _NO_PREREQUISITES_TOKEN
@@ -176,6 +196,7 @@ def _parser() -> argparse.ArgumentParser:
     wrapper.add_argument(
         "--command", action="append", choices=sorted(_COMMAND_PROBES), default=[]
     )
+    wrapper.add_argument("--executable")
     return parser
 
 
@@ -184,7 +205,9 @@ def _probe(arguments: argparse.Namespace) -> str:
         return _distribution_component(arguments.distribution)
     if arguments.mode == "command-version":
         return _command_component(arguments.probe, arguments.executable)
-    return _python_wrapper(arguments.distribution, arguments.command)
+    return _python_wrapper(
+        arguments.distribution, arguments.command, arguments.executable
+    )
 
 
 def main(argv: list[str] | None = None) -> int:

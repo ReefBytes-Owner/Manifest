@@ -217,3 +217,36 @@ def test_repo_relative_scripts_remain_legal_without_the_store():
         "configs/claude/.venv/bin/manifest",
     ):
         assert toolchain.is_legal_plain_executable(value) is True
+
+
+def test_no_distribution_version_probe_names_a_python_env_distribution_on_ambient_python():
+    """C7c (coordinator round 2): a `distribution-version`/`--distribution`
+    probe for a distribution the `python-env` bundle installs must run
+    under `store:python-env/bin/python` -- never ambient `python3`, which
+    silently worked only because a dev checkout's own `.venv` happened to
+    resolve first on `PATH`. `PyYAML`/`ruff`/`pytest`/`yamllint`/
+    `pre-commit-hooks` are exactly the distributions `config/toolchain/
+    pyproject.toml` pins; any tool whose probe names one of them as a
+    `distribution-version` argument or a `python-wrapper --distribution`
+    value must have `store:python-env/bin/python` as `version_argv[0]`."""
+    registry = load_registry(REGISTRY_PATH)
+    python_env_distributions = {
+        "ruff",
+        "pytest",
+        "yamllint",
+        "pre-commit-hooks",
+        "pyyaml",
+        "pyyaml".upper(),
+        "PyYAML",
+    }
+    for name, tool in registry["tools"].items():
+        argv = tool["version_argv"]
+        names_python_env_distribution = (
+            "distribution-version" in argv
+            and argv[argv.index("distribution-version") + 1] in python_env_distributions
+        ) or (
+            "--distribution" in argv
+            and argv[argv.index("--distribution") + 1] in python_env_distributions
+        )
+        if names_python_env_distribution:
+            assert argv[0] == "store:python-env/bin/python", (name, argv)

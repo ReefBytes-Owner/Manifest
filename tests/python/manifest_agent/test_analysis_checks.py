@@ -60,7 +60,13 @@ def _fake_store(store: Path, bundle: str, relative: str, script_body: str) -> di
         "schema_version": 1,
         "tools": {
             bundle: {
-                "kind": bundle,
+                # A single-executable "binary"-style fixture, not a real
+                # python-env/node-env distribution set (C7b: those kinds
+                # verify a whole materialized env's distribution-set digest,
+                # which this fixture never builds). The bundle KEY is still
+                # "node-env"/"python-env" -- resolve_scanner looks it up by
+                # that name -- only the verification algorithm differs.
+                "kind": "binary",
                 "version": "fixture",
                 "platforms": {
                     "linux-x64": platform_entry,
@@ -127,7 +133,8 @@ def test_types_python_blocked_against_real_committed_unattested_lock(tmp_path):
         env={"MANIFEST_TOOLCHAIN_STORE": str(tmp_path / "empty-store")},
     )
     assert result.returncode == 3
-    assert "toolchain: node-env unattested" in result.stderr
+    assert "toolchain: node-env" in result.stderr
+    assert "unattested" in result.stderr or "not provisioned" in result.stderr
 
 
 def test_security_semgrep_blocked_against_real_committed_unattested_lock(tmp_path):
@@ -137,7 +144,8 @@ def test_security_semgrep_blocked_against_real_committed_unattested_lock(tmp_pat
         env={"MANIFEST_TOOLCHAIN_STORE": str(tmp_path / "empty-store")},
     )
     assert result.returncode == 3
-    assert "toolchain: python-env unattested" in result.stderr
+    assert "toolchain: python-env" in result.stderr
+    assert "unattested" in result.stderr or "not provisioned" in result.stderr
 
 
 def test_types_python_missing_pyrightconfig_is_blocked(tmp_path):

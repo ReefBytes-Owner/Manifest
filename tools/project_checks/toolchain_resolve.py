@@ -19,9 +19,26 @@ from __future__ import annotations
 
 import os
 import subprocess
+import sys
 from pathlib import Path
 
-from manifest_agent.checks import toolchain
+# The candidate this body runs against is a materialized COPY of the repo
+# (candidate.py) that includes src/ -- inserting it here, before the import,
+# is what makes `toolchain_resolve` importable under a bare system `python3`
+# with no `manifest_agent` package installed. This used to work only by
+# accident: a dev checkout's own `.venv/bin/python3` (with manifest_agent
+# already installed) happened to resolve first on `PATH`. C7c's honest PATH
+# (store bin dirs + os.defpath) exposed the hidden dependency by resolving
+# `python3` to the bare system interpreter instead -- the trust anchor for
+# WHICH engine runs stays the runner's preflight (toolchain.resolve()); this
+# is body-side import convenience only, same pattern already used by
+# analysis_checks.py/debt_checks.py/dependency_checks.py.
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+_SRC = _REPO_ROOT / "src"
+if str(_SRC) not in sys.path:
+    sys.path.insert(0, str(_SRC))
+
+from manifest_agent.checks import toolchain  # noqa: E402
 
 DEFAULT_LOCK_RELATIVE = Path("config") / "toolchain.lock.json"
 
