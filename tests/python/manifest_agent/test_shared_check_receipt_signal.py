@@ -100,7 +100,9 @@ done
     return bin_dir
 
 
-def _run_shadow_step(job_name: str, tmp_path: Path, exit_code: int, write_receipt: bool):
+def _run_shadow_step(
+    job_name: str, tmp_path: Path, exit_code: int, write_receipt: bool
+):
     script = _shadow_step_script(job_name)
     bin_dir = _fake_uv_bin(tmp_path, exit_code, write_receipt)
     work_dir = tmp_path / "work"
@@ -122,7 +124,9 @@ def _run_shadow_step(job_name: str, tmp_path: Path, exit_code: int, write_receip
         timeout=30,
     )
     outputs = dict(
-        line.split("=", 1) for line in output_path.read_text().splitlines() if "=" in line
+        line.split("=", 1)
+        for line in output_path.read_text().splitlines()
+        if "=" in line
     )
     return result, outputs
 
@@ -183,7 +187,13 @@ def _run_rejection_script(results: dict[str, str]) -> subprocess.CompletedProces
     )
 
 
-ALL_TRUE = {"structure": "true", "lint": "true", "test": "true", "security": "true", "package": "true"}
+ALL_TRUE = {
+    "structure": "true",
+    "lint": "true",
+    "test": "true",
+    "security": "true",
+    "package": "true",
+}
 
 
 class TestAggregateRejectionGate:
