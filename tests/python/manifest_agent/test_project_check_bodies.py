@@ -193,6 +193,44 @@ def _fixture_pre_commit_hooks(tmp_path: Path) -> Path:
     return binary
 
 
+def _mock_fixer_resolution(monkeypatch, binary: Path) -> None:
+    """C2c (phase-3-5-decisions.md "Corrections 2026-09-10" > "Correction
+    2"): `hook_fixers.py` no longer resolves pre-commit-hooks console
+    scripts from `PATH` -- it goes through `toolchain_resolve.resolve_tool`.
+    These golden fixtures still exercise the REAL pinned-fixer mechanics
+    (a real provisioned venv, real entry-point/provenance checks) against a
+    real `_fixture_pre_commit_hooks` environment; only the resolution seam
+    moves, mirroring where C2b put the trust boundary for every other
+    engine in this package."""
+    from tools.project_checks import hook_fixers
+
+    path_env = os.pathsep.join((str(binary), os.defpath))
+
+    def fake_resolve_tool(store_ref: str, root: Path) -> tuple[Path, str]:
+        name = store_ref.rsplit("/", 1)[-1]
+        return binary / name, path_env
+
+    monkeypatch.setattr(
+        hook_fixers.toolchain_resolve, "resolve_tool", fake_resolve_tool
+    )
+
+
+def _mock_fixer_resolution_blocked(monkeypatch) -> None:
+    """The pinned pre-commit-hooks environment is not provisioned in the
+    store -- `resolve_tool` BLOCKs, exactly as it would with an unattested
+    or missing lock entry, never falling back to a `PATH` lookup."""
+    from tools.project_checks import hook_fixers, toolchain_resolve
+
+    def fake_resolve_tool(store_ref: str, root: Path) -> tuple[Path, str]:
+        raise toolchain_resolve.ToolchainBlocked(
+            "toolchain: python-env not provisioned (run manifest provision)"
+        )
+
+    monkeypatch.setattr(
+        hook_fixers.toolchain_resolve, "resolve_tool", fake_resolve_tool
+    )
+
+
 _SYMLINKS = {
     "configs/claude/skills": "../../.apm/skills",
     "configs/cursor/scripts": "../claude/scripts",
@@ -612,7 +650,7 @@ def test_hook_fixers_use_pinned_v6_semantics_without_rewriting_candidate(
     bad = root / "odd name.txt"
     bad.write_bytes(b"value\r\n")
     _git(root, "add", ".")
-    monkeypatch.setenv("PATH", f"{provisioned}:{os.defpath}")
+    _mock_fixer_resolution(monkeypatch, provisioned)
     before = _tree_bytes(root)
     index_before = _index_tree(root)
     assert _run(hooks.main, root, "hook.mixed-line-ending", output, bad.name) == 2
@@ -668,7 +706,7 @@ def test_hook_fixers_block_when_pinned_v6_is_not_provisioned(
     root = tmp_path / "root"
     root.mkdir()
     (root / "value.txt").write_text("value\n")
-    monkeypatch.setenv("PATH", "/nonexistent")
+    _mock_fixer_resolution_blocked(monkeypatch)
     assert (
         _run(
             hooks.main,
@@ -710,7 +748,7 @@ def test_hook_fixer_rejects_shadowed_entry_point_metadata(
     root = tmp_path / "root"
     root.mkdir()
     (root / "value.txt").write_text("value\n")
-    monkeypatch.setenv("PATH", f"{binary}:{os.defpath}")
+    _mock_fixer_resolution(monkeypatch, binary)
     assert (
         _run(
             hooks.main,
@@ -750,22 +788,22 @@ def test_hook_path_errors_do_not_hide_valid_input_findings(
 def test_fixer_copy_failure_does_not_hide_readable_violation(
     tmp_path: Path, monkeypatch, capsys
 ) -> None:
-    from tools.project_checks import hooks
+    from tools.project_checks import hook_fixers, hooks
 
     binary = _fixture_pre_commit_hooks(tmp_path)
     root = tmp_path / "root"
     root.mkdir()
     (root / "bad.txt").write_bytes(b"bad \n")
     (root / "unreadable.txt").write_bytes(b"ok\n")
-    original_copy = hooks.shutil.copy2
+    original_copy = hook_fixers.shutil.copy2
 
     def selective_copy(source, destination):
         if Path(source).name == "unreadable.txt":
             raise PermissionError("fixture copy denied")
         return original_copy(source, destination)
 
-    monkeypatch.setattr(hooks.shutil, "copy2", selective_copy)
-    monkeypatch.setenv("PATH", f"{binary}:{os.defpath}")
+    monkeypatch.setattr(hook_fixers.shutil, "copy2", selective_copy)
+    _mock_fixer_resolution(monkeypatch, binary)
     assert (
         _run(
             hooks.main,
@@ -818,7 +856,7 @@ def test_hook_valid_fixtures_pass_and_missing_external_formatter_blocks(
     good.write_text("value = 1\n")
     output = tmp_path / "output"
     provisioned = _fixture_pre_commit_hooks(tmp_path)
-    monkeypatch.setenv("PATH", f"{provisioned}:{os.defpath}")
+    _mock_fixer_resolution(monkeypatch, provisioned)
     for check_id in (
         "hook.trailing-whitespace",
         "hook.end-of-file-fixer",
@@ -1320,7 +1358,7 @@ def test_hook_fixer_cannot_import_shadowed_pinned_module(
         "pathlib.Path(os.environ['HOSTILE_MARKER']).write_text('ran')\n"
     )
     monkeypatch.setenv("HOSTILE_MARKER", str(marker))
-    monkeypatch.setenv("PATH", f"{binary}:{os.defpath}")
+    _mock_fixer_resolution(monkeypatch, binary)
     selected = [bad.name]
     if attack == "candidate":
         selected.extend(

@@ -17,10 +17,15 @@ Exit: 0 PASS, 2 FAIL, 3 BLOCKED (this repo's ``honors_status_contract``).
 from __future__ import annotations
 
 import argparse
-import shutil
+import os
 import subprocess
 import sys
 from pathlib import Path
+
+try:
+    from tools.project_checks import toolchain_resolve
+except ModuleNotFoundError:  # direct script execution from this directory
+    import toolchain_resolve
 
 PASS, FAIL, BLOCKED = 0, 2, 3
 
@@ -51,14 +56,17 @@ def _base_sha(root: Path) -> str:
 
 
 def run(root: Path) -> int:
-    executable = shutil.which("gitleaks")
-    if executable is None:
-        raise BlockedError("gitleaks is unavailable")
     base_sha = _base_sha(root)
+    try:
+        executable, path_env = toolchain_resolve.resolve_tool(
+            "store:gitleaks/bin/gitleaks", root
+        )
+    except toolchain_resolve.ToolchainBlocked as error:
+        raise BlockedError(str(error)) from error
     try:
         result = subprocess.run(
             (
-                executable,
+                str(executable),
                 "git",
                 "--log-opts",
                 f"{base_sha}..HEAD",
@@ -66,6 +74,7 @@ def run(root: Path) -> int:
                 "--verbose",
             ),
             cwd=root,
+            env={**os.environ, "PATH": path_env},
             check=False,
             capture_output=True,
             text=True,

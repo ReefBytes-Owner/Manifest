@@ -69,7 +69,20 @@
             "bin/yamllint",
             "bin/pip-audit",
             "bin/pytest",
-            "bin/semgrep"
+            "bin/semgrep",
+            "bin/check-yaml",
+            "bin/check-json",
+            "bin/check-added-large-files",
+            "bin/check-case-conflict",
+            "bin/check-merge-conflict",
+            "bin/check-executables-have-shebangs",
+            "bin/check-shebang-scripts-are-executable",
+            "bin/detect-private-key",
+            "bin/check-ast",
+            "bin/debug-statement-hook",
+            "bin/trailing-whitespace-fixer",
+            "bin/end-of-file-fixer",
+            "bin/mixed-line-ending"
           ]
         },
         "darwin-arm64": {
@@ -82,7 +95,20 @@
             "bin/yamllint",
             "bin/pip-audit",
             "bin/pytest",
-            "bin/semgrep"
+            "bin/semgrep",
+            "bin/check-yaml",
+            "bin/check-json",
+            "bin/check-added-large-files",
+            "bin/check-case-conflict",
+            "bin/check-merge-conflict",
+            "bin/check-executables-have-shebangs",
+            "bin/check-shebang-scripts-are-executable",
+            "bin/detect-private-key",
+            "bin/check-ast",
+            "bin/debug-statement-hook",
+            "bin/trailing-whitespace-fixer",
+            "bin/end-of-file-fixer",
+            "bin/mixed-line-ending"
           ]
         }
       }

@@ -6,17 +6,16 @@ from __future__ import annotations
 import argparse
 import os
 import re
-import shutil
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
 
 try:
     from tools.project_checks import generated as generated_checks
-    from tools.project_checks import toolchain_resolve
+    from tools.project_checks import hook_fixers, toolchain_resolve
 except ModuleNotFoundError:  # direct script execution from this directory
     import generated as generated_checks
+    import hook_fixers
     import toolchain_resolve
 
 PASS = 0
@@ -115,169 +114,11 @@ def _paths(
     return selected, blocked
 
 
-_FIXER_ROWS = (
-    "hook.trailing-whitespace|trailing-whitespace-fixer|trailing_whitespace_fixer;"
-    "hook.end-of-file-fixer|end-of-file-fixer|end_of_file_fixer;"
-    "hook.mixed-line-ending|mixed-line-ending|mixed_line_ending|--fix=lf"
-)
-_FIXER_EXECUTABLES = {
-    fields[0]: (fields[1], f"pre_commit_hooks.{fields[2]}:main", tuple(fields[3:]))
-    for fields in (row.split("|") for row in _FIXER_ROWS.split(";"))
-}
-_PRE_COMMIT_HOOKS_VERSION = "6.0.0"
-
-
-def _pinned_fixer(check_id: str, paths: list[tuple[str, Path]]) -> int:
-    if not paths:
-        return PASS
-    name, entry_point, options = _FIXER_EXECUTABLES[check_id]
-    environment_python, origin = _provisioned_fixer(name, entry_point)
-    with tempfile.TemporaryDirectory(prefix="manifest-hook-check-") as temporary:
-        copy_root = Path(temporary)
-        copied, blocked = _copy_inputs(copy_root, paths)
-        for diagnostic in blocked:
-            print(f"BLOCKED: {diagnostic}", file=sys.stderr)
-        if not copied:
-            return BLOCKED
-        before = _snapshot_tree(copy_root)
-        result = _run_process(
-            (
-                str(environment_python),
-                "-I",
-                "-c",
-                "import runpy,sys; p=sys.argv[1]; sys.argv=[p,*sys.argv[2:]];"
-                "runpy.run_path(p,run_name='__main__')",
-                str(origin),
-                *options,
-                "--",
-                *(relative for relative, _ in copied),
-            ),
-            copy_root,
-            300,
-        )
-        if result.stdout:
-            print(result.stdout, end="")
-        if result.stderr:
-            print(result.stderr, end="", file=sys.stderr)
-        after = _snapshot_tree(copy_root)
-        changed = sorted(set(before) | set(after), key=os.fsencode)
-        changed = [path for path in changed if before.get(path) != after.get(path)]
-        if changed:
-            for relative in changed:
-                print(
-                    f"FAIL: {relative!r} requires {check_id} formatting",
-                    file=sys.stderr,
-                )
-            return FAIL
-        if result.returncode:
-            raise BlockedError(
-                f"pinned fixer failed without a formatting result (exit {result.returncode})"
-            )
-    return BLOCKED if blocked else PASS
-
-
-def _provisioned_fixer(name: str, entry_point: str) -> tuple[Path, Path]:
-    executable_name = shutil.which(name)
-    if executable_name is None:
-        raise BlockedError(
-            f"pre-commit-hooks {_PRE_COMMIT_HOOKS_VERSION} {name} unavailable"
-        )
-    executable = Path(executable_name).resolve()
-    environment_python = executable.parent / "python"
-    if not environment_python.is_file():
-        raise BlockedError("pre-commit-hooks environment interpreter unavailable")
-    metadata = _run_process(
-        (
-            str(environment_python),
-            "-I",
-            "-c",
-            "import importlib.metadata as m,sys; d=m.distribution('pre-commit-hooks');"
-            "e=[x.value for x in d.entry_points if x.group=='console_scripts' "
-            "and x.name==sys.argv[1]];"
-            "p=d.locate_file(sys.argv[2].replace('.','/')+'.py');"
-            "print(d.version);print(e[0] if len(e)==1 else '');print(p)",
-            name,
-            entry_point.partition(":")[0],
-        ),
-        executable.parent,
-        30,
-    )
-    lines = metadata.stdout.splitlines()
-    if (
-        metadata.returncode
-        or lines[:2] != [_PRE_COMMIT_HOOKS_VERSION, entry_point]
-        or len(lines) != 3
-    ):
-        raise BlockedError(
-            f"required pre-commit-hooks {_PRE_COMMIT_HOOKS_VERSION} entry point "
-            f"{name}={entry_point} is not provisioned"
-        )
+def _pinned_fixer(root: Path, check_id: str, paths: list[tuple[str, Path]]) -> int:
     try:
-        origin = Path(lines[2]).resolve(strict=True)
-    except OSError as error:
-        raise BlockedError(f"pinned fixer source unavailable: {error}") from error
-    environment = executable.parent.parent.resolve(strict=True)
-    if (
-        not origin.is_relative_to(environment)
-        or not origin.is_file()
-        or origin.is_symlink()
-    ):
-        raise BlockedError("pinned fixer source escapes its provisioned environment")
-    return environment_python, origin
-
-
-def _copy_inputs(
-    copy_root: Path, paths: list[tuple[str, Path]]
-) -> tuple[list[tuple[str, Path]], list[str]]:
-    copied = []
-    blocked = []
-    for relative, source in paths:
-        destination = copy_root / relative
-        try:
-            destination.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(source, destination)
-        except OSError as error:
-            blocked.append(f"input copy unavailable: {relative!r}: {error}")
-            continue
-        copied.append((relative, source))
-    return copied, blocked
-
-
-def _snapshot_tree(root: Path) -> dict[str, tuple[str, bytes | str, int]]:
-    snapshot: dict[str, tuple[str, bytes | str, int]] = {}
-    try:
-        for path in root.rglob("*"):
-            relative = path.relative_to(root).as_posix()
-            snapshot[relative] = _snapshot_entry(path)
-    except OSError as error:
-        raise BlockedError(f"disposable comparison unavailable: {error}") from error
-    return snapshot
-
-
-def _snapshot_entry(path: Path) -> tuple[str, bytes | str, int]:
-    if path.is_symlink():
-        return "symlink", os.readlink(path), path.lstat().st_mode
-    if path.is_file():
-        return "file", path.read_bytes(), path.stat().st_mode
-    if path.is_dir():
-        return "directory", b"", path.stat().st_mode
-    return "other", b"", path.lstat().st_mode
-
-
-def _run_process(
-    command: tuple[str, ...], cwd: Path, timeout: int
-) -> subprocess.CompletedProcess[str]:
-    try:
-        return subprocess.run(
-            command,
-            cwd=cwd,
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-        )
-    except (OSError, subprocess.TimeoutExpired) as error:
-        raise BlockedError(f"command unavailable: {error}") from error
+        return hook_fixers.run(check_id, root, paths)
+    except hook_fixers.BlockedError as error:
+        raise BlockedError(str(error)) from error
 
 
 _SHFMT_ERRORS = (OSError, subprocess.TimeoutExpired, toolchain_resolve.ToolchainBlocked)
@@ -410,18 +251,20 @@ _UNRESOLVED_HOOKS = {
     "hook.terraform_trivy": "pinned pre-commit-terraform v1.108.0 hook is not provisioned",
 }
 
+_PY = "store:python-env/bin/"
 _DIRECT_ROWS = (
-    "hook.check-yaml|check-yaml|--unsafe;hook.check-json|check-json;"
-    "hook.check-added-large-files|check-added-large-files|--maxkb=500;"
-    "hook.check-case-conflict|check-case-conflict;hook.check-merge-conflict|check-merge-conflict;"
-    "hook.check-executables-have-shebangs|check-executables-have-shebangs;"
-    "hook.check-shebang-scripts-are-executable|check-shebang-scripts-are-executable;"
-    "hook.detect-private-key|detect-private-key;hook.check-ast|check-ast;"
-    "hook.debug-statements|debug-statement-hook;"
+    f"hook.check-yaml|{_PY}check-yaml|--unsafe;hook.check-json|{_PY}check-json;"
+    f"hook.check-added-large-files|{_PY}check-added-large-files|--maxkb=500;"
+    f"hook.check-case-conflict|{_PY}check-case-conflict;"
+    f"hook.check-merge-conflict|{_PY}check-merge-conflict;"
+    f"hook.check-executables-have-shebangs|{_PY}check-executables-have-shebangs;"
+    f"hook.check-shebang-scripts-are-executable|{_PY}check-shebang-scripts-are-executable;"
+    f"hook.detect-private-key|{_PY}detect-private-key;hook.check-ast|{_PY}check-ast;"
+    f"hook.debug-statements|{_PY}debug-statement-hook;"
     "hook.markdownlint-cli2|store:node-env/bin/markdownlint-cli2|--config|"
     ".markdownlint.jsonc;"
-    "hook.ruff|ruff|check;hook.ruff-format|ruff|format|--check;"
-    "hook.eslint|eslint;"
+    f"hook.ruff|{_PY}ruff|check;hook.ruff-format|{_PY}ruff|format|--check;"
+    "hook.eslint|store:node-env/bin/eslint;"
     "hook.constitution-check|python3|configs/claude/scripts/constitution_check.py;"
     "hook.validate-bootstrap|bash|-n;hook.check-bats-assertions|tests/lint/check_bats_assertions.sh;"
     "hook.check-array-expansion|tests/lint/check_array_expansion.sh;"
@@ -483,7 +326,7 @@ def main(argv: list[str] | None = None) -> int:
         elif arguments.check_id == "hook.check-stale-repo-paths":
             status = _stale_paths(paths)
         else:
-            status = _pinned_fixer(arguments.check_id, paths)
+            status = _pinned_fixer(root, arguments.check_id, paths)
         for diagnostic in blocked:
             print(f"BLOCKED: {diagnostic}", file=sys.stderr)
         if status == FAIL:

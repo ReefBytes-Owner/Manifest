@@ -402,8 +402,18 @@ _PROJECT_ARGV = {
         "configs/claude/config/skill_reference_baseline.json",
     ),
     "test.bats": ("store:node-env/bin/bats", "tests/bats/"),
-    "test.python": ("pytest", "tests/python/", "-v", "-m", "not native"),
-    "test.hooks": ("pytest", ".apm/skills/ai-hooks-integration/tests/", "-v"),
+    "test.python": (
+        "store:python-env/bin/pytest",
+        "tests/python/",
+        "-v",
+        "-m",
+        "not native",
+    ),
+    "test.hooks": (
+        "store:python-env/bin/pytest",
+        ".apm/skills/ai-hooks-integration/tests/",
+        "-v",
+    ),
     "test.smoke.lite": (
         "configs/claude/.venv/bin/manifest",
         "smoke",

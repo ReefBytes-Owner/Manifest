@@ -1,10 +1,24 @@
 """Registry-level guards the 3a design requires: `manifest check` must never
 be able to invoke provisioning, and the store-executable allow-list for
 plain (non-`store:`) tool names is exactly the always-present interpreter
-set plus repository-relative scripts -- never a bare PATH-resolved name."""
+set plus repository-relative scripts -- never a bare PATH-resolved name.
+
+C2c (phase-3-5-decisions.md "Corrections 2026-09-10" > "Correction 2")
+closes the C2/C2b/C2c PATH-resolution migration with a non-reopenable
+guard: `test_every_real_registry_tool_executable_is_store_or_legal_plain`
+covers the registry-declared `tools[].executable` field (per the chunk's
+own acceptance line), and
+`test_no_check_body_resolves_an_engine_via_path_outside_the_allow_list`
+covers the stronger, harder-to-game property -- that NO check body
+anywhere under `tools/project_checks/` reaches for `shutil.which` (PATH)
+to find an engine, with an explicit, justified allow-list for the four
+legitimate exceptions. A check added later that imports `shutil` and calls
+`.which(...)` on a new engine name fails the second test immediately,
+without needing to know anything about the registry."""
 
 from __future__ import annotations
 
+import ast
 from pathlib import Path
 
 import pytest
@@ -13,6 +27,129 @@ from manifest_agent.checks import toolchain
 from manifest_agent.checks.registry import load_registry
 
 REGISTRY_PATH = Path(__file__).resolve().parents[3] / "config" / "project-checks.json"
+PROJECT_CHECKS_DIR = Path(__file__).resolve().parents[3] / "tools" / "project_checks"
+
+# (filename, enclosing function) -> why this `shutil.which(...)` call site is
+# legitimate and does not need to resolve through the hash-verified store.
+# Any call site not in this map fails the test below; any entry here whose
+# call site disappears from the source also fails it (`==`, not `<=`) so the
+# allow-list cannot silently drift wider than the source actually needs.
+SHUTIL_WHICH_ALLOW_LIST = {
+    ("generated.py", "_cursor_preflight"): (
+        "bash/python3 -- both are in toolchain.ALWAYS_PRESENT_EXECUTABLES, "
+        "the interpreter set 3a guarantees present without provisioning."
+    ),
+    ("structure.py", "_shell_syntax"): (
+        "bash -- same always-present interpreter allow-list as above."
+    ),
+    ("dependency_checks.py", "_which"): (
+        "uv/pip-audit/npm, but ONLY as the shared helper behind "
+        "dependency.audit.python/dependency.audit.node -- both BLOCKED-by-"
+        "decision (chunk C8, an outstanding human call on sending package "
+        "metadata to PyPI/OSV/npm) and wired into no profile, so `manifest "
+        "check` can never reach this call site today."
+    ),
+    ("tool_versions.py", "_resolved_executable"): (
+        "the shared version-probe adapter every check's version_argv runs "
+        "through. It never opens a second, independent PATH: for store: "
+        "tools the runner has already restricted the child env's PATH to "
+        "the store's own bin dirs (toolchain.resolved_env) before this "
+        "adapter runs inside it; for the always-present-interpreter "
+        "exemptions it is the same allow-listed lookup as the two rows "
+        "above, just centralized."
+    ),
+}
+
+
+def _shutil_which_call_sites() -> set[tuple[str, str]]:
+    """AST-scan every `tools/project_checks/*.py` source file for
+    `shutil.which(...)` call expressions, returning `(filename, enclosing
+    function)` pairs. Module-level calls (no enclosing function) would
+    appear as `(filename, "<module>")` -- none exist today."""
+    sites: set[tuple[str, str]] = set()
+    for path in sorted(PROJECT_CHECKS_DIR.glob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            function = node.func
+            if not (
+                isinstance(function, ast.Attribute)
+                and function.attr == "which"
+                and isinstance(function.value, ast.Name)
+                and function.value.id == "shutil"
+            ):
+                continue
+            sites.add((path.name, _enclosing_function(tree, node)))
+    return sites
+
+
+def _enclosing_function(tree: ast.Module, target: ast.Call) -> str:
+    enclosing = "<module>"
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
+            continue
+        if any(child is target for child in ast.walk(node)):
+            enclosing = node.name
+    return enclosing
+
+
+def test_no_check_body_resolves_an_engine_via_path_outside_the_allow_list():
+    """The durable guard: without this, a future check body could import
+    `shutil` and call `.which("some-new-engine")` and nothing would catch
+    the reopened trust gap 3a/C2/C2b/C2c closed. `==` (not a subset check)
+    both directions: a new, unlisted call site fails, and so does an
+    allow-list entry whose call site no longer exists in the source."""
+    assert _shutil_which_call_sites() == set(SHUTIL_WHICH_ALLOW_LIST)
+
+
+# `cargo` (hook.cargo-fmt-check/hook.cargo-clippy) is a pre-existing,
+# documented exception from chunk C2, not a C2c gap: both checks pin
+# `types_or: ["rust"]` (config/project-checks.json), and this repository has
+# zero `.rs` files, so `runner._selection_outcome`'s "project selection with
+# path filters and zero matched inputs" branch reports NOT_APPLICABLE before
+# `execute_check` ever resolves or runs `cargo` -- the bare name is declared
+# but structurally unreachable (phase-3-5-decisions.md 3b: "dormant-language
+# controls... NOT_APPLICABLE with zero-input evidence... excluded from the
+# lock"). `test_registry_dormant_cargo_checks_never_select_inputs` below
+# pins that structural claim directly against `has_path_filters`, so this
+# allow-list entry cannot silently stop being true.
+_DORMANT_LANGUAGE_TOOL_NAMES = frozenset({"hook.cargo-fmt-check", "hook.cargo-clippy"})
+
+
+def test_every_real_registry_tool_executable_is_store_or_legal_plain():
+    """C2c completion line (phase-3-5-decisions.md): every real-registry
+    `tools[].executable` is either a `store:` reference or on the narrow
+    always-present/repo-relative allow-list -- never a bare PATH-resolved
+    third-party name that could actually be invoked."""
+    registry = load_registry(REGISTRY_PATH)
+    for name, tool in registry["tools"].items():
+        if name in _DORMANT_LANGUAGE_TOOL_NAMES:
+            continue
+        executable = tool["executable"]
+        is_store = toolchain.parse_store_executable(executable) is not None
+        is_legal_plain = toolchain.is_legal_plain_executable(executable)
+        assert is_store or is_legal_plain, (name, executable)
+
+
+def test_registry_dormant_cargo_checks_never_select_inputs():
+    """Pins the structural claim the allow-list above relies on: both dormant
+    cargo checks declare a `rust` type filter, and this repository has no
+    `.rs` files, so `has_path_filters` is true and would-be-selected inputs
+    are empty -- `runner._selection_outcome` reports NOT_APPLICABLE without
+    ever reaching `execute_check`'s argv/PATH resolution."""
+    from manifest_agent.checks.path_filters import has_path_filters
+
+    registry = load_registry(REGISTRY_PATH)
+    repo_root = REGISTRY_PATH.parent.parent
+    rust_files = list(repo_root.rglob("*.rs"))
+    assert rust_files == []
+    by_id = {check.id: check for check in registry["checks"]}
+    for check_id in _DORMANT_LANGUAGE_TOOL_NAMES:
+        check = by_id[check_id]
+        assert check.selection == "project"
+        assert tuple(check.types_or) == ("rust",)
+        assert has_path_filters(check) is True
 
 
 def test_no_check_or_preparation_argv_invokes_provision():

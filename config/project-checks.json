@@ -198,7 +198,7 @@
       "required_modules": []
     },
     "test.python": {
-      "executable": "pytest",
+      "executable": "store:python-env/bin/pytest",
       "version_argv": [
         "python3",
         "-I",
@@ -210,7 +210,7 @@
       "required_modules": []
     },
     "test.hooks": {
-      "executable": "pytest",
+      "executable": "store:python-env/bin/pytest",
       "version_argv": [
         "python3",
         "-I",
@@ -415,7 +415,7 @@
       "required_modules": []
     },
     "hook.check-yaml": {
-      "executable": "check-yaml",
+      "executable": "store:python-env/bin/check-yaml",
       "version_argv": [
         "python3",
         "-I",
@@ -427,7 +427,7 @@
       "required_modules": []
     },
     "hook.check-json": {
-      "executable": "check-json",
+      "executable": "store:python-env/bin/check-json",
       "version_argv": [
         "python3",
         "-I",
@@ -439,7 +439,7 @@
       "required_modules": []
     },
     "hook.check-added-large-files": {
-      "executable": "check-added-large-files",
+      "executable": "store:python-env/bin/check-added-large-files",
       "version_argv": [
         "python3",
         "-I",
@@ -451,7 +451,7 @@
       "required_modules": []
     },
     "hook.check-case-conflict": {
-      "executable": "check-case-conflict",
+      "executable": "store:python-env/bin/check-case-conflict",
       "version_argv": [
         "python3",
         "-I",
@@ -463,7 +463,7 @@
       "required_modules": []
     },
     "hook.check-merge-conflict": {
-      "executable": "check-merge-conflict",
+      "executable": "store:python-env/bin/check-merge-conflict",
       "version_argv": [
         "python3",
         "-I",
@@ -475,7 +475,7 @@
       "required_modules": []
     },
     "hook.check-executables-have-shebangs": {
-      "executable": "check-executables-have-shebangs",
+      "executable": "store:python-env/bin/check-executables-have-shebangs",
       "version_argv": [
         "python3",
         "-I",
@@ -487,7 +487,7 @@
       "required_modules": []
     },
     "hook.check-shebang-scripts-are-executable": {
-      "executable": "check-shebang-scripts-are-executable",
+      "executable": "store:python-env/bin/check-shebang-scripts-are-executable",
       "version_argv": [
         "python3",
         "-I",
@@ -499,7 +499,7 @@
       "required_modules": []
     },
     "hook.detect-private-key": {
-      "executable": "detect-private-key",
+      "executable": "store:python-env/bin/detect-private-key",
       "version_argv": [
         "python3",
         "-I",
@@ -511,7 +511,7 @@
       "required_modules": []
     },
     "hook.check-ast": {
-      "executable": "check-ast",
+      "executable": "store:python-env/bin/check-ast",
       "version_argv": [
         "python3",
         "-I",
@@ -523,7 +523,7 @@
       "required_modules": []
     },
     "hook.debug-statements": {
-      "executable": "debug-statement-hook",
+      "executable": "store:python-env/bin/debug-statement-hook",
       "version_argv": [
         "python3",
         "-I",
@@ -571,7 +571,7 @@
       "required_modules": []
     },
     "hook.ruff": {
-      "executable": "ruff",
+      "executable": "store:python-env/bin/ruff",
       "version_argv": [
         "python3",
         "-I",
@@ -583,7 +583,7 @@
       "required_modules": []
     },
     "hook.ruff-format": {
-      "executable": "ruff",
+      "executable": "store:python-env/bin/ruff",
       "version_argv": [
         "python3",
         "-I",
@@ -595,7 +595,7 @@
       "required_modules": []
     },
     "hook.eslint": {
-      "executable": "eslint",
+      "executable": "store:node-env/bin/eslint",
       "version_argv": [
         "python3",
         "-I",
@@ -1289,7 +1289,7 @@
       "category": "test",
       "group": "test",
       "argv": [
-        "pytest",
+        "store:python-env/bin/pytest",
         "tests/python/",
         "-v",
         "-m",
@@ -1311,7 +1311,7 @@
       "category": "test",
       "group": "test",
       "argv": [
-        "pytest",
+        "store:python-env/bin/pytest",
         ".apm/skills/ai-hooks-integration/tests/",
         "-v"
       ],
@@ -1759,7 +1759,7 @@
       "category": "syntax",
       "group": "lint",
       "argv": [
-        "check-yaml",
+        "store:python-env/bin/check-yaml",
         "--unsafe"
       ],
       "cwd": ".",
@@ -1782,7 +1782,7 @@
       "category": "syntax",
       "group": "lint",
       "argv": [
-        "check-json"
+        "store:python-env/bin/check-json"
       ],
       "cwd": ".",
       "inputs": [
@@ -1804,7 +1804,7 @@
       "category": "lint",
       "group": "lint",
       "argv": [
-        "check-added-large-files",
+        "store:python-env/bin/check-added-large-files",
         "--maxkb=500"
       ],
       "cwd": ".",
@@ -1827,7 +1827,7 @@
       "category": "lint",
       "group": "lint",
       "argv": [
-        "check-case-conflict"
+        "store:python-env/bin/check-case-conflict"
       ],
       "cwd": ".",
       "inputs": [
@@ -1849,7 +1849,7 @@
       "category": "lint",
       "group": "lint",
       "argv": [
-        "check-merge-conflict"
+        "store:python-env/bin/check-merge-conflict"
       ],
       "cwd": ".",
       "inputs": [
@@ -1871,7 +1871,7 @@
       "category": "lint",
       "group": "lint",
       "argv": [
-        "check-executables-have-shebangs"
+        "store:python-env/bin/check-executables-have-shebangs"
       ],
       "cwd": ".",
       "inputs": [
@@ -1893,7 +1893,7 @@
       "category": "lint",
       "group": "lint",
       "argv": [
-        "check-shebang-scripts-are-executable"
+        "store:python-env/bin/check-shebang-scripts-are-executable"
       ],
       "cwd": ".",
       "inputs": [
@@ -1915,7 +1915,7 @@
       "category": "lint",
       "group": "lint",
       "argv": [
-        "detect-private-key"
+        "store:python-env/bin/detect-private-key"
       ],
       "cwd": ".",
       "inputs": [
@@ -1937,7 +1937,7 @@
       "category": "syntax",
       "group": "lint",
       "argv": [
-        "check-ast"
+        "store:python-env/bin/check-ast"
       ],
       "cwd": ".",
       "inputs": [
@@ -1962,7 +1962,7 @@
       "category": "lint",
       "group": "lint",
       "argv": [
-        "debug-statement-hook"
+        "store:python-env/bin/debug-statement-hook"
       ],
       "cwd": ".",
       "inputs": [
@@ -2063,7 +2063,7 @@
       "category": "lint",
       "group": "lint",
       "argv": [
-        "ruff",
+        "store:python-env/bin/ruff",
         "check"
       ],
       "cwd": ".",
@@ -2089,7 +2089,7 @@
       "category": "format",
       "group": "lint",
       "argv": [
-        "ruff",
+        "store:python-env/bin/ruff",
         "format",
         "--check"
       ],
@@ -2116,7 +2116,7 @@
       "category": "lint",
       "group": "lint",
       "argv": [
-        "eslint"
+        "store:node-env/bin/eslint"
       ],
       "cwd": ".",
       "inputs": [

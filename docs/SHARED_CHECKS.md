@@ -375,20 +375,48 @@ instead of silently resolving whatever happens to be on `PATH`. Test:
 | `hook.markdownlint-cli2` | already `command:markdownlint-cli2=0.23.0` | unchanged | **Yes — BLOCKED unattested until C7.** Direct-argv check; registry `tool.executable` and `check.argv[0]` are both `store:node-env/bin/markdownlint-cli2` (same generic runner rewrite `test.bats` already used — no wrapper body needed). |
 | `test.bats` | `./node_modules/.bin/bats` | `command:bats=1.11.1`; argv is `store:node-env/bin/bats` | Yes (unchanged from before this chunk). |
 | `test.bundle-partition` | `"ok"` + hardcoded BLOCKED (`npx` control) | `command:bats=1.11.1`; runs `tests/bats/bundle_partition.bats` | **Yes — BLOCKED unattested until C7.** Body resolves `store:node-env/bin/bats`. |
-| `hook.gitleaks` | `command:gitleaks=8.30.0` | `command:gitleaks=8.30.1` | No (unchanged from before this chunk — out of C2b's explicit scope; still `shutil.which("gitleaks")` in `gitleaks_check.py`). |
+| `hook.gitleaks` | `command:gitleaks=8.30.0` | `command:gitleaks=8.30.1` | **Yes (C2c) — BLOCKED unattested until C7.** Body resolves `store:gitleaks/bin/gitleaks` via `tools/project_checks/toolchain_resolve.py`; C2b left this on `shutil.which("gitleaks")` (out of that chunk's explicit scope, created by C6b afterwards), which C2c's audit caught and closed. |
 | `dependency.lock.config`, `dependency.lock.delegate`, `dependency.lock.root`, `package.coordinator`, `package.config` | `command:uv=0.12.6` | unchanged | **Yes — BLOCKED unattested until C7.** Body resolves `store:uv/bin/uv` via `packages.py::_uv`. |
 | `dependency.lock.node`, `package.node-runtime` | `"ok"` | unchanged | **Yes — BLOCKED unavailable until C7 (twice over: the `binary`-kind provisioner records only `bin/node`, not `bin/npm`, so `npm` needs a provisioner extension too).** Body resolves `store:node/bin/node` / `store:node/bin/npm` via `dependency_checks.py`. |
+| `hook.ruff`, `hook.ruff-format` | `distribution:ruff=0.15.20` | unchanged | **Yes (C2c) — BLOCKED unattested until C7 (twice over: `python-env` is also not yet an implemented provision kind).** Direct-argv checks; `tool.executable`/`check.argv[0]` are `store:python-env/bin/ruff`. |
+| `hook.eslint` | `command:eslint=9.18.0` | unchanged | **Yes (C2c) — BLOCKED unattested until C7 (twice over: `node-env` is not yet an implemented provision kind).** Direct-argv check; `tool.executable`/`check.argv[0]` are `store:node-env/bin/eslint`. |
+| `test.python`, `test.hooks` | `distribution:pytest=8.3.4` | unchanged | **Yes (C2c) — BLOCKED unattested until C7 (twice over, `python-env`).** Direct-argv checks; `tool.executable`/`check.argv[0]` are `store:python-env/bin/pytest`. |
+| `hook.check-yaml`, `hook.check-json`, `hook.check-added-large-files`, `hook.check-case-conflict`, `hook.check-merge-conflict`, `hook.check-executables-have-shebangs`, `hook.check-shebang-scripts-are-executable`, `hook.detect-private-key`, `hook.check-ast`, `hook.debug-statements` | `distribution:pre-commit-hooks=6.0.0` | unchanged | **Yes (C2c) — BLOCKED unattested until C7 (twice over, `python-env`).** Direct-argv checks; each `tool.executable`/`check.argv[0]` is `store:python-env/bin/<console-script>` (e.g. `store:python-env/bin/check-yaml`). |
+| `hook.trailing-whitespace`, `hook.end-of-file-fixer`, `hook.mixed-line-ending` | `distribution:pre-commit-hooks=6.0.0` | unchanged | **Yes (C2c) — BLOCKED unattested until C7 (twice over, `python-env`).** Wrapper body: `hooks.py::_pinned_fixer` delegates to the new `tools/project_checks/hook_fixers.py::run`, which resolves `store:python-env/bin/<console-script>` and then re-applies the same pinned-distribution/entry-point/source-provenance checks as before against the resolved executable. |
 
-**Honesty caveat (updated, C2b)**: of the 9 engine-bearing checks the C2
-engine-pin table touches, **8 of 9** now resolve their engine through the
-hash-verified toolchain store (only `hook.gitleaks` remains PATH-resolved,
-deliberately out of this chunk's scope — see `gitleaks_check.py`, landed
-separately in C6b). This reverses the C2 deferral recorded below (kept for
-history): every migrated check is `BLOCKED: toolchain: <tool> unattested for
-<platform>` (or `not provisioned`, for the two provisioner-kind gaps above)
-until C7 fills in real hashes and implements the `python-env`/`node-env`
-kinds — that is the intended, honest result: a receipt that used to say PASS
-about an unverified tool now says BLOCKED about the same tool, truthfully.
+**Honesty caveat (updated, C2c)**: every engine-bearing check body under
+`tools/project_checks/` now resolves its engine through the hash-verified
+toolchain store — C2b landed 8 (plus the `uv`/`node` family), C2c closed the
+remaining gap: `hook.ruff`/`hook.ruff-format`, `hook.eslint`,
+`test.python`/`test.hooks`, the ten bare pre-commit-hooks console scripts
+(`check-yaml` … `debug-statement-hook`), the three pinned fixers
+(`trailing-whitespace`, `end-of-file-fixer`, `mixed-line-ending`, moved into
+the new `tools/project_checks/hook_fixers.py`), and `hook.gitleaks`
+(`gitleaks_check.py`, left on `shutil.which` by C2b/C6b and caught by C2c's
+own audit of `tools/project_checks/*.py`). Every migrated check is
+`BLOCKED: toolchain: <tool> unattested for <platform>` (or `not provisioned`,
+for the provisioner-kind gaps above) until C7 fills in real hashes and
+implements the `python-env`/`node-env` kinds — that is the intended, honest
+result: a receipt that used to say PASS about an unverified tool now says
+BLOCKED about the same tool, truthfully.
+
+**C2c's registry guard (non-reopenable).**
+`tests/python/manifest_agent/test_toolchain_registry_guards.py` now asserts
+two properties so this gap cannot silently reopen: (1) every real-registry
+`tools[].executable` is either a `store:` reference or on the narrow
+`is_legal_plain_executable` allow-list (`python3`, `bash`, repo-relative
+scripts — plus the two dormant, zero-input `hook.cargo-*` checks, pinned
+separately by `test_registry_dormant_cargo_checks_never_select_inputs`); (2)
+an AST scan of every `tools/project_checks/*.py` source file finds zero
+`shutil.which(...)` call sites outside an explicit, justified four-entry
+allow-list (`generated.py::_cursor_preflight` and
+`structure.py::_shell_syntax` — always-present `bash`/`python3`;
+`dependency_checks.py::_which` — used only by the disabled, unwired
+`dependency.audit.*` bodies (C8); `tool_versions.py::_resolved_executable` —
+the shared version-probe adapter, which never opens a second PATH because it
+always runs inside whatever PATH the caller already restricted). A check
+body added later that imports `shutil` and calls `.which("some-new-engine")`
+fails test (2) immediately, by name, without needing any registry knowledge.
 
 **Why the other 8 were not `store:`-wired at first — the original C2
 deferral, now reversed.** `phase-3-5-decisions.md` "Corrections 2026-09-10" >
