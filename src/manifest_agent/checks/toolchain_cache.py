@@ -87,3 +87,29 @@ def cache_environment(env: Mapping[str, str], run_tmp: Path) -> dict[str, str]:
         else no_cacheprovider
     )
     return result
+
+
+def scratch_home_environment(env: Mapping[str, str], check_id: str) -> dict[str, str]:
+    """A check's env with `HOME` (and the XDG dirs derived from it) redirected
+    into a fresh, empty per-check directory under the run's cache directory.
+
+    Correction 14 (C7o) rule 1: a check body must never resolve the caller's
+    real `~/.claude` config (or any other ambient home-directory state) --
+    bats 1442 did exactly that, reaching a real reviewer CLI from inside a
+    test. `MANIFEST_RUN_TMP` (set by `cache_environment` above) is reused as
+    the parent so this stays inside the one run-scoped temp directory the
+    runner already owns and removes; the per-check id keeps two `scratch_home`
+    checks in the same run from ever sharing a HOME.
+    """
+    home_dir = Path(env["MANIFEST_RUN_TMP"]) / "home" / check_id
+    config_dir = home_dir / "xdg-config"
+    data_dir = home_dir / "xdg-data"
+    state_dir = home_dir / "xdg-state"
+    for directory in (home_dir, config_dir, data_dir, state_dir):
+        directory.mkdir(parents=True, exist_ok=True)
+    result = dict(env)
+    result["HOME"] = str(home_dir)
+    result["XDG_CONFIG_HOME"] = str(config_dir)
+    result["XDG_DATA_HOME"] = str(data_dir)
+    result["XDG_STATE_HOME"] = str(state_dir)
+    return result

@@ -365,6 +365,7 @@ def _normalize(document: dict[str, Any]) -> dict[str, Any]:
             types_or=tuple(check.get("types_or", ())),
             pass_filenames=check.get("pass_filenames", check["selection"] == "changed"),
             honors_status_contract=check.get("honors_status_contract", False),
+            scratch_home=check.get("scratch_home", False),
         )
         for check in document["checks"]
     )

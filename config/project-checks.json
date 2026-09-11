@@ -1322,7 +1322,8 @@
       "selection": "project",
       "tool": "test.bats",
       "version": "command:bats=1.11.1",
-      "pass_filenames": false
+      "pass_filenames": false,
+      "scratch_home": true
     },
     {
       "id": "test.python",
@@ -1349,7 +1350,8 @@
       "selection": "project",
       "tool": "test.python",
       "version": "distribution:pytest=9.1.1",
-      "pass_filenames": false
+      "pass_filenames": false,
+      "scratch_home": true
     },
     {
       "id": "test.hooks",
@@ -1374,7 +1376,8 @@
       "selection": "project",
       "tool": "test.hooks",
       "version": "distribution:pytest=9.1.1",
-      "pass_filenames": false
+      "pass_filenames": false,
+      "scratch_home": true
     },
     {
       "id": "test.smoke.lite",
@@ -1401,7 +1404,8 @@
       "selection": "project",
       "tool": "test.smoke.lite",
       "version": "ok",
-      "pass_filenames": false
+      "pass_filenames": false,
+      "scratch_home": true
     },
     {
       "id": "lint.markdown.keydocs",

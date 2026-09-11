@@ -410,6 +410,8 @@ def _run_check(
     if failure:
         process_result = outcome[2] if outcome[2] is not None else outcome[0]
         return _blocked(check, failure, process_result)
+    if check.scratch_home:
+        env = toolchain.scratch_home_environment(env, check.id)
     return execute_check(check, candidate, env, outcome[3])
 
 

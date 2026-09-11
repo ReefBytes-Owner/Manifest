@@ -141,6 +141,7 @@
         "selection": { "enum": ["changed", "project"] },
         "pass_filenames": { "type": "boolean" },
         "honors_status_contract": { "type": "boolean" },
+        "scratch_home": { "type": "boolean" },
         "include_regex": { "type": "string" },
         "exclude_regex": { "type": "string" },
         "types": { "$ref": "#/$defs/pathTypes" },

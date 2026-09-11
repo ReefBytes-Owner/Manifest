@@ -367,6 +367,7 @@ def resolved_env(env: Mapping[str, str], resolved: ResolvedTool) -> dict[str, st
 # Code Constitution's 500-line ceiling -- see that module's docstring).
 run_cache_directory = toolchain_cache.run_cache_directory
 cache_environment = toolchain_cache.cache_environment
+scratch_home_environment = toolchain_cache.scratch_home_environment
 
 
 # Re-exported from toolchain_fingerprint (moved there to keep this file
