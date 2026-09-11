@@ -834,7 +834,17 @@ def test_root_manifest_skill_run_matches_deployed_recovery_contract(
             "PATH": f"{binaries}:{environment['PATH']}",
         }
     )
-    base = ["uv", "run", "manifest", "skill-run", "manifest-workspace:demo"]
+    # Invoke the running interpreter's module entry point directly rather than
+    # `uv run manifest ...` against the repo: under the runner guard
+    # (UV_NO_SYNC=1, empty UV_PROJECT_ENVIRONMENT) `uv run` cannot spawn a
+    # project console script (Correction 12 rule 1).
+    base = [
+        sys.executable,
+        "-m",
+        "manifest_agent",
+        "skill-run",
+        "manifest-workspace:demo",
+    ]
     pending = subprocess.run(
         [
             *base,
