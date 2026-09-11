@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -34,27 +35,65 @@ from manifest_agent.checks import toolchain_pythonpath as pythonpath_mod
 REPO_ROOT = Path(__file__).resolve().parents[3]
 REGISTRY_PATH = REPO_ROOT / "config" / "project-checks.json"
 LOCK_PATH = REPO_ROOT / "config" / "toolchain.lock.json"
+_MODEL_POLICY_RELATIVE = Path("configs/claude/scripts/manifest_model_policy")
+_PROVISIONING_SOURCE_FILES = (
+    Path("pyproject.toml"),
+    Path("uv.lock"),
+    Path("config/toolchain/package.json"),
+    Path("config/toolchain/package-lock.json"),
+)
 
 
-def _fresh_store(tmp_path: Path) -> tuple[dict, Path, str]:
+def _provisioning_source_root(tmp_path: Path) -> Path:
+    """A disposable `tmp_path` copy of exactly what `project-env`/`node-env`
+    provisioning reads -- root `pyproject.toml` + `uv.lock` and
+    `config/toolchain/package{,-lock}.json` (copied byte-for-byte, so their
+    hashes still match the committed lock's `sha256`) plus the one local
+    path dependency `uv sync --frozen` resolves on disk -- never `REPO_ROOT`
+    itself as any provisioning subprocess's `--project`/cwd root.
+    `uv sync --project REPO_ROOT` was measured not to write into the
+    running tree, but this file's provisioning still must not point ANY
+    real subprocess at the tree under test (phase-3-5-decisions.md
+    Correction 9 rule 3: no test may materialize/operate on its own tree),
+    since this file's own tests are exactly what `test.python` runs when a
+    candidate copy of this repo is checked by `manifest check`."""
+    root = tmp_path / "provisioning-source"
+    root.mkdir()
+    for relative in _PROVISIONING_SOURCE_FILES:
+        destination = root / relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(REPO_ROOT / relative, destination)
+    shutil.copytree(
+        REPO_ROOT / _MODEL_POLICY_RELATIVE,
+        root / _MODEL_POLICY_RELATIVE,
+        ignore=shutil.ignore_patterns("__pycache__"),
+    )
+    return root
+
+
+def _fresh_store(tmp_path: Path) -> tuple[dict, Path, str, Path]:
     """A real store, freshly provisioned from the repo's own committed lock
     -- `project-env`/`node-env`/`node` bundles only (what this file's checks
-    need), never the whole nine-bundle set, to keep this fast."""
+    need), never the whole nine-bundle set, to keep this fast. Returns the
+    `tmp_path`-local provisioning source root alongside the store so callers
+    needing the "trusted provisioning checkout" concept (e.g.
+    `candidate_path_dependency_roots`) reuse the same disposable copy."""
     store = tmp_path / "store"
     lock = json.loads(LOCK_PATH.read_text())
     platform = toolchain.current_platform()
+    provisioning_root = _provisioning_source_root(tmp_path)
     outcomes = provision_mod.provision(
         lock,
         store,
         platform=platform,
         only=frozenset({"uv", "node", "node-env", "project-env"}),
-        repo_root=REPO_ROOT,
+        repo_root=provisioning_root,
         env=dict(os.environ),
     )
     unprovisioned = [o for o in outcomes if o.status != "provisioned"]
     if unprovisioned:
         pytest.skip(f"store bundles unavailable on this host: {unprovisioned}")
-    return lock, store, platform
+    return lock, store, platform, provisioning_root
 
 
 def _registry_tool(check_id: str) -> dict:
@@ -76,7 +115,7 @@ class TestProjectEnvImportsTheCandidatesOwnSrc:
     def test_pytest_collects_and_passes_against_a_synthetic_candidates_src(
         self, tmp_path: Path
     ):
-        lock, store, _platform = _fresh_store(tmp_path)
+        lock, store, _platform, _provisioning_root = _fresh_store(tmp_path)
         candidate = tmp_path / "candidate"
         (candidate / "src" / "manifest_agent").mkdir(parents=True)
         (candidate / "src" / "manifest_agent" / "__init__.py").write_text(
@@ -138,7 +177,7 @@ class TestImpostorNeverReachedByTheTestGroup:
     checking the store's own binary answered instead."""
 
     def test_test_python_never_runs_a_path_impostor_pytest(self, tmp_path: Path):
-        lock, store, _platform = _fresh_store(tmp_path)
+        lock, store, _platform, provisioning_root = _fresh_store(tmp_path)
         impostor_dir = tmp_path / "impostor-bin"
         impostor_dir.mkdir()
         impostor = impostor_dir / "python"
@@ -158,7 +197,7 @@ class TestImpostorNeverReachedByTheTestGroup:
         assert str(impostor_dir) not in run_env["PATH"]
         result = subprocess.run(
             list(version_argv),
-            cwd=REPO_ROOT,
+            cwd=provisioning_root,
             env=run_env,
             capture_output=True,
             text=True,
@@ -177,7 +216,7 @@ class TestProjectEnvStaleLockBlocksThroughTheRealPreflight:
     def test_editing_the_declared_source_hash_blocks_test_pythons_real_tool(
         self, tmp_path: Path
     ):
-        lock, store, _platform = _fresh_store(tmp_path)
+        lock, store, _platform, _provisioning_root = _fresh_store(tmp_path)
         bumped_lock = json.loads(json.dumps(lock))  # deep copy
         platform_key = toolchain.current_platform()
         bumped_lock["tools"]["project-env"]["platforms"][platform_key]["sha256"] = (
@@ -203,7 +242,7 @@ class TestBatsBodyImportsYamlThroughTheStoreEnv:
     interpreter."""
 
     def test_python3_dash_c_import_yaml_succeeds_via_path_prepend(self, tmp_path: Path):
-        lock, store, _platform = _fresh_store(tmp_path)
+        lock, store, _platform, _provisioning_root = _fresh_store(tmp_path)
         tool = _registry_tool("test.bats")
         env = {
             "PATH": "/usr/bin",
@@ -239,18 +278,20 @@ class TestPathDependencyResolvesToTheCandidatesOwnCopy:
     def test_marker_edit_in_candidates_manifest_model_policy_is_what_imports(
         self, tmp_path: Path
     ):
-        lock, store, _platform = _fresh_store(tmp_path)
+        lock, store, _platform, provisioning_root = _fresh_store(tmp_path)
         candidate = tmp_path / "candidate"
         candidate_dep_dir = candidate / self._DEP_RELATIVE
         candidate_dep_dir.mkdir(parents=True)
         (candidate_dep_dir / "pyproject.toml").write_text(
-            (REPO_ROOT / self._DEP_RELATIVE / "pyproject.toml").read_text()
+            (provisioning_root / self._DEP_RELATIVE / "pyproject.toml").read_text()
         )
         (candidate_dep_dir / "__init__.py").write_text(
             'MARKER = "candidate-local-c7k-marker"\n'
         )
 
-        roots = pythonpath_mod.candidate_path_dependency_roots(REPO_ROOT, candidate)
+        roots = pythonpath_mod.candidate_path_dependency_roots(
+            provisioning_root, candidate
+        )
         assert not isinstance(roots, pythonpath_mod.BlockedPythonPath), roots
         assert roots == (candidate / "configs" / "claude" / "scripts",)
 
@@ -290,4 +331,4 @@ class TestPathDependencyResolvesToTheCandidatesOwnCopy:
         assert imported_path.is_relative_to(candidate.resolve())
         assert printed_marker == "candidate-local-c7k-marker"
         # (b) the provisioning checkout's copy was never reached.
-        assert not imported_path.is_relative_to(REPO_ROOT.resolve())
+        assert not imported_path.is_relative_to(provisioning_root.resolve())

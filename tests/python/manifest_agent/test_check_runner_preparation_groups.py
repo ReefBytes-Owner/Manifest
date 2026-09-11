@@ -20,10 +20,18 @@ Two things had to be proven, not just fixed:
    `runner._run_check` (`check.group in context.failed_preparations`); this
    test pins it so the group-membership fix above cannot regress it.
 2. `TestRealSkillMirrorPreparation` -- the REAL `prepare.skill-mirror`
-   preparation from the committed registry, run against a real materialized
-   candidate of this repository, actually populates `.apm/skills` when
-   `--group test` is selected (count > 0) -- not a synthetic stand-in
-   preparation.
+   preparation from the committed registry (its actual argv, tool entry,
+   version probe script and inputs/outputs), run against a disposable
+   tmp_path fixture repository carrying its own minimal `plugins/*/skills/*`
+   source and a copy of the real mirror script/version-probe script, must
+   leave `.apm/skills` populated. This is the exact selection the ledger's
+   "src=122 mirror=0" finding was made under; before this file's registry
+   fix, `prepare.skill-mirror` never ran here because its `groups` excluded
+   `"test"`. The candidate is materialized from a git repo built entirely
+   under `tmp_path` -- never from `REPO_ROOT` / this running tree -- per
+   phase-3-5-decisions.md Correction 9 rule 3: no test may materialize its
+   own tree, since that write lands inside the candidate under test when
+   this file itself is executed as `test.python` through `manifest check`.
 """
 
 from __future__ import annotations
@@ -36,7 +44,7 @@ from manifest_agent.checks import materialize_candidate, run_profile
 from manifest_agent.checks.cli import _execution_environment
 from manifest_agent.checks.models import CheckSpec, PreparationSpec
 from manifest_agent.checks.registry import load_registry
-from tests.python.manifest_agent.test_check_candidate import materialize
+from tests.python.manifest_agent.test_check_candidate import git, materialize
 from tests.python.manifest_agent.test_check_candidate import source as source_fixture
 
 source = source_fixture
@@ -118,59 +126,105 @@ def _python_version() -> str:
     return platform.python_version()
 
 
+_MIRROR_SCRIPT_RELATIVE = Path("configs/claude/scripts/generate_skill_mirror.sh")
+_VERSION_PROBE_RELATIVE = Path("tools/project_checks/tool_versions.py")
+_SKILL_POLICIES_RELATIVE = Path("configs/claude/config/skill_policies.yml")
+
+
+def _skill_mirror_fixture_repo(tmp_path: Path) -> tuple[Path, str]:
+    """A disposable git repo, built entirely under `tmp_path`, carrying only
+    what `prepare.skill-mirror`'s real argv/version-probe need to run for
+    real: a copy of the two real scripts (read from this checkout's own
+    tree -- content only, never the candidate root itself) plus one minimal
+    `plugins/*/skills/*/SKILL.md` source tree for the script to mirror.
+    """
+    root = tmp_path / "source"
+    root.mkdir()
+    git(root, "init", "-q")
+    (root / ".gitignore").write_text(".apm/\n")
+
+    mirror_script = root / _MIRROR_SCRIPT_RELATIVE
+    mirror_script.parent.mkdir(parents=True, exist_ok=True)
+    mirror_script.write_text((REPO_ROOT / _MIRROR_SCRIPT_RELATIVE).read_text())
+    mirror_script.chmod(0o755)
+
+    version_probe = root / _VERSION_PROBE_RELATIVE
+    version_probe.parent.mkdir(parents=True, exist_ok=True)
+    version_probe.write_text((REPO_ROOT / _VERSION_PROBE_RELATIVE).read_text())
+
+    skill_policies = root / _SKILL_POLICIES_RELATIVE
+    skill_policies.parent.mkdir(parents=True, exist_ok=True)
+    skill_policies.write_text("bundles:\n  demo-bundle:\n    skills: []\n")
+
+    skill_dir = root / "plugins" / "demo-bundle" / "skills" / "hello-skill"
+    skill_dir.mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text(
+        "---\nname: hello-skill\ndescription: fixture skill for C7k3\n---\n"
+        "Fixture skill body.\n"
+    )
+
+    git(root, "add", ".")
+    git(root, "commit", "-qm", "base")
+    base = git(root, "rev-parse", "HEAD").decode().strip()
+    return root, base
+
+
+def _skill_mirror_probe_registry() -> tuple[dict, CheckSpec]:
+    """The real `prepare.skill-mirror` preparation + tool entry, pulled
+    straight out of `config/project-checks.json`, wired to one trivial
+    `group="test"` probe check -- not the whole `test` group, which includes
+    the store-gated, multi-minute `test.bats`/`test.python` bodies."""
+    real_registry = load_registry(REPO_ROOT / "config" / "project-checks.json")
+    skill_mirror = next(
+        p
+        for p in real_registry["candidate_preparations"]
+        if p.id == "prepare.skill-mirror"
+    )
+    assert "test" in skill_mirror.groups, (
+        "prepare.skill-mirror must declare the test group -- "
+        "see config/project-checks.json"
+    )
+    probe = replace(
+        _dependent_check(),
+        id="check.mirror-probe",
+        group="test",
+        tool="probe-python",
+        version=_python_version(),
+    )
+    registry = {
+        "schema_version": real_registry["schema_version"],
+        "tools": {
+            "probe-python": {
+                "executable": sys.executable,
+                "version_argv": (sys.executable, "--version"),
+                "expected_version": _python_version(),
+                "required_modules": (),
+            },
+            skill_mirror.tool: real_registry["tools"][skill_mirror.tool],
+        },
+        "checks": (probe,),
+        "candidate_preparations": (skill_mirror,),
+        "profiles": {"full": (probe.id,)},
+        "coverage_pending": {"full": ()},
+    }
+    return registry, probe
+
+
 class TestRealSkillMirrorPreparation:
     def test_real_skill_mirror_populates_apm_skills_for_the_test_group(self, tmp_path):
-        """The committed `prepare.skill-mirror` preparation -- its real
-        argv, real tool entry, real inputs/outputs, pulled straight out of
-        `config/project-checks.json` -- run against a real materialized
-        candidate of THIS repository through `run_profile` with
-        `group="test"` selected, must leave `.apm/skills` populated. This is
-        the exact selection the ledger's "src=122 mirror=0" finding was
-        made under; before this file's registry fix, `prepare.skill-mirror`
-        never ran here because its `groups` excluded `"test"`.
-
-        Only `prepare.skill-mirror` plus one trivial `group="test"` check
-        are kept from the real registry (not the whole `test` group, which
-        includes the store-gated, multi-minute `test.bats`/`test.python`
-        bodies) -- selection is by group membership alone, so this proves
-        the same code path `test.bundle-partition` goes through without
-        paying for the rest of the group.
+        """The real `prepare.skill-mirror` preparation, run against a
+        candidate materialized from a disposable `tmp_path` fixture repo
+        (never this running tree, per phase-3-5-decisions.md Correction 9
+        rule 3) through `run_profile` with `group="test"` selected, must
+        leave `.apm/skills` populated. This is the exact selection the
+        ledger's "src=122 mirror=0" finding was made under; before this
+        file's registry fix, `prepare.skill-mirror` never ran here because
+        its `groups` excluded `"test"`.
         """
-        real_registry = load_registry(REPO_ROOT / "config" / "project-checks.json")
-        skill_mirror = next(
-            p
-            for p in real_registry["candidate_preparations"]
-            if p.id == "prepare.skill-mirror"
-        )
-        assert "test" in skill_mirror.groups, (
-            "prepare.skill-mirror must declare the test group -- "
-            "see config/project-checks.json"
-        )
-        probe = replace(
-            _dependent_check(),
-            id="check.mirror-probe",
-            group="test",
-            tool="probe-python",
-            version=_python_version(),
-        )
-        registry = {
-            "schema_version": real_registry["schema_version"],
-            "tools": {
-                "probe-python": {
-                    "executable": sys.executable,
-                    "version_argv": (sys.executable, "--version"),
-                    "expected_version": _python_version(),
-                    "required_modules": (),
-                },
-                skill_mirror.tool: real_registry["tools"][skill_mirror.tool],
-            },
-            "checks": (probe,),
-            "candidate_preparations": (skill_mirror,),
-            "profiles": {"full": (probe.id,)},
-            "coverage_pending": {"full": ()},
-        }
+        registry, probe = _skill_mirror_probe_registry()
+        fixture_root, base = _skill_mirror_fixture_repo(tmp_path)
         destination = tmp_path / "candidate"
-        candidate = materialize_candidate(REPO_ROOT, "HEAD", destination)
+        candidate = materialize_candidate(fixture_root, base, destination)
         report = run_profile(
             registry, "full", "test", candidate, _execution_environment()
         )
