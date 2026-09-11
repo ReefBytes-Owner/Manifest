@@ -191,3 +191,46 @@ class TestCacheEnvironmentOverridesCallerValues:
         assert result["UV_CACHE_DIR"] == str(run_tmp / "uv")
         assert result["npm_config_cache"] == str(run_tmp / "npm")
         assert result["PYTHONPYCACHEPREFIX"] == str(run_tmp / "pycache")
+        assert result["UV_PROJECT_ENVIRONMENT"] == str(run_tmp / "uv-env")
+        assert result["UV_NO_SYNC"] == "1"
+
+
+class TestUvRunGuard:
+    """Correction 12 (C7k step 5b) rule 2: an escaped `uv run --project .`
+    inside a check body must not be able to create `.venv` inside the
+    candidate. Exercised through the real runner with the real `uv` binary,
+    not a fake -- the guard is only meaningful if it holds against the tool
+    it is meant to contain."""
+
+    def test_uv_run_against_the_candidate_leaves_it_byte_identical(
+        self, candidate, tmp_path
+    ):
+        tool = _demo_tool()
+        check = _demo_check(
+            ("uv", "run", "--project", ".", "python3", "-c", "pass"),
+            check_id="check.uv-escape",
+        )
+        registry = _registry(check, tool)
+        env = {
+            "PATH": "/opt/homebrew/bin:/usr/bin:/bin",
+            "HOME": str(tmp_path),
+        }
+
+        def _snapshot() -> set:
+            # `.git/preparation.lock` is the runner's own bookkeeping
+            # (created and removed around every run) -- not something the
+            # check body wrote. Everything else under the candidate is fair
+            # game, most of all a `.venv` the guard exists to prevent.
+            return {
+                p.relative_to(candidate.root)
+                for p in candidate.root.rglob("*")
+                if p.name != "preparation.lock"
+            }
+
+        before = _snapshot()
+        run_profile(registry, "full", None, candidate, env)
+        after = _snapshot()
+        # Whatever the check's own exit status, the candidate must be
+        # untouched: no `.venv` materialized, no new files at all.
+        assert before == after
+        assert not (candidate.root / ".venv").exists()

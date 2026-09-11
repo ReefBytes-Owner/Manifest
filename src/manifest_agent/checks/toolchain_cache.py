@@ -55,6 +55,7 @@ def cache_environment(env: Mapping[str, str], run_tmp: Path) -> dict[str, str]:
     ruff_dir = run_tmp / "ruff"
     uv_dir = run_tmp / "uv"
     npm_dir = run_tmp / "npm"
+    uv_env_dir = run_tmp / "uv-env"
     for directory in (pycache_dir, xdg_dir, ruff_dir, uv_dir, npm_dir):
         directory.mkdir(parents=True, exist_ok=True)
     result["PYTHONDONTWRITEBYTECODE"] = "1"
@@ -63,6 +64,16 @@ def cache_environment(env: Mapping[str, str], run_tmp: Path) -> dict[str, str]:
     result["RUFF_CACHE_DIR"] = str(ruff_dir)
     result["UV_CACHE_DIR"] = str(uv_dir)
     result["npm_config_cache"] = str(npm_dir)
+    # Correction 12 (C7k step 5b) rule 2: an escaped `uv run --project .` must
+    # not be able to create `.venv` inside the candidate, nor download
+    # anything. `UV_PROJECT_ENVIRONMENT` redirects the venv uv would
+    # otherwise materialize at `<project>/.venv` into run-tmp instead
+    # (outside the candidate); `UV_NO_SYNC` forbids uv from installing or
+    # syncing regardless. This is a belt-and-braces backstop, not the
+    # primary fix -- the primary fix is that no test invokes `uv run
+    # --project .`/`uv sync` against the candidate at all (rule 1).
+    result["UV_PROJECT_ENVIRONMENT"] = str(uv_env_dir)
+    result["UV_NO_SYNC"] = "1"
     # A body's own outputs (never just its caches) belong outside the
     # candidate too -- e.g. `manifest smoke run`'s JUnit report, which
     # otherwise lands in cwd (the candidate) and trips the identity check.
