@@ -67,6 +67,8 @@ def test_capture_keeps_a_trailing_test_summary_line(tmp_path):
         "sys.stdout.write('\\nFAILED tests/fake.py::test_thing - AssertionError\\n')\n"
     )
 
+    # subprocess-env: exempt -- proves run_argv's own explicit-only env
+    # contract (a synthetic tmp_path script, no manifest_agent/tools import).
     result = run_argv(
         (sys.executable, str(script)), cwd=tmp_path, env={}, timeout_seconds=2
     )
