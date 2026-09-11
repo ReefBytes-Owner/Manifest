@@ -25,7 +25,7 @@ import sys
 from collections.abc import Mapping
 from pathlib import Path
 
-from . import toolchain_cache, toolchain_env
+from . import toolchain_cache, toolchain_env, toolchain_path_prepend
 
 STORE_ENV_VAR = "MANIFEST_TOOLCHAIN_STORE"
 XDG_CACHE_ENV_VAR = "XDG_CACHE_HOME"
@@ -411,6 +411,44 @@ def _merged_resolution(
     )
 
 
+def _with_prepend(merged: ResolvedTool, prepend_dirs: tuple[Path, ...]) -> ResolvedTool:
+    """`merged` with `prepend_dirs` spliced FIRST on `path_entries`, ahead of
+    the executable's own bin dir and `os.defpath` -- de-duplicated."""
+    if not prepend_dirs:
+        return merged
+    entries = tuple(dict.fromkeys((*prepend_dirs, *merged.path_entries)))
+    return ResolvedTool(
+        merged.bundle,
+        merged.executable,
+        merged.interpreter,
+        entries,
+        merged.tool_sha256,
+    )
+
+
+def _resolve_engine_refs(
+    tool: Mapping, lock: Mapping, store: Path, platform: str
+) -> tuple[ResolvedTool, tuple[str, ...]] | BlockedReason:
+    """`tool["executable"]`/`version_argv`'s own store refs, merged into one
+    `ResolvedTool` plus the rewritten `version_argv` -- or the tool's bare
+    plain-name executable, unresolved, when it names no store ref at all
+    (a `path_prepend`-only tool, e.g. a repo-relative script)."""
+    resolved_by_ref: dict[str, ResolvedTool] = {}
+    for ref in _store_refs(tool):
+        outcome = resolve(ref, lock=lock, store=store, platform=platform)
+        if isinstance(outcome, BlockedReason):
+            return outcome
+        resolved_by_ref[ref] = outcome
+    if resolved_by_ref:
+        merged = _merged_resolution(tool["executable"], resolved_by_ref)
+        version_argv = rewrite_argv(tuple(tool["version_argv"]), resolved_by_ref)
+        return merged, version_argv
+    bare = ResolvedTool(
+        "", Path(tool["executable"]), None, toolchain_env.with_default_path(()), ""
+    )
+    return bare, tuple(tool["version_argv"])
+
+
 def resolve_for_preflight(
     tool: Mapping, env: Mapping[str, str], lock: Mapping, candidate_root: Path
 ) -> tuple[ResolvedTool | None, tuple[str, ...], dict[str, str], str | None]:
@@ -423,22 +461,38 @@ def resolve_for_preflight(
     `BlockedReason` from resolving ANY distinct ref blocks the whole
     preflight -- a version probe never falls back to searching `PATH` for a
     store engine that failed to resolve.
+
+    `tool["path_prepend"]` (a tuple of `store:<bundle>/bin`-shaped refs, e.g.
+    `test.bats`'s `["store:project-env/bin", "store:node/bin"]`) names extra
+    bundles whose bin dirs go FIRST on the resolved PATH -- ahead of the
+    tool's own executable bin dir and `os.defpath` -- so a check body that
+    shells out to `python3`/`node` from inside a nested interpreter (bats
+    scripts) reaches the store's interpreter, never an ambient impostor.
     """
     refs = _store_refs(tool)
-    if not refs:
+    path_prepend = tuple(tool.get("path_prepend", ()))
+    if not refs and not path_prepend:
         version_argv = resolve_interpreter_argv(tuple(tool["version_argv"]))
         return None, version_argv, env, None
     try:
         store = store_root(env, candidate_root)
     except UnsafeStoreLocationError as error:
         return None, (), env, f"toolchain: {error}"
-    resolved_by_ref: dict[str, ResolvedTool] = {}
-    for ref in refs:
-        outcome = resolve(ref, lock=lock, store=store, platform=current_platform())
-        if isinstance(outcome, BlockedReason):
-            return None, (), env, outcome.reason
-        resolved_by_ref[ref] = outcome
-    merged = _merged_resolution(tool["executable"], resolved_by_ref)
-    version_argv = rewrite_argv(tuple(tool["version_argv"]), resolved_by_ref)
+    engine_outcome = _resolve_engine_refs(tool, lock, store, current_platform())
+    if isinstance(engine_outcome, BlockedReason):
+        return None, (), env, engine_outcome.reason
+    merged, version_argv = engine_outcome
+    if path_prepend:
+        prepend_outcome = toolchain_path_prepend.resolve_dirs(
+            path_prepend,
+            resolve,
+            parse_store_executable,
+            lock,
+            store,
+            current_platform(),
+        )
+        if isinstance(prepend_outcome, BlockedReason):
+            return None, (), env, prepend_outcome.reason
+        merged = _with_prepend(merged, prepend_outcome)
     version_argv = resolve_interpreter_argv(version_argv)
     return merged, version_argv, resolved_env(env, merged), None

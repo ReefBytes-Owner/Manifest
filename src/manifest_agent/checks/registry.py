@@ -10,6 +10,7 @@ from typing import Any
 from .models import CheckSpec, PreparationSpec
 from .path_filters import validate_path_filters
 from .registry_schema import read_validated_document
+from .registry_tools import normalized_tools, validate_tools
 from .toolchain import lock_digest_for_registry
 
 VALID_GROUPS = frozenset({"lint", "test", "structure", "security", "package"})
@@ -235,14 +236,6 @@ def _validate_tool_reference(
         raise ValueError(message)
 
 
-def _validate_tools(tools: dict[str, dict[str, Any]]) -> None:
-    for tool_name, tool in tools.items():
-        _validate_argv(tool["version_argv"], f"tool {tool_name!r} version")
-        _validate_direct_invocation(tool["version_argv"], f"tool {tool_name!r} version")
-        if "\0" in tool["executable"]:
-            raise ValueError(f"tool {tool_name!r} executable contains NUL")
-
-
 def _validate_checks(
     checks: list[dict[str, Any]], tools: dict[str, dict[str, Any]]
 ) -> dict[str, dict[str, Any]]:
@@ -308,7 +301,7 @@ def _validate_semantics(document: dict[str, Any]) -> None:
     preparations = document["candidate_preparations"]
     _validate_unique_ids(checks, "check")
     _validate_unique_ids(preparations, "preparation")
-    _validate_tools(tools)
+    validate_tools(tools)
     check_by_id = _validate_checks(checks, tools)
     _validate_preparations(preparations, tools)
     for check in checks:
@@ -391,15 +384,7 @@ def _normalize(document: dict[str, Any]) -> dict[str, Any]:
     )
     return {
         "schema_version": document["schema_version"],
-        "tools": {
-            name: {
-                "executable": tool["executable"],
-                "version_argv": tuple(tool["version_argv"]),
-                "expected_version": tool["expected_version"],
-                "required_modules": tuple(tool["required_modules"]),
-            }
-            for name, tool in document["tools"].items()
-        },
+        "tools": normalized_tools(document),
         "checks": checks,
         "candidate_preparations": preparations,
         "profiles": {
