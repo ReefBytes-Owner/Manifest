@@ -25,7 +25,12 @@ import sys
 from collections.abc import Mapping
 from pathlib import Path
 
-from . import toolchain_cache, toolchain_env, toolchain_path_prepend
+from . import (
+    toolchain_cache,
+    toolchain_env,
+    toolchain_fingerprint,
+    toolchain_path_prepend,
+)
 
 STORE_ENV_VAR = "MANIFEST_TOOLCHAIN_STORE"
 XDG_CACHE_ENV_VAR = "XDG_CACHE_HOME"
@@ -328,125 +333,34 @@ run_cache_directory = toolchain_cache.run_cache_directory
 cache_environment = toolchain_cache.cache_environment
 
 
+# Re-exported from toolchain_fingerprint (moved there to keep this file
+# under the Code Constitution's 500-line ceiling); `fingerprint`/
+# `fingerprint_for` wrap it with this module's own `sha256_file`/`store_root`
+# so callers keep their original signature.
 def fingerprint(store: Path, resolved: Mapping[str, ResolvedTool]) -> dict[str, str]:
-    """A before/after comparable snapshot of everything a run actually resolved."""
-    manifest_path = store / "manifest.json"
-    snapshot = {
-        "__manifest__": sha256_file(manifest_path) if manifest_path.is_file() else ""
-    }
-    for name, tool in resolved.items():
-        snapshot[name] = (
-            sha256_file(tool.executable) if tool.executable.is_file() else ""
-        )
-    return snapshot
+    return toolchain_fingerprint.fingerprint(store, resolved, sha256_file)
 
 
 def fingerprint_for(
     resolved: ResolvedTool | None, env: Mapping[str, str]
 ) -> dict[str, str]:
-    """`fingerprint()` for a single already-resolved tool, or `{}` if none was used."""
-    if resolved is None:
-        return {}
-    return fingerprint(store_root(env), {resolved.bundle: resolved})
+    return toolchain_fingerprint.fingerprint_for(resolved, env, store_root, sha256_file)
 
 
-def integrity_reason(
-    store_before: Mapping[str, str],
-    store_after: Mapping[str, str],
-    changed: bool,
-    identity_error: str,
-) -> str:
-    """Empty unless the store or the candidate changed during a check's run."""
-    if store_before != store_after:
-        return "toolchain: store changed during run"
-    return "candidate identity changed" if changed else identity_error
+integrity_reason = toolchain_fingerprint.integrity_reason
 
 
-def _store_refs(tool: Mapping) -> tuple[str, ...]:
-    """Every distinct literal `store:` token in a tool's `executable` or
-    `version_argv`, in first-seen order.
-
-    A tool whose body resolves a store engine itself (e.g. `hook.shfmt`
-    running `store:shfmt/bin/shfmt` from inside `hooks.py`) names that same
-    reference in `version_argv` (via `tool_versions.py --executable`) even
-    though `executable` itself stays the repo-owned wrapper (`python3`) --
-    that is how the preflight version probe is kept honest about which
-    binary the check body will actually run.
-    """
-    seen: dict[str, None] = {}
-    executable = tool.get("executable", "")
-    if parse_store_executable(executable) is not None:
-        seen[executable] = None
-    for token in tool.get("version_argv", ()):
-        if parse_store_executable(token) is not None:
-            seen.setdefault(token, None)
-    return tuple(seen)
-
-
-def _merged_resolution(
-    primary_ref: str, resolved_by_ref: Mapping[str, ResolvedTool]
-) -> ResolvedTool:
-    """One `ResolvedTool` standing in for every ref a preflight touched.
-
-    Its `executable`/`interpreter`/`tool_sha256` describe `primary_ref`
-    (the check's own `executable`, or the first ref when the check invokes
-    its engine entirely from inside the body); `path_entries` is the union
-    of every resolved ref's bin dirs, store entries first -- so a version
-    probe for a *different* store ref (e.g. `store:uv/bin/uv`) still finds
-    it on `PATH` without ever falling back to the ambient search.
-    """
-    primary = resolved_by_ref.get(primary_ref) or next(iter(resolved_by_ref.values()))
-    if len(resolved_by_ref) == 1:
-        return primary
-    merged_entries: dict[Path, None] = {}
-    for tool in resolved_by_ref.values():
-        for entry in tool.path_entries:
-            merged_entries.setdefault(entry, None)
-    return ResolvedTool(
-        primary.bundle,
-        primary.executable,
-        primary.interpreter,
-        tuple(merged_entries),
-        primary.tool_sha256,
-    )
-
-
-def _with_prepend(merged: ResolvedTool, prepend_dirs: tuple[Path, ...]) -> ResolvedTool:
-    """`merged` with `prepend_dirs` spliced FIRST on `path_entries`, ahead of
-    the executable's own bin dir and `os.defpath` -- de-duplicated."""
-    if not prepend_dirs:
-        return merged
-    entries = tuple(dict.fromkeys((*prepend_dirs, *merged.path_entries)))
-    return ResolvedTool(
-        merged.bundle,
-        merged.executable,
-        merged.interpreter,
-        entries,
-        merged.tool_sha256,
-    )
-
-
-def _resolve_engine_refs(
-    tool: Mapping, lock: Mapping, store: Path, platform: str
-) -> tuple[ResolvedTool, tuple[str, ...]] | BlockedReason:
-    """`tool["executable"]`/`version_argv`'s own store refs, merged into one
-    `ResolvedTool` plus the rewritten `version_argv` -- or the tool's bare
-    plain-name executable, unresolved, when it names no store ref at all
-    (a `path_prepend`-only tool, e.g. a repo-relative script)."""
-    resolved_by_ref: dict[str, ResolvedTool] = {}
-    for ref in _store_refs(tool):
-        outcome = resolve(ref, lock=lock, store=store, platform=platform)
-        if isinstance(outcome, BlockedReason):
-            return outcome
-        resolved_by_ref[ref] = outcome
-    if resolved_by_ref:
-        merged = _merged_resolution(tool["executable"], resolved_by_ref)
-        version_argv = rewrite_argv(tuple(tool["version_argv"]), resolved_by_ref)
-        return merged, version_argv
-    bare = ResolvedTool(
-        "", Path(tool["executable"]), None, toolchain_env.with_default_path(()), ""
-    )
-    return bare, tuple(tool["version_argv"])
+# The caller-side context every toolchain_path_prepend.py function needs,
+# built once -- avoids both a circular import (that module cannot import
+# this one) and re-threading five parameters through every call.
+_PREFLIGHT_CTX = toolchain_path_prepend.Context(
+    resolve_fn=resolve,
+    parse_fn=parse_store_executable,
+    rewrite_argv_fn=rewrite_argv,
+    with_default_path_fn=toolchain_env.with_default_path,
+    resolved_tool_cls=ResolvedTool,
+    blocked_reason_cls=BlockedReason,
+)
 
 
 def resolve_for_preflight(
@@ -469,7 +383,7 @@ def resolve_for_preflight(
     shells out to `python3`/`node` from inside a nested interpreter (bats
     scripts) reaches the store's interpreter, never an ambient impostor.
     """
-    refs = _store_refs(tool)
+    refs = toolchain_path_prepend.store_refs(tool, parse_store_executable)
     path_prepend = tuple(tool.get("path_prepend", ()))
     if not refs and not path_prepend:
         version_argv = resolve_interpreter_argv(tuple(tool["version_argv"]))
@@ -478,21 +392,21 @@ def resolve_for_preflight(
         store = store_root(env, candidate_root)
     except UnsafeStoreLocationError as error:
         return None, (), env, f"toolchain: {error}"
-    engine_outcome = _resolve_engine_refs(tool, lock, store, current_platform())
+    platform = current_platform()
+    engine_outcome = toolchain_path_prepend.resolve_engine_refs(
+        tool, lock, store, platform, _PREFLIGHT_CTX
+    )
     if isinstance(engine_outcome, BlockedReason):
         return None, (), env, engine_outcome.reason
     merged, version_argv = engine_outcome
     if path_prepend:
         prepend_outcome = toolchain_path_prepend.resolve_dirs(
-            path_prepend,
-            resolve,
-            parse_store_executable,
-            lock,
-            store,
-            current_platform(),
+            path_prepend, _PREFLIGHT_CTX, lock, store, platform
         )
         if isinstance(prepend_outcome, BlockedReason):
             return None, (), env, prepend_outcome.reason
-        merged = _with_prepend(merged, prepend_outcome)
+        merged = toolchain_path_prepend.with_prepend(
+            merged, prepend_outcome, ResolvedTool
+        )
     version_argv = resolve_interpreter_argv(version_argv)
     return merged, version_argv, resolved_env(env, merged), None
