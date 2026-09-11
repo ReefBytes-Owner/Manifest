@@ -64,6 +64,13 @@ def write_private_json(path: Path, value: dict) -> None:
 
 
 def main(argv: list[str]) -> int:
+    if argv and argv[0] in ("--help", "-h"):
+        print(
+            "Usage: merge_mcp_defaults.py SOURCE_JSON TARGET_JSON\n\n"
+            "Merges SOURCE_JSON's MCP server defaults into TARGET_JSON, writing "
+            "TARGET_JSON privately (0600) only when it changed."
+        )
+        return 0
     if len(argv) != 2:
         print("Usage: merge_mcp_defaults.py SOURCE_JSON TARGET_JSON", file=sys.stderr)
         return 2

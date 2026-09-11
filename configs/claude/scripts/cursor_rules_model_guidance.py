@@ -59,6 +59,14 @@ def _guidance_for(skill_file: Path, skill_name: str) -> str:
 
 
 def main(argv: list[str]) -> int:
+    if len(argv) > 1 and argv[1] in ("--help", "-h"):
+        print(
+            "usage: cursor_rules_model_guidance.py <skills-dir> <output-dir>\n\n"
+            "Batch model-guidance computation for generate_cursor_rules.sh: "
+            "writes one guidance file per skill under <output-dir> for every "
+            "skill in <skills-dir> that declares a cursor model chain."
+        )
+        return 0
     if len(argv) != 3:
         print(
             "usage: cursor_rules_model_guidance.py <skills-dir> <output-dir>",
