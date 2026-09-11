@@ -908,6 +908,56 @@ files this chunk never touched — far more than the single
 controller's own re-measurement to reconcile before anyone treats
 `types.python` as close to green.
 
+## C7h: node's `bin/npm`, and the test group's project environment
+
+Two more C7g leftovers closed, one carried forward.
+
+**`node` gains `bin/npm` (`extra_executables`, schema-checked).** Extracted
+from the SAME hash-verified node archive as `bin/node` (no second download),
+independently hashed against `npm-cli.js`'s own sha256 — never against
+`node`'s `exe_sha256` — and recorded with `node`'s own `bin/node` as its
+`interpreter`, so `npm`'s resolved child `PATH` always carries the store's
+node first. `dependency_checks.py`'s `_npm()`/`_node()` already called
+`store:node/bin/npm`; both were BLOCKED "unattested" until this landed. A
+real `manifest provision` + `store:node/bin/npm` run with the store's own
+node invoked `npm-cli.js` end to end (reported version `11.6.0`).
+
+**`generated.cursor` / `hook.check-cursor-rules-drift`'s 20-second timeout.**
+Root cause, isolated by measuring the runner's three cache env vars
+individually, in pairs, and together against the unmodified generator:
+`PYTHONDONTWRITEBYTECODE` and `PYTHONPYCACHEPREFIX` TOGETHER (never alone,
+and `XDG_CACHE_HOME` is inert) roughly triple `generate_cursor_rules.sh`'s
+wall time, because its per-skill loop (~123 skills) launched up to two
+`python3` processes each. `cursor_rules_model_guidance.py` now does that
+same work in ONE `python3` process; the shell script probes python3/pyyaml
+once and reads the batch result from a `mktemp -d` (one file per skill —
+not an associative array, since the script targets bash 3.2). Proved
+byte-identical output regenerating the real repo's rules before/after;
+real timings dropped from ~30s to ~2.5s under the runner's cache env, and
+`manifest check` with a provisioned store now PASSes both checks in
+~2.5s each.
+
+**Carried forward: the test group's project environment (Correction 7).**
+`project-env` (root `uv.lock`, `--no-install-project` so a check always
+tests the CANDIDATE's own `src/` via `PYTHONPATH`, never a baked-in copy)
+and `config-env` (`configs/claude/uv.lock`, installed for real so its
+`bin/manifest` entry point exists) are attested for darwin-arm64 and
+resolve through `toolchain.resolve()` exactly like every other `python-env`
+bundle. Finding a workable materialization mechanism also surfaced a real
+launcher-provenance gap: a store living under a long path (this repo's own
+`pytest tmp_path`, CI runners) makes pip/uv emit a `#!/bin/sh` polyglot
+trampoline instead of a plain shebang for `bin/manifest`, which
+`launcher_target` didn't recognize and failed CLOSED on — fixed with a
+narrowly-scoped parser for that specific shape, plus three regression
+tests (resolves correctly, still rejects a trampoline pointing outside the
+store, an ordinary `#!/bin/sh` script is untouched). **Not done**: wiring
+`test.python`/`test.hooks`/`test.bats`/`test.smoke.lite` in the registry to
+these two bundles, the `path_prepend` mechanism `test.bats` needs to put
+`store:project-env/bin` first on its child `PATH`, the `test.bats` wall-time
+budget measurement, and the PATH=empty / impostor-`python3` / stale-lock
+functional tests against the real check bodies (the offline tests added
+here cover the stale-lock invariant at the `resolve()` layer only).
+
 ## Related Documents
 
 - [SHARED_CHECKS_HOOKS.md](SHARED_CHECKS_HOOKS.md) — native hook adapters
