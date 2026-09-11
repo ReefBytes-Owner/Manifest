@@ -24,6 +24,7 @@ from pathlib import Path
 import pytest
 
 from manifest_agent.checks import toolchain
+from tests.python.manifest_agent._subprocess_env import isolated_env
 from tools.project_checks import tool_versions
 
 
@@ -235,7 +236,7 @@ class TestCheckBodiesImportUnderABarePathNoVenvShortcut:
 
     def _run_body(self, module: str, check_id: str) -> subprocess.CompletedProcess:
 
-        env = {"PATH": os.defpath, "HOME": os.environ.get("HOME", "/tmp")}
+        env = isolated_env(PATH=os.defpath, HOME=os.environ.get("HOME", "/tmp"))
         return subprocess.run(
             [
                 sys.executable,

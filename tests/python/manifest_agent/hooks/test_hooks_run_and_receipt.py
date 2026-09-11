@@ -8,7 +8,7 @@ import json
 import os
 import stat
 
-from .conftest import write_custom_check_project
+from .conftest import REPO_SRC, write_custom_check_project
 
 
 def _payload(root):
@@ -22,7 +22,9 @@ def _payload(root):
 
 
 def test_supported_event_runs_the_real_check_and_writes_one_receipt(hook_harness):
-    result = hook_harness.invoke("claude-code", "PostToolUse", _payload(hook_harness.root))
+    result = hook_harness.invoke(
+        "claude-code", "PostToolUse", _payload(hook_harness.root)
+    )
     assert result.returncode == 0
     body = json.loads(result.stdout.decode())
     assert "hookSpecificOutput" in body
@@ -38,8 +40,34 @@ def test_supported_event_runs_the_real_check_and_writes_one_receipt(hook_harness
     assert hook_harness.marker.read_text(encoding="utf-8") == "x"
 
 
+def test_invoke_never_writes_pycache_into_the_real_src_tree(hook_harness):
+    """`hooks/runner.py::run_manifest_check` invokes `python -m
+    manifest_agent check ...` against `PYTHONPATH=<repo>/src` (via
+    `HookHarness.env`), so a `FORWARDED_ENV_KEYS` that drops
+    `PYTHONDONTWRITEBYTECODE`/`PYTHONPYCACHEPREFIX` writes real bytecode
+    straight into this repo's own `src/manifest_agent/**` on every
+    hook-driven run -- exactly what the strict per-check candidate walk
+    (C7d) flags as "candidate identity changed" when this same argv runs
+    against a candidate copy instead."""
+    before = set(REPO_SRC.rglob("__pycache__"))
+
+    result = hook_harness.invoke(
+        "claude-code", "PostToolUse", _payload(hook_harness.root)
+    )
+
+    assert result.returncode == 0
+    after = set(REPO_SRC.rglob("__pycache__"))
+    new_dirs = after - before
+    assert not new_dirs, (
+        "hook-driven `manifest check` wrote __pycache__ into the real src "
+        f"tree: {sorted(str(p) for p in new_dirs)}"
+    )
+
+
 def test_stdout_is_exactly_one_json_document_no_stray_output(hook_harness):
-    result = hook_harness.invoke("claude-code", "PostToolUse", _payload(hook_harness.root))
+    result = hook_harness.invoke(
+        "claude-code", "PostToolUse", _payload(hook_harness.root)
+    )
     assert result.stderr == b""
     lines = result.stdout.decode().splitlines()
     assert len(lines) == 1
@@ -80,7 +108,9 @@ def test_recursion_guard_refuses_a_real_nested_invocation(hook_harness, tmp_path
     write_custom_check_project(check_config, script)
 
     result = hook_harness.invoke(
-        "claude-code", "PostToolUse", _payload(hook_harness.root),
+        "claude-code",
+        "PostToolUse",
+        _payload(hook_harness.root),
         MANIFEST_HOOK_PROJECT_CONFIG=str(check_config),
     )
 
@@ -110,7 +140,9 @@ def test_read_only_state_dir_still_emits_protocol_json_not_a_traceback(hook_harn
     os.chmod(read_only_home, stat.S_IRUSR | stat.S_IXUSR)
     try:
         result = hook_harness.invoke(
-            "claude-code", "PostToolUse", _payload(hook_harness.root),
+            "claude-code",
+            "PostToolUse",
+            _payload(hook_harness.root),
             XDG_STATE_HOME=str(read_only_home),
         )
     finally:

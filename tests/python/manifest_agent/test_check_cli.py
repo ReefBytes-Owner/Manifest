@@ -19,6 +19,7 @@ import pytest
 from click.testing import CliRunner
 
 from manifest_agent.cli import cli
+from tests.python.manifest_agent._subprocess_env import isolated_env
 
 
 def test_lifecycle_startup_does_not_import_project_check_subsystem():
@@ -35,15 +36,15 @@ def test_lifecycle_startup_does_not_import_project_check_subsystem():
         [sys.executable, "-c", program],
         capture_output=True,
         check=False,
-        env={
-            "PATH": os.environ["PATH"],
-            "PYTHONPATH": os.pathsep.join(
+        env=isolated_env(
+            PATH=os.environ["PATH"],
+            PYTHONPATH=os.pathsep.join(
                 (
                     str(Path(__file__).parents[3] / "src"),
                     str(Path(__file__).parents[3]),
                 )
             ),
-        },
+        ),
         text=True,
     )
 

@@ -126,6 +126,7 @@ def test_process_capture_redacts_bounds_and_times_out(tmp_path):
     script.write_text(
         "import sys\nprint('password=fixture-value')\nsys.stdout.write('x'*100000)\nsys.stderr.write('y'*100000)\n"
     )
+    # subprocess-env: exempt -- synthetic tmp_path script, no manifest_agent/tools import.
     result = run_argv(
         (sys.executable, str(script)), cwd=tmp_path, env={}, timeout_seconds=2
     )
@@ -133,6 +134,7 @@ def test_process_capture_redacts_bounds_and_times_out(tmp_path):
     assert "fixture-value" not in result.stdout
     assert len(result.stdout.encode()) <= 65536 and len(result.stderr.encode()) <= 65536
     script.write_text("import time; time.sleep(10)\n")
+    # subprocess-env: exempt -- synthetic tmp_path script, no manifest_agent/tools import.
     result = run_argv(
         (sys.executable, str(script)), cwd=tmp_path, env={}, timeout_seconds=0.1
     )
@@ -236,6 +238,7 @@ def test_process_timeout_kills_descendants_and_ignoring_leader(tmp_path):
         "if os.fork() == 0:\n time.sleep(.5); Path('survived').write_text('bad')\n"
         "else:\n time.sleep(10)\n"
     )
+    # subprocess-env: exempt -- synthetic tmp_path script, no manifest_agent/tools import.
     result = run_argv(
         (sys.executable, str(script)), cwd=tmp_path, env={}, timeout_seconds=0.15
     )
@@ -257,6 +260,7 @@ def test_process_signal_denial_is_reported_as_error(tmp_path, monkeypatch):
         raise PermissionError("fixture signal permission denied")
 
     monkeypatch.setattr(implementation.os, "killpg", deny_signal)
+    # subprocess-env: exempt -- synthetic tmp_path script, no manifest_agent/tools import.
     result = implementation.run_argv(
         (sys.executable, str(script)), cwd=tmp_path, env={}, timeout_seconds=0.05
     )

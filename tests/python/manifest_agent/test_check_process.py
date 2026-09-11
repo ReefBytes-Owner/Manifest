@@ -31,6 +31,8 @@ def test_capture_is_redacted_bounded_and_marks_each_truncated_stream(tmp_path):
         "sys.stderr.write('api_key=fixture-secret \\n' + 'y' * 100000)\n"
     )
 
+    # subprocess-env: exempt -- proves run_argv's own explicit-only env
+    # contract (a synthetic tmp_path script, no manifest_agent/tools import).
     result = run_argv(
         (sys.executable, str(script)), cwd=tmp_path, env={}, timeout_seconds=2
     )
@@ -60,6 +62,8 @@ def test_timeout_kills_parent_and_sleeping_child(tmp_path):
         "    time.sleep(10)\n"
     )
 
+    # subprocess-env: exempt -- synthetic tmp_path script, no
+    # manifest_agent/tools import.
     result = run_argv(
         (sys.executable, str(script)), cwd=tmp_path, env={}, timeout_seconds=0.2
     )
@@ -140,6 +144,8 @@ def test_unsupported_process_group_lifecycle_is_observable_and_does_not_spawn(
     marker = tmp_path / "spawned"
     monkeypatch.setattr(implementation.os, "name", "nt")
 
+    # subprocess-env: exempt -- windows-mocked path never actually spawns
+    # (os.name patched to "nt" before run_argv's POSIX guard returns early).
     result = implementation.run_argv(
         (sys.executable, "-c", f"open({str(marker)!r}, 'w').close()"),
         cwd=tmp_path,
@@ -166,6 +172,9 @@ def test_child_receives_only_explicit_environment_and_literal_argv(
         "print(sys.argv[1])\n"
     )
 
+    # subprocess-env: exempt -- proves run_argv's env is explicit-only (no
+    # ambient inheritance); adding isolation keys here would blur the
+    # contract this test pins.
     result = run_argv(
         (sys.executable, str(script), "$AMBIENT_CHECK_SECRET"),
         cwd=tmp_path,

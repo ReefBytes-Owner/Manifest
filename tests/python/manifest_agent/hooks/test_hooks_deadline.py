@@ -30,7 +30,7 @@ def test_deadline_kills_a_grandchild_that_outlives_its_parent(tmp_path):
         "import json, os, subprocess, sys, time\n"
         "grandchild = subprocess.Popen([sys.executable, '-c',\n"
         "    'import pathlib,time; time.sleep(6); "
-        "pathlib.Path(%r).write_text(\"done\")' % sys.argv[1]])\n"
+        'pathlib.Path(%r).write_text("done")\' % sys.argv[1]])\n'
         "with open(sys.argv[2], 'w') as fh:\n"
         "    json.dump({'self': os.getpid(), 'grandchild': grandchild.pid}, fh)\n"
         "time.sleep(20)\n",
@@ -38,6 +38,8 @@ def test_deadline_kills_a_grandchild_that_outlives_its_parent(tmp_path):
     )
 
     start = time.monotonic()
+    # subprocess-env: exempt -- synthetic tmp_path script, no
+    # manifest_agent/tools import.
     result = run_argv(
         (sys.executable, str(script), str(grandchild_marker), str(pid_file)),
         cwd=tmp_path,
@@ -47,7 +49,9 @@ def test_deadline_kills_a_grandchild_that_outlives_its_parent(tmp_path):
     elapsed = time.monotonic() - start
 
     assert result.timed_out is True
-    assert elapsed < 6, "run_argv must return at its deadline, not wait for the grandchild"
+    assert elapsed < 6, (
+        "run_argv must return at its deadline, not wait for the grandchild"
+    )
 
     import json
 

@@ -28,10 +28,16 @@ RECURSION_ENV_VAR = "MANIFEST_HOOK_ACTIVE"
 # hook-driven run (it sees MANIFEST_HOOK_ACTIVE below and defers to this
 # adapter's own record; see checks/cli.py::_record_check_telemetry), but the
 # rest of its state resolution should still agree with the adapter's.
+# PYTHONDONTWRITEBYTECODE/PYTHONPYCACHEPREFIX must forward too: without
+# them the invoked `manifest check` subprocess writes __pycache__ straight
+# into src/manifest_agent/** on every hook-driven run (the write C7d's
+# strict candidate walk exists to catch).
 FORWARDED_ENV_KEYS = (
     "HOME",
     "PATH",
     "PYTHONPATH",
+    "PYTHONDONTWRITEBYTECODE",
+    "PYTHONPYCACHEPREFIX",
     "LANG",
     "LC_ALL",
     "TMPDIR",
