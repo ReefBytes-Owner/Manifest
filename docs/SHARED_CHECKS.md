@@ -1,6 +1,7 @@
 # Shared Checks
 
-> The `manifest check` / `manifest check-aggregate` shared-check entry: commands, profiles, status vocabulary, and what is not authoritative yet.
+> The `manifest check` / `manifest check-aggregate` shared-check entry:
+> commands, profiles, status vocabulary, and what is not authoritative yet.
 
 **Last Updated**: 2026-09-10
 
@@ -265,7 +266,7 @@ count cannot see a same-count replacement: fix one violation and introduce a
 different one in the same file, and the count is unchanged — the swap is
 invisible. `src/manifest_agent/checks/debt.py` keys each finding on
 
-```
+```text
 identity = sha256(check_id | repo_path | anchor | normalized_message | ordinal)
 ```
 
@@ -909,8 +910,12 @@ controller's own re-measurement to reconcile before anyone treats
 
 ## Related Documents
 
-- [SHARED_CHECKS_HOOKS.md](SHARED_CHECKS_HOOKS.md) — native hook adapters (`manifest hook <client> <event>`), split out here since this file is already over its line cap
-- [SHARED_CHECKS_TELEMETRY.md](SHARED_CHECKS_TELEMETRY.md) — run telemetry (`runs.jsonl`) and `measure_report.py`'s derived metrics, split out for the same reason
+- [SHARED_CHECKS_HOOKS.md](SHARED_CHECKS_HOOKS.md) — native hook adapters
+  (`manifest hook <client> <event>`), split out here since this file is
+  already over its line cap
+- [SHARED_CHECKS_TELEMETRY.md](SHARED_CHECKS_TELEMETRY.md) — run telemetry
+  (`runs.jsonl`) and `measure_report.py`'s derived metrics, split out for the
+  same reason
 - [config/project-checks.json](../config/project-checks.json) — the check registry
 - [config/check-preservation.json](../config/check-preservation.json) — the immutable Task 1 oracle
 - [.github/workflows/ci.yml](../.github/workflows/ci.yml) — legacy jobs + shadow path

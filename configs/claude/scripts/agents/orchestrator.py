@@ -119,7 +119,7 @@ if HAS_ANTHROPIC:
     from anthropic import AsyncAnthropic
 
 
-async def _bounded_probe_output(proc, timeout: int, provider: str):
+async def _bounded_probe_output(proc, timeout: float, provider: str):
     """Wait for a provider probe while draining both streams within fixed caps."""
     stdout_task = asyncio.create_task(_read_bounded_stream(proc.stdout))
     stderr_task = asyncio.create_task(_read_bounded_stream(proc.stderr))
