@@ -204,7 +204,10 @@
       "required_modules": [],
       "path_prepend": [
         "store:project-env/bin",
-        "store:node/bin"
+        "store:node/bin",
+        "store:uv/bin",
+        "store:shellcheck/bin",
+        "store:config-env/bin"
       ]
     },
     "test.python": {
