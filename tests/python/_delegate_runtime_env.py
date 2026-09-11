@@ -398,5 +398,5 @@ def manifest_home() -> Path:
     _manifest_home_path = home
     import atexit
 
-    atexit.register(lambda: shutil.rmtree(_manifest_home_dir, ignore_errors=True))
+    atexit.register(shutil.rmtree, str(base), ignore_errors=True)
     return _manifest_home_path

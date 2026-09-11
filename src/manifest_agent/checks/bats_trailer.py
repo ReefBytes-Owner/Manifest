@@ -20,6 +20,11 @@ captured result after the fact keeps that invariant intact.
 
 from __future__ import annotations
 
+from dataclasses import replace
+
+from .models import CheckSpec
+from .process import ProcessResult
+
 _NOT_OK_PREFIX = "not ok "
 
 
@@ -36,3 +41,16 @@ def append_not_ok_trailer(stdout: str) -> str:
     if stdout and not stdout.endswith("\n"):
         return f"{stdout}\n{trailer}"
     return f"{stdout}{trailer}"
+
+
+def with_bats_trailer(check: CheckSpec, result: ProcessResult) -> ProcessResult:
+    """Append the not-ok failure trailer to `test.bats`'s captured stdout.
+
+    Correction 15 rule 3: bats' own not-ok lines are interleaved throughout
+    the stream, not gathered at the end -- append a trailer so truncation
+    can never hide which tests failed. A timed-out run has no complete TAP
+    stream to summarize, so it is left untouched.
+    """
+    if check.id != "test.bats" or result.timed_out:
+        return result
+    return replace(result, stdout=append_not_ok_trailer(result.stdout))
