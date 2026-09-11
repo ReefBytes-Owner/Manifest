@@ -6,13 +6,14 @@ import hashlib
 import json
 import time
 from collections.abc import Mapping
-from dataclasses import asdict, is_dataclass
+from dataclasses import asdict, is_dataclass, replace
 from pathlib import Path
 
 from manifest_agent.process import redact_text
 
 from . import receipt as _receipt
 from . import toolchain, toolchain_pythonpath
+from .bats_trailer import append_not_ok_trailer
 from .candidate import CandidateBlockedError, _safe_path, _walk, git_dir_snapshot
 from .candidate_integrity import identity_error, post_run_diagnostic
 from .group_selection import guard_nonempty_group
@@ -35,6 +36,19 @@ from .status import diagnostics as _diagnostics
 from .status import executed_status as _executed_status
 
 VERSION_PREFLIGHT_TIMEOUT_SECONDS = 10.0
+
+
+def _with_bats_trailer(check: CheckSpec, result: ProcessResult) -> ProcessResult:
+    """Append the not-ok failure trailer to `test.bats`'s captured stdout.
+
+    Correction 15 rule 3: bats' own not-ok lines are interleaved throughout
+    the stream, not gathered at the end -- append a trailer so truncation
+    can never hide which tests failed. A timed-out run has no complete TAP
+    stream to summarize, so it is left untouched.
+    """
+    if check.id != "test.bats" or result.timed_out:
+        return result
+    return replace(result, stdout=append_not_ok_trailer(result.stdout))
 
 
 def execute_check(
@@ -67,6 +81,7 @@ def execute_check(
         return CheckResult(check.id, "BLOCKED", None, 0.0, path_error, ())
     store_before = toolchain.fingerprint_for(resolved, env)
     result = run_argv(argv, cwd=cwd, env=env, timeout_seconds=check.timeout_seconds)
+    result = _with_bats_trailer(check, result)
     diagnostic = post_run_diagnostic(
         candidate, (before, git_before), resolved, store_before, env
     )

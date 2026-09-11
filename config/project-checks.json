@@ -1309,8 +1309,7 @@
       "category": "test",
       "group": "test",
       "argv": [
-        "python3",
-        "tools/project_checks/bats_body.py",
+        "store:node-env/bin/bats",
         "tests/bats/"
       ],
       "cwd": ".",
