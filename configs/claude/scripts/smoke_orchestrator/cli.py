@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -33,6 +34,22 @@ def _load_workflow(args: argparse.Namespace) -> dict:
         else Path(args.from_file).read_text(encoding="utf-8")
     )
     return json.loads(raw)
+
+
+def _default_report_path() -> str:
+    """The `--junit`/`--report` default when the flag is not given explicitly.
+
+    A bare relative filename resolves against the process's cwd -- fine for
+    a human running this directly, but exactly the write-into-the-candidate
+    bug when a `manifest check` body runs it: the candidate identity check
+    then (correctly) reports "candidate identity changed" for a report file
+    the check itself produced. `MANIFEST_RUN_TMP` is the runner's per-run
+    temp directory, set the same place `PYTHONPYCACHEPREFIX` etc. are
+    (`manifest_agent.checks.toolchain_cache.cache_environment`); when it is
+    present the report lands there instead, outside the candidate.
+    """
+    run_tmp = os.environ.get("MANIFEST_RUN_TMP", "")
+    return str(Path(run_tmp) / "smoke-report.xml") if run_tmp else "smoke-report.xml"
 
 
 def _cmd_append(args: argparse.Namespace) -> int:
@@ -106,9 +123,10 @@ def _cmd_run(args: argparse.Namespace) -> int:
         _err(str(exc))
         return 2
 
-    if args.junit:
+    junit_path = args.junit if args.junit is not None else _default_report_path()
+    if junit_path:
         try:
-            report_mod.write_junit(reports, args.junit, redactor)
+            report_mod.write_junit(reports, junit_path, redactor)
         except OSError as exc:
             _err(f"could not write JUnit XML: {exc}")
             return 1
@@ -197,9 +215,15 @@ def build_parser() -> argparse.ArgumentParser:
     )
     rp.add_argument(
         "--junit",
+        "--report",
+        dest="junit",
         metavar="PATH",
-        default="smoke-report.xml",
-        help="write JUnit XML here (default: smoke-report.xml; empty string to skip)",
+        default=None,
+        help=(
+            "write JUnit XML here (default: smoke-report.xml, or "
+            "$MANIFEST_RUN_TMP/smoke-report.xml when MANIFEST_RUN_TMP is set "
+            "-- e.g. running under `manifest check`; empty string to skip)"
+        ),
     )
     rp.add_argument("--base-url", dest="base_url", help="override the catalog base_url")
     rp.add_argument(

@@ -1,0 +1,11 @@
+version: 1
+app: manifest
+tests:
+  - id: trivial-pass
+    title: a single Lite-tier case that always succeeds
+    tier: Lite
+    steps:
+      - name: ok
+        type: cli
+        expect_exit: 0
+        command: ["true"]

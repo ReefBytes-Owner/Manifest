@@ -63,6 +63,11 @@ def cache_environment(env: Mapping[str, str], run_tmp: Path) -> dict[str, str]:
     result["RUFF_CACHE_DIR"] = str(ruff_dir)
     result["UV_CACHE_DIR"] = str(uv_dir)
     result["npm_config_cache"] = str(npm_dir)
+    # A body's own outputs (never just its caches) belong outside the
+    # candidate too -- e.g. `manifest smoke run`'s JUnit report, which
+    # otherwise lands in cwd (the candidate) and trips the identity check.
+    # `run_tmp` itself (not a subdirectory) so a body picks its own layout.
+    result["MANIFEST_RUN_TMP"] = str(run_tmp)
     existing_addopts = result.get("PYTEST_ADDOPTS", "")
     no_cacheprovider = "-p no:cacheprovider"
     result["PYTEST_ADDOPTS"] = (
