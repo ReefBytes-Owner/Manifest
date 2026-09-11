@@ -116,9 +116,7 @@ def test_timeout_kills_parent_and_sleeping_child(tmp_path):
 def test_cancellation_reaps_process_family_and_emits_no_success_receipt(tmp_path):
     worker = tmp_path / "worker.py"
     checker = tmp_path / "checker.py"
-    # 600s: under load the fixture must never finish "on time" (measured
-    # 10.05s to signal+reap under real contention below), or it races
-    # cancellation instead of proving it.
+    # 600s sleeps: the fixture must never finish before SIGINT under load.
     checker.write_text(
         "import os, signal, sys, time\n"
         "from pathlib import Path\n"
@@ -164,10 +162,7 @@ def test_cancellation_reaps_process_family_and_emits_no_success_receipt(tmp_path
     assert parent_pid != child_pid
 
     process.send_signal(signal.SIGINT)
-    # Budget measured, not guessed: a real run of the full suite under a
-    # store-provisioned interpreter (2026-09-11, 16-core host, ~3650
-    # concurrent-load tests) needed 10.05s from SIGINT to reap; 30s leaves
-    # ~3x headroom under that measured contention.
+    # 30s = ~3x the 10.05s SIGINT-to-reap measured under full-suite load (2026-09-11).
     assert process.wait(timeout=30) == 0
 
     assert (tmp_path / "cancelled").read_text() == "yes"
