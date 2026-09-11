@@ -958,6 +958,65 @@ budget measurement, and the PATH=empty / impostor-`python3` / stale-lock
 functional tests against the real check bodies (the offline tests added
 here cover the stale-lock invariant at the `resolve()` layer only).
 
+## C7j: reproducible env digests, effective preparations, evidence-derived budgets
+
+Three C7h/C7i leftovers closed.
+
+**`distribution_set_digest` is now checkout-path independent.** `project-env`/
+`config-env` are synced against the live checkout (Correction 7), and their
+two local path dependencies (`manifest-model-policy`, `manifest-runtime`)
+install editable — pip/uv's `direct_url.json`, `uv_cache.json`, and a
+top-level `*.pth` file each embed the checkout's absolute path. Measured by
+materializing both bundles twice on two real `git worktree`-detached
+checkouts and diffing `RECORD` byte-for-byte: those three files (never a
+payload line) were the only difference outside the already-excluded launcher
+lines. `distribution_set_digest` now excludes them too; re-attested
+darwin-arm64 `exe_sha256` for both bundles
+(`project-env` `b1213d5a…`, `config-env` `d0844818…`) from a fresh
+materialization, and proved `toolchain.resolve("store:project-env/bin/python", …)`
+returns a `ResolvedTool` from a THIRD fresh store.
+
+**`prepare.skill-mirror` now runs for the `test` group.** Its declared
+`groups` were `["structure", "lint"]` — never `"test"` — so `_prepare_for_checks`'
+group-intersection selection never ran it for a `--group test` invocation,
+leaving `.apm/skills` empty for `test.bundle-partition`/`test.hooks` even
+though the preparation existed. Added `"test"` to its groups. The
+BLOCK-on-failed-preparation path (a check whose group has a failed
+preparation is BLOCKED with the preparation's own diagnostics, never left to
+FAIL on stale/empty output) already existed in `runner._run_check`; pinned
+with a regression test, plus a test that runs the real preparation against a
+real candidate and confirms the mirror is actually populated.
+
+**Budgets and ceilings now share one evidence chain.** Each `test.*` check's
+`timeout_seconds` is 2× its measured wall time under the runner, rounded up
+to the minute, with a `budget_evidence` string (new optional schema field)
+naming the measurement — `test.bats` reuses the controller's 456.8s/457.1s
+bats-suite measurement (→ 960s); `test.python`/`test.hooks`/`test.smoke.lite`/
+`test.bundle-partition` were each measured twice via runner-driven
+single-check execution against a fresh darwin-arm64 store on 2026-09-10 (→
+780s/60s/60s/60s). The group sums to 1920s, over the `test` CI job's prior
+30-minute ceiling, so that job moved to 35 minutes on the same evidence;
+`shadow-checks-test` becomes `ceil(1920/60)+5` = 37 minutes.
+`test_timeouts_are_finite_and_fit_existing_group_ceilings` no longer compares
+against hand-copied constants — it parses `ci.yml` and reads each group's
+producer job's own `timeout-minutes` as the ceiling (`lint`/`test`/`validate`
+→ `lint`/`test`/`structure` groups), so the registry and `ci.yml` cannot
+silently drift apart.
+
+**Real findings surfaced by a runner-driven `--group test` run against a
+fresh store, once the above three were fixed** (not fixed here — reported):
+`test.python` passes internally but the RUN is reported BLOCKED
+"candidate identity changed" — a nested `materialize_candidate(REPO_ROOT, …)`
+call inside a test that runs under `test.python` itself resolves `REPO_ROOT`
+to the running candidate (the pattern predates this chunk, e.g.
+`test_toolchain_c7i_functional.py`); `test.smoke.lite` BLOCKED the same way,
+with a real finding underneath — several `delegate` smoke cases fail
+"trusted Manifest runtime has an invalid manifest-model-policy distribution"
+inside the candidate. `test.hooks` and `test.bundle-partition` are real,
+clean PASSes. `test.bats` is a real FAIL (not BLOCKED) at 502s — the
+digest/mirror/identity problems that used to mask its result are gone;
+whatever `not ok` lines remain now are genuine.
+
 ## Related Documents
 
 - [SHARED_CHECKS_HOOKS.md](SHARED_CHECKS_HOOKS.md) — native hook adapters
