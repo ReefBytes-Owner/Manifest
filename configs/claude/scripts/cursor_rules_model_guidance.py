@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Batch model-guidance computation for `generate_cursor_rules.sh` (C7h /
 Correction 6 step 5).
 

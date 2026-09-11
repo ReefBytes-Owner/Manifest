@@ -222,35 +222,42 @@ def test_repo_relative_scripts_remain_legal_without_the_store():
 
 def test_no_distribution_version_probe_names_a_python_env_distribution_on_ambient_python():
     """C7c (coordinator round 2): a `distribution-version`/`--distribution`
-    probe for a distribution the `python-env` bundle installs must run
-    under `store:python-env/bin/python` -- never ambient `python3`, which
+    probe for a distribution some `python-env`-kind bundle installs must run
+    under THAT bundle's own store python -- never ambient `python3`, which
     silently worked only because a dev checkout's own `.venv` happened to
-    resolve first on `PATH`. `PyYAML`/`ruff`/`pytest`/`yamllint`/
-    `pre-commit-hooks` are exactly the distributions `config/toolchain/
-    pyproject.toml` pins; any tool whose probe names one of them as a
-    `distribution-version` argument or a `python-wrapper --distribution`
-    value must have `store:python-env/bin/python` as `version_argv[0]`."""
+    resolve first on `PATH`. `PyYAML`/`ruff`/`yamllint`/`pre-commit-hooks`
+    are exactly the distributions `config/toolchain/pyproject.toml` (the
+    `python-env` bundle) pins; `pytest` is what `test.python`/`test.hooks`
+    actually run under (C7i, Correction 7: `store:project-env/bin/python -m
+    pytest`), so its probe must run under `project-env`'s own python instead
+    -- `python-env` still lists `pytest` as a leftover, unused pin (C7b), so
+    accepting either bundle for `pytest` specifically does not weaken this
+    guard for the other four distributions, which stay `python-env`-only."""
     registry = load_registry(REGISTRY_PATH)
-    python_env_distributions = {
+    python_env_only_distributions = {
         "ruff",
-        "pytest",
         "yamllint",
         "pre-commit-hooks",
         "pyyaml",
         "pyyaml".upper(),
         "PyYAML",
     }
+    project_env_distributions = {"pytest"}
+
+    def _named_distribution(argv: tuple[str, ...]) -> str | None:
+        if "distribution-version" in argv:
+            return argv[argv.index("distribution-version") + 1]
+        if "--distribution" in argv:
+            return argv[argv.index("--distribution") + 1]
+        return None
+
     for name, tool in registry["tools"].items():
         argv = tool["version_argv"]
-        names_python_env_distribution = (
-            "distribution-version" in argv
-            and argv[argv.index("distribution-version") + 1] in python_env_distributions
-        ) or (
-            "--distribution" in argv
-            and argv[argv.index("--distribution") + 1] in python_env_distributions
-        )
-        if names_python_env_distribution:
+        distribution = _named_distribution(argv)
+        if distribution in python_env_only_distributions:
             assert argv[0] == "store:python-env/bin/python", (name, argv)
+        elif distribution in project_env_distributions:
+            assert argv[0] == "store:project-env/bin/python", (name, argv)
 
 
 def test_every_file_url_lock_source_is_git_tracked():

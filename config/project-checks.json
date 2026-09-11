@@ -196,37 +196,43 @@
         "-I",
         "tools/project_checks/tool_versions.py",
         "command-version",
-        "bats"
+        "bats",
+        "--executable",
+        "store:node-env/bin/bats"
       ],
       "expected_version": "command:bats=1.11.1",
-      "required_modules": []
+      "required_modules": [],
+      "path_prepend": [
+        "store:project-env/bin",
+        "store:node/bin"
+      ]
     },
     "test.python": {
-      "executable": "store:python-env/bin/pytest",
+      "executable": "store:project-env/bin/python",
       "version_argv": [
-        "store:python-env/bin/python",
+        "store:project-env/bin/python",
         "-I",
         "tools/project_checks/tool_versions.py",
         "distribution-version",
         "pytest"
       ],
-      "expected_version": "distribution:pytest=8.3.4",
+      "expected_version": "distribution:pytest=9.1.1",
       "required_modules": []
     },
     "test.hooks": {
-      "executable": "store:python-env/bin/pytest",
+      "executable": "store:project-env/bin/python",
       "version_argv": [
-        "store:python-env/bin/python",
+        "store:project-env/bin/python",
         "-I",
         "tools/project_checks/tool_versions.py",
         "distribution-version",
         "pytest"
       ],
-      "expected_version": "distribution:pytest=8.3.4",
+      "expected_version": "distribution:pytest=9.1.1",
       "required_modules": []
     },
     "test.smoke.lite": {
-      "executable": "configs/claude/.venv/bin/manifest",
+      "executable": "store:config-env/bin/manifest",
       "version_argv": [
         "python3",
         "-I",
@@ -1315,7 +1321,9 @@
       "category": "test",
       "group": "test",
       "argv": [
-        "store:python-env/bin/pytest",
+        "store:project-env/bin/python",
+        "-m",
+        "pytest",
         "tests/python/",
         "-v",
         "-m",
@@ -1329,7 +1337,7 @@
       "timeout_seconds": 300,
       "selection": "project",
       "tool": "test.python",
-      "version": "distribution:pytest=8.3.4",
+      "version": "distribution:pytest=9.1.1",
       "pass_filenames": false
     },
     {
@@ -1337,7 +1345,9 @@
       "category": "test",
       "group": "test",
       "argv": [
-        "store:python-env/bin/pytest",
+        "store:project-env/bin/python",
+        "-m",
+        "pytest",
         ".apm/skills/ai-hooks-integration/tests/",
         "-v"
       ],
@@ -1349,7 +1359,7 @@
       "timeout_seconds": 300,
       "selection": "project",
       "tool": "test.hooks",
-      "version": "distribution:pytest=8.3.4",
+      "version": "distribution:pytest=9.1.1",
       "pass_filenames": false
     },
     {
@@ -1357,7 +1367,7 @@
       "category": "test",
       "group": "test",
       "argv": [
-        "configs/claude/.venv/bin/manifest",
+        "store:config-env/bin/manifest",
         "smoke",
         "run",
         "--app",
