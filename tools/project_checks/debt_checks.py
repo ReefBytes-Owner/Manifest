@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Project check bodies for the identity-based debt ratchet (Phase 3, C3).
 
 Two checks share this body: ``debt.constitution`` (Code Constitution

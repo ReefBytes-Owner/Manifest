@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Project check bodies for ``types.python`` (pyright) and ``security.semgrep``.
 
 Both scan the CANDIDATE tree only (no base-tree double-scan): these are

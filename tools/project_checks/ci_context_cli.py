@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """CLI wrapper: write the current-run context `manifest check-aggregate` needs.
 
 Read-only. Combines the trusted `GITHUB_*` env the runner sets with this

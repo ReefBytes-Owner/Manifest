@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Check body for ``hook.gitleaks``: scans the candidate's base..HEAD range.
 
 Before this chunk (C6b) the registry ran gitleaks directly with

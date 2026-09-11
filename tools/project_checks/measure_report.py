@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Read-only derived metrics over the telemetry JSONL (5c).
 
 Never writes to the JSONL; never talks to the network on its own -- the one

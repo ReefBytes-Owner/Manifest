@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Emit deterministic composite tokens from actual local tool prerequisites.
 
 Thin probes only (spec amendment 2026-09-09): this module verifies installed

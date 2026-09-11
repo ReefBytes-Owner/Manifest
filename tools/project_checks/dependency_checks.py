@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Project check bodies for the node runtime and dependency-integrity controls
 added in Phase 3 chunk C5: ``dependency.lock.node``, ``package.node-runtime``,
 ``dependency.audit.python``, ``dependency.audit.node``.

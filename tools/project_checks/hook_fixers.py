@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Pinned pre-commit-hooks v6.0.0 fixer execution.
 
 Split out of `hooks.py` (C2c, phase-3-5-decisions.md "Corrections

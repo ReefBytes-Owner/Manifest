@@ -663,6 +663,12 @@ async def check_credits(
 
     # Gemini credit check
     if HAS_GENAI:
+        # `genai` is `ModuleType | None` at the import site (config.py picks
+        # one of _genai_new/_genai_legacy/None at import time); `HAS_GENAI`
+        # is the runtime guarantee that it is not None, but pyright can't
+        # follow that correlation across the module boundary, so it narrows
+        # here explicitly instead of a `# type: ignore`.
+        assert genai is not None
         try:
             api_key = os.environ.get("GOOGLE_API_KEY")
             gemini_flash = config.get(

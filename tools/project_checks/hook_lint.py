@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Type-filtered direct-engine invocations for `hook.shellcheck` and
 `hook.yamllint`.
 

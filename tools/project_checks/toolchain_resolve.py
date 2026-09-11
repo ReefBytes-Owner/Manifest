@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Shared hash-verified `store:` tool resolution for project-check bodies.
 
 Lifted from ``analysis_checks.resolve_scanner`` -- the first check body to

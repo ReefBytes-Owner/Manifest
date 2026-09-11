@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Invoke the repository's native non-mutating generated-output verifiers."""
 
 from __future__ import annotations

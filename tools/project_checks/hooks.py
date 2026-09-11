@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Check-only replacements for mapped hooks that otherwise rewrite files."""
 
 from __future__ import annotations

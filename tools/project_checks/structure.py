@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Non-mutating structural checks extracted from the observed CI bodies."""
 
 from __future__ import annotations
