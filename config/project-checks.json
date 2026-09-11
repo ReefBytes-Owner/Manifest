@@ -219,7 +219,12 @@
         "pytest"
       ],
       "expected_version": "distribution:pytest=9.1.1",
-      "required_modules": []
+      "required_modules": [],
+      "path_prepend": [
+        "store:project-env/bin",
+        "store:node/bin",
+        "store:uv/bin"
+      ]
     },
     "test.hooks": {
       "executable": "store:project-env/bin/python",
