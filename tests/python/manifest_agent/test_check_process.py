@@ -24,11 +24,14 @@ def _pid_exists(pid: int) -> bool:
 def test_capture_is_redacted_bounded_and_marks_each_truncated_stream(tmp_path):
     from manifest_agent.checks.process import CAPTURE_LIMIT, run_argv
 
+    # The secret lands at the END of each stream: capture keeps the tail
+    # (test-runner summaries live there too), so redaction must still fire
+    # on bytes that survive truncation, not just on ones that get dropped.
     script = tmp_path / "excess.py"
     script.write_text(
         "import sys\n"
-        "sys.stdout.write('password=fixture-secret \\n' + 'x' * 100000)\n"
-        "sys.stderr.write('api_key=fixture-secret \\n' + 'y' * 100000)\n"
+        "sys.stdout.write('x' * 100000 + 'password=fixture-secret \\n')\n"
+        "sys.stderr.write('y' * 100000 + 'api_key=fixture-secret \\n')\n"
     )
 
     # subprocess-env: exempt -- proves run_argv's own explicit-only env
@@ -40,10 +43,38 @@ def test_capture_is_redacted_bounded_and_marks_each_truncated_stream(tmp_path):
     assert result.returncode == 0
     assert "fixture-secret" not in result.stdout + result.stderr
     assert "[REDACTED]" in result.stdout + result.stderr
-    assert result.stdout.endswith("\n...[truncated]\n")
-    assert result.stderr.endswith("\n...[truncated]\n")
+    assert result.stdout.startswith("[head truncated: ")
+    assert result.stderr.startswith("[head truncated: ")
+    assert result.stdout.endswith("[REDACTED] \n")
+    assert result.stderr.endswith("[REDACTED] \n")
     assert len(result.stdout.encode()) <= CAPTURE_LIMIT
     assert len(result.stderr.encode()) <= CAPTURE_LIMIT
+
+
+def test_capture_keeps_a_trailing_test_summary_line(tmp_path):
+    """A 200KB+ stream keeps its trailing pytest/bats-shaped summary line.
+
+    Test-runner summaries land at the very end of output; a capture that
+    truncates the tail instead of the head silently discards the one line a
+    receipt reader or a re-run decision actually needs.
+    """
+    from manifest_agent.checks.process import CAPTURE_LIMIT, run_argv
+
+    script = tmp_path / "excess-summary.py"
+    script.write_text(
+        "import sys\n"
+        "sys.stdout.write('x' * 200000)\n"
+        "sys.stdout.write('\\nFAILED tests/fake.py::test_thing - AssertionError\\n')\n"
+    )
+
+    result = run_argv(
+        (sys.executable, str(script)), cwd=tmp_path, env={}, timeout_seconds=2
+    )
+
+    assert result.returncode == 0
+    assert result.stdout.startswith("[head truncated: ")
+    assert "FAILED tests/fake.py::test_thing - AssertionError" in result.stdout
+    assert len(result.stdout.encode()) <= CAPTURE_LIMIT
 
 
 def test_timeout_kills_parent_and_sleeping_child(tmp_path):

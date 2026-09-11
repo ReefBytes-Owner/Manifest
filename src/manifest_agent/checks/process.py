@@ -18,6 +18,34 @@ CAPTURE_LIMIT = 65536
 TRUNCATION_MARKER = b"\n...[truncated]\n"
 
 
+def tail_bounded(
+    encoded: bytes, limit: int = CAPTURE_LIMIT, original_len: int | None = None
+) -> bytes:
+    """Bound ``encoded`` to ``limit`` bytes, keeping the LAST bytes.
+
+    Test-runner summaries (pytest, bats) are emitted at the end of output, so
+    truncation must drop the head, not the tail, and say so explicitly. The
+    marker's own size depends on the truncated-byte count it reports; one
+    correction pass is enough to converge (the digit count of that number
+    only changes at decade boundaries).
+
+    ``original_len`` lets a caller report a size larger than ``len(encoded)``
+    when bytes were already dropped upstream (e.g. streaming capture already
+    kept only the tail) -- the marker must still name the true drop, not zero.
+    """
+    if original_len is None:
+        original_len = len(encoded)
+    if original_len <= limit and len(encoded) <= limit:
+        return encoded
+    marker = f"[head truncated: {original_len} bytes]\n".encode()
+    tail_len = max(0, limit - len(marker))
+    truncated_bytes = original_len - tail_len
+    marker = f"[head truncated: {truncated_bytes} bytes]\n".encode()
+    tail_len = max(0, limit - len(marker))
+    tail = encoded[-tail_len:] if tail_len else b""
+    return (marker + tail)[:limit]
+
+
 @dataclass(frozen=True)
 class ProcessResult:
     """Captured command outcome, including failures to start or finish."""
@@ -93,11 +121,28 @@ def _kill_group(process: subprocess.Popen[bytes], sig: int) -> None:
         return
 
 
+def _consume_ready(
+    key, selector, buffers: list[bytearray], truncated: list[bool], received: list[int]
+) -> None:
+    """Read one ready stream and fold it into its bounded tail buffer."""
+    data = os.read(key.fd, 8192)
+    if not data:
+        selector.unregister(key.fileobj)
+        return
+    received[key.data] += len(data)
+    buffer = buffers[key.data]
+    buffer.extend(data)
+    if len(buffer) > CAPTURE_LIMIT:
+        del buffer[: len(buffer) - CAPTURE_LIMIT]
+        truncated[key.data] = True
+
+
 def _capture(
     process: subprocess.Popen[bytes], deadline: float
-) -> tuple[bytes, bytes, bool, bool, bool]:
+) -> tuple[bytes, bytes, bool, bool, bool, int, int]:
     buffers = [bytearray(), bytearray()]
     truncated = [False, False]
+    received = [0, 0]
     timed_out = False
     with selectors.DefaultSelector() as selector:
         for index, stream in enumerate((process.stdout, process.stderr)):
@@ -110,27 +155,23 @@ def _capture(
                 timed_out = True
                 break
             for key, _ in selector.select(min(0.05, deadline - now)):
-                data = os.read(key.fd, 8192)
-                if not data:
-                    selector.unregister(key.fileobj)
-                else:
-                    buffer = buffers[key.data]
-                    remaining = max(0, CAPTURE_LIMIT - len(buffer))
-                    buffer.extend(data[:remaining])
-                    truncated[key.data] |= len(data) > remaining
+                _consume_ready(key, selector, buffers, truncated, received)
     return (
         bytes(buffers[0]),
         bytes(buffers[1]),
         timed_out,
         truncated[0],
         truncated[1],
+        received[0],
+        received[1],
     )
 
 
-def _reportable(data: bytes, truncated: bool) -> str:
+def _reportable(data: bytes, truncated: bool, received: int) -> str:
     encoded = redact_text(data.decode("utf-8", errors="replace")).encode("utf-8")
+    original_len = max(received, len(encoded)) if truncated else len(encoded)
     if truncated or len(encoded) > CAPTURE_LIMIT:
-        encoded = encoded[: CAPTURE_LIMIT - len(TRUNCATION_MARKER)] + TRUNCATION_MARKER
+        encoded = tail_bounded(encoded, original_len=original_len)
     return encoded[:CAPTURE_LIMIT].decode("utf-8", errors="ignore")
 
 
@@ -160,10 +201,7 @@ def _cleanup(process: subprocess.Popen[bytes]) -> str:
     return error
 
 
-def run_argv(
-    argv: Sequence[str], *, cwd: Path, env: Mapping[str, str], timeout_seconds: float
-) -> ProcessResult:
-    """Run argv without a shell; bound both streams and terminate the whole group."""
+def _validate_run_argv_inputs(argv: Sequence[str], timeout_seconds: float) -> None:
     if (
         isinstance(argv, (str, bytes))
         or not argv
@@ -176,6 +214,13 @@ def run_argv(
         or timeout_seconds <= 0
     ):
         raise ValueError("timeout_seconds must be finite and positive")
+
+
+def run_argv(
+    argv: Sequence[str], *, cwd: Path, env: Mapping[str, str], timeout_seconds: float
+) -> ProcessResult:
+    """Run argv without a shell; bound both streams and terminate the whole group."""
+    _validate_run_argv_inputs(argv, timeout_seconds)
     environment = clean_git_environment(env)
     start = time.monotonic()
     if os.name != "posix" or not hasattr(os, "killpg"):
@@ -202,16 +247,22 @@ def run_argv(
         )
     with process:
         try:
-            stdout, stderr, timed_out, stdout_truncated, stderr_truncated = _capture(
-                process, start + timeout_seconds
-            )
+            (
+                stdout,
+                stderr,
+                timed_out,
+                stdout_truncated,
+                stderr_truncated,
+                stdout_received,
+                stderr_received,
+            ) = _capture(process, start + timeout_seconds)
         finally:
             # Also kill descendants that closed their pipes before the leader exited.
             error = _cleanup(process)
     return ProcessResult(
         process.returncode,
-        _reportable(stdout, stdout_truncated),
-        _reportable(stderr, stderr_truncated),
+        _reportable(stdout, stdout_truncated, stdout_received),
+        _reportable(stderr, stderr_truncated, stderr_received),
         time.monotonic() - start,
         timed_out,
         error,

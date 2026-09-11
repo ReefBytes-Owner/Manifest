@@ -11,7 +11,7 @@ from __future__ import annotations
 from manifest_agent.process import redact_text
 
 from .models import CheckResult, CheckSpec, PreparationSpec
-from .process import CAPTURE_LIMIT, TRUNCATION_MARKER, ProcessResult
+from .process import CAPTURE_LIMIT, ProcessResult, tail_bounded
 
 _CONTRACT_EXIT_CODES = frozenset({0, 2, 3})
 
@@ -21,10 +21,16 @@ def diagnostics(result: ProcessResult) -> str:
 
 
 def bounded_text(value: str) -> str:
-    value = redact_text(value).encode()
-    if len(value) > CAPTURE_LIMIT:
-        value = value[: CAPTURE_LIMIT - len(TRUNCATION_MARKER)] + TRUNCATION_MARKER
-    return value.decode("utf-8", errors="ignore")
+    """Bound receipt diagnostics to CAPTURE_LIMIT, keeping the LAST bytes.
+
+    Test-runner summaries (pytest ``FAILED ...`` lines, bats results) land at
+    the end of output, so a receipt must never trade the summary away to keep
+    stale head bytes -- see ``tail_bounded`` for the truncation contract.
+    """
+    encoded = redact_text(value).encode()
+    if len(encoded) > CAPTURE_LIMIT:
+        encoded = tail_bounded(encoded)
+    return encoded.decode("utf-8", errors="ignore")
 
 
 def blocked(

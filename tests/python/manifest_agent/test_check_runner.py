@@ -542,7 +542,7 @@ def test_timeout_is_blocked_and_combined_diagnostics_are_bounded(
     assert "timeout" in timed_out["results"][0]["diagnostics"]
     diagnostic = excessive["results"][0]["diagnostics"]
     assert "fixture-secret" not in diagnostic
-    assert diagnostic.endswith("\n...[truncated]\n")
+    assert diagnostic.startswith("[head truncated: ")
     assert len(diagnostic.encode()) <= CAPTURE_LIMIT
 
 
