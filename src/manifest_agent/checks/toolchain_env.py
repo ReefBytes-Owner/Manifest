@@ -71,25 +71,60 @@ def distribution_set_digest(env_root: Path, kind: str) -> str:
     raise ValueError(f"distribution_set_digest: unknown env kind {kind!r}")
 
 
-def _record_lines_excluding_generated_launchers(record_bytes: bytes) -> bytes:
-    """Every `RECORD` line except entries pip/uv generate OUTSIDE
-    site-packages (`../../../bin/NAME,sha256=...,size` -- console-script
-    launchers uv writes with an absolute, store-location-dependent shebang).
+def _record_line_path(line: bytes) -> bytes:
+    return line.split(b",", 1)[0]
 
-    RECORD is a flat CSV of every file pip/uv installed for a distribution:
-    the wheel's own payload (deterministic, content-addressed) AND these
-    generated launchers (not deterministic -- their bytes embed the venv
-    path). Keeping the launcher lines would make the digest vary with WHERE
-    the store happens to live, defeating the whole point of this anchor
-    (Correction 3, rule 3: "deterministic given the same lockfile and
-    platform"). `bin/python` itself is the one launcher line intentionally
-    exempted from launcher-provenance verification (rule 2); it is excluded
-    here too, for the same reason -- its bytes are not part of the anchor.
+
+def _is_location_or_time_dependent_record_line(relative_path: bytes) -> bool:
+    """Whether a single `RECORD` line's path field is provably location- or
+    time-dependent metadata, never a distribution's own payload.
+
+    Measured by materializing `project-env`/`config-env` twice from the same
+    committed lock on two different checkout paths (Correction 8, rule 1)
+    and diffing the resulting `RECORD` files. Three shapes varied, all of
+    them for the root project's local path dependencies
+    (`manifest-model-policy`, `manifest-runtime`) installed editable --
+    every ordinary (non-path) dependency's `RECORD` was byte-identical:
+
+    - `../../../bin/NAME,sha256=...,size` -- console-script launchers uv
+      writes OUTSIDE site-packages, whose bytes embed an absolute,
+      store-location-dependent shebang (pre-existing exclusion).
+    - `*.dist-info/direct_url.json` -- pip/uv's record of where an editable
+      install's source tree lives (`"url": "file://<checkout path>"`);
+      by definition a different absolute path on every checkout.
+    - `*.dist-info/uv_cache.json` -- uv's own editable-install cache
+      metadata, keyed by the same absolute source path.
+    - top-level `*.pth` files (e.g. `_editable_impl_NAME.pth`,
+      `_NAME.pth`) -- the editable-install path-configuration files
+      Python's site machinery reads at import time; their bytes are the
+      absolute checkout path, encoded as either a bare path line or an
+      `import` hook whose payload embeds it.
+
+    Keeping any of these would make the digest vary with WHERE the checkout
+    happens to live, defeating the whole point of this anchor (Correction 3,
+    rule 3: "deterministic given the same lockfile and platform"). `bin/
+    python` itself is the one launcher line intentionally exempted from
+    launcher-provenance verification (rule 2 of that same correction); it is
+    excluded here too (via the `../` prefix), for the same reason -- its
+    bytes are not part of the anchor.
     """
+    if relative_path.startswith(b"../"):
+        return True
+    name = relative_path.rsplit(b"/", 1)[-1]
+    if name in (b"direct_url.json", b"uv_cache.json"):
+        return True
+    return name.endswith(b".pth")
+
+
+def _record_lines_excluding_generated_launchers(record_bytes: bytes) -> bytes:
+    """Every `RECORD` line except the location/time-dependent metadata
+    `_is_location_or_time_dependent_record_line` identifies -- never a
+    payload line. See that function's docstring for what was excluded and
+    why, and the measurement that produced the list."""
     kept = [
         line
         for line in record_bytes.splitlines(keepends=True)
-        if not line.split(b",", 1)[0].startswith(b"../")
+        if not _is_location_or_time_dependent_record_line(_record_line_path(line))
     ]
     return b"".join(kept)
 

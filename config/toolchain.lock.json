@@ -211,7 +211,7 @@
         "darwin-arm64": {
           "url": "file://uv.lock",
           "sha256": "32c5ad8f97f3d295091044f23e84209d0ddf9ac2bfbbd618786185c301a6b717",
-          "exe_sha256": "bac30f4c64420b2bf07d5271e2e682d160b8e7b7fa30540c3e867b5ecb08685c",
+          "exe_sha256": "b1213d5ac5d0f207192cf95fdeb24620e9fac6c1065dfda6474653dfd3455863",
           "path_in_archive": ".",
           "console_scripts": [
             "bin/python"
@@ -235,7 +235,7 @@
         "darwin-arm64": {
           "url": "file://configs/claude/uv.lock",
           "sha256": "cceed04d9fc7bda097f0c72d809f984873e08eec86eac1c74be953cbc787798e",
-          "exe_sha256": "0f3079a7d8618f657fa335f401744713e2bdda27127f001ea79c64fcddd487ea",
+          "exe_sha256": "d0844818263ee7f9d6d100620c4d17c9b010ffa93bf7d5bed0814f6f890d71ce",
           "path_in_archive": ".",
           "console_scripts": [
             "bin/manifest"
