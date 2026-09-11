@@ -201,6 +201,27 @@ def launcher_inside_store(target: LauncherTarget | None, store: Path) -> bool:
     )
 
 
+def expected_exe_sha256(
+    bundle: str, relative: str, platform_entry: Mapping | None
+) -> str | None:
+    """The lock's trust anchor for `relative` inside `bundle`.
+
+    The default -- every `python-env`/`node-env` console script, and a
+    `binary` kind's own `bin/<bundle>`, plus any fixture that reuses a
+    `binary`-shaped lock entry under a non-matching bundle name -- is the
+    platform entry's single `exe_sha256`, unchanged. The ONLY divergence: a
+    `relative` that names a declared `extra_executables` entry (e.g. `node`'s
+    `bin/npm`, never `bin/<bundle>` itself) is verified against THAT entry's
+    own `exe_sha256`, never the primary tool's."""
+    if platform_entry is None:
+        return None
+    name = relative.removeprefix("bin/")
+    extra = (platform_entry.get("extra_executables") or {}).get(name)
+    if extra is not None and relative != f"bin/{bundle}":
+        return extra.get("exe_sha256")
+    return platform_entry.get("exe_sha256")
+
+
 def _not_provisioned(bundle: str) -> BlockedReason:
     return BlockedReason(
         f"toolchain: {bundle} not provisioned (run manifest provision)"

@@ -94,18 +94,44 @@ def _load_manifest(store: Path, lock: Mapping) -> dict:
     return manifest
 
 
+@dataclass(frozen=True)
+class BinaryArtifacts:
+    """The primary `bin/<bundle>` executable plus any `extra_executables`
+    extracted alongside it (e.g. `node`'s `bin/npm`) -- each entry carries
+    its OWN `sha256`; `toolchain.resolve()` looks up the one matching the
+    relative path it was asked to verify, never the primary tool's."""
+
+    source_sha256: str
+    primary_relative: str
+    primary_sha256: str
+    extra: Mapping[str, tuple[str, str]] = field(default_factory=dict)
+
+
 def _record_bundle(
-    ctx: ProvisionContext,
-    bundle: str,
-    relative: str,
-    source_sha256: str,
-    exe_sha256: str,
+    ctx: ProvisionContext, bundle: str, artifacts: BinaryArtifacts
 ) -> None:
     def body() -> dict:
         manifest = _load_manifest(ctx.store, ctx.lock)
+        executables = {
+            f"bin/{bundle}": {
+                "path": artifacts.primary_relative,
+                "sha256": artifacts.primary_sha256,
+            }
+        }
+        for name, (extra_relative, extra_sha256) in artifacts.extra.items():
+            # `npm-cli.js` (and any future extra executable) runs via a
+            # `#!/usr/bin/env node`-style shebang -- it needs the primary
+            # `bin/<bundle>` executable (node) on its resolved PATH, exactly
+            # like a python-env console script needs its venv interpreter.
+            executables[f"bin/{name}"] = {
+                "path": extra_relative,
+                "sha256": extra_sha256,
+                "interpreter": artifacts.primary_relative,
+                "interpreter_sha256": artifacts.primary_sha256,
+            }
         manifest["tools"][bundle] = {
-            "source_sha256": source_sha256,
-            "executables": {f"bin/{bundle}": {"path": relative, "sha256": exe_sha256}},
+            "source_sha256": artifacts.source_sha256,
+            "executables": executables,
         }
         (ctx.store / "manifest.json").write_text(json.dumps(manifest, sort_keys=True))
         return manifest
@@ -215,6 +241,39 @@ def _platform_entry(
     return platform_entry
 
 
+def _extract_extra_executables(
+    ctx: ProvisionContext,
+    bundle: str,
+    entry: Mapping,
+    platform_entry: Mapping,
+    data: bytes,
+) -> dict[str, tuple[str, str]] | ProvisionOutcome:
+    """Extract each `extra_executables` entry from the SAME already-hash-
+    verified archive bytes as the primary executable -- never a second
+    download -- and re-hash the extracted file against its OWN `exe_sha256`
+    (never the primary tool's). Returns `{name: (relative, exe_sha256)}`, or
+    a `ProvisionOutcome("blocked", ...)` on a digest mismatch."""
+    extra: dict[str, tuple[str, str]] = {}
+    for name, spec in (platform_entry.get("extra_executables") or {}).items():
+        subtree_root = ctx.store / f"tools/{bundle}/{entry['version']}/_{name}"
+        target = subtree_root / spec["executable_relative"]
+        if not target.is_file():
+            materialize.extract_subtree(data, spec["path_in_archive"], subtree_root)
+        if not target.is_file():
+            return ProvisionOutcome(
+                bundle,
+                "blocked",
+                f"toolchain: {bundle} extra executable {name!r} not found in archive",
+            )
+        actual = toolchain.sha256_file(target)
+        if actual != spec.get("exe_sha256"):
+            return ProvisionOutcome(
+                bundle, "blocked", f"toolchain: {bundle} {name} digest mismatch"
+            )
+        extra[name] = (str(target.relative_to(ctx.store)), actual)
+    return extra
+
+
 def _provision_binary_entry(
     ctx: ProvisionContext, bundle: str, entry: Mapping
 ) -> ProvisionOutcome:
@@ -231,7 +290,10 @@ def _provision_binary_entry(
     exe_path = ctx.store / relative
     _extract_one(data, platform_entry["path_in_archive"], exe_path)
     exe_sha = toolchain.sha256_file(exe_path)
-    _record_bundle(ctx, bundle, relative, actual_sha, exe_sha)
+    extra = _extract_extra_executables(ctx, bundle, entry, platform_entry, data)
+    if isinstance(extra, ProvisionOutcome):
+        return extra
+    _record_bundle(ctx, bundle, BinaryArtifacts(actual_sha, relative, exe_sha, extra))
     return ProvisionOutcome(bundle, "provisioned")
 
 
@@ -267,19 +329,24 @@ def import_binary(
     exe_path.parent.mkdir(parents=True, exist_ok=True)
     exe_path.write_bytes(source.read_bytes())
     exe_path.chmod(0o755)
-    _record_bundle(ctx, bundle, relative, actual_sha, actual_sha)
+    _record_bundle(ctx, bundle, BinaryArtifacts(actual_sha, relative, actual_sha))
     return ProvisionOutcome(bundle, "provisioned")
 
 
 def _relative_scripts(entry: Mapping, platform: str) -> list[str]:
     """Every console-script relative path a bundle's platform entry declares.
 
-    `binary` kinds have exactly one, implicit at `bin/<bundle>`; `python-env`
+    `binary` kinds have exactly one implicit `bin/<bundle>`, plus one per
+    declared `extra_executables` entry (e.g. `node`'s `bin/npm`); `python-env`
     / `node-env` kinds list every console script the registry actually uses
     under `console_scripts` (schema `toolchain.lock.schema.json`).
     """
     platform_entry = entry.get("platforms", {}).get(platform, {})
-    return list(platform_entry.get("console_scripts") or ["bin/{bundle}"])
+    scripts = list(platform_entry.get("console_scripts") or ["bin/{bundle}"])
+    scripts.extend(
+        f"bin/{name}" for name in (platform_entry.get("extra_executables") or {})
+    )
+    return scripts
 
 
 def validate_offline(

@@ -141,13 +141,27 @@
           "url": "https://nodejs.org/dist/v24.9.0/node-v24.9.0-linux-x64.tar.xz",
           "sha256": "f52ec50e959d72d5c680d9731420b2661cd2a8070e94c7369b6ddfcd8b7278be",
           "exe_sha256": "3dc61cdcc38781a678b31903d2f69ed16094206e2258df53a4eb2c0fe4f0a793",
-          "path_in_archive": "node-v24.9.0-linux-x64/bin/node"
+          "path_in_archive": "node-v24.9.0-linux-x64/bin/node",
+          "extra_executables": {
+            "npm": {
+              "path_in_archive": "node-v24.9.0-linux-x64/lib/node_modules/npm",
+              "executable_relative": "bin/npm-cli.js",
+              "exe_sha256": "8e5f6f3429f8cdbe693cdc29904e9d5a7b127a494bd15c804bd54c7403bfcbe7"
+            }
+          }
         },
         "darwin-arm64": {
           "url": "https://nodejs.org/dist/v24.9.0/node-v24.9.0-darwin-arm64.tar.gz",
           "sha256": "961024296c2a8e60daed0784f8b61e0fab5c51d197502a92eff052c72b53209b",
           "exe_sha256": "ac1b8926054c59ba572f0a3dd2e520413f88201058848917946446151182c18d",
-          "path_in_archive": "node-v24.9.0-darwin-arm64/bin/node"
+          "path_in_archive": "node-v24.9.0-darwin-arm64/bin/node",
+          "extra_executables": {
+            "npm": {
+              "path_in_archive": "node-v24.9.0-darwin-arm64/lib/node_modules/npm",
+              "executable_relative": "bin/npm-cli.js",
+              "exe_sha256": "8e5f6f3429f8cdbe693cdc29904e9d5a7b127a494bd15c804bd54c7403bfcbe7"
+            }
+          }
         }
       }
     },

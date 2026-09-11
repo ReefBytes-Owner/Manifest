@@ -11,6 +11,7 @@ import hashlib
 import io
 import json
 import tarfile
+from pathlib import Path
 
 from manifest_agent.checks import toolchain
 from manifest_agent.checks import toolchain_provision as provision_mod
@@ -218,6 +219,163 @@ class TestImportBinary:
         )
         assert outcome.status == "blocked"
         assert "kind" in outcome.reason
+
+
+def _tar_gz_with_many(entries: dict[str, bytes]) -> bytes:
+    buffer = io.BytesIO()
+    with tarfile.open(fileobj=buffer, mode="w:gz") as archive:
+        for name, content in entries.items():
+            info = tarfile.TarInfo(name=name)
+            info.size = len(content)
+            archive.addfile(info, io.BytesIO(content))
+    return buffer.getvalue()
+
+
+class TestExtraExecutables:
+    """`node` gains `bin/npm` -- extracted from the SAME archive as `bin/node`
+    (no second download), hashed against its OWN `exe_sha256` (`npm-cli.js`'s
+    own bytes), never against the primary `node` tool's `exe_sha256`. Mirrors
+    C7f's node-env `_npm-cli` extraction, but recorded at the plain `node`
+    binary bundle so `store:node/bin/npm` resolves independently of the
+    node-env project environment."""
+
+    def _npm_lock(self, node_sha: str, npm_sha: str) -> dict:
+        return {
+            "schema_version": 1,
+            "tools": {
+                "node": {
+                    "kind": "binary",
+                    "version": "24.9.0",
+                    "platforms": {
+                        "linux-x64": {
+                            "url": "https://example.invalid/node.tar.gz",
+                            "sha256": "will-be-set",
+                            "exe_sha256": node_sha,
+                            "path_in_archive": "node-v24.9.0-linux-x64/bin/node",
+                            "extra_executables": {
+                                "npm": {
+                                    "path_in_archive": "node-v24.9.0-linux-x64/lib/node_modules/npm",
+                                    "executable_relative": "bin/npm-cli.js",
+                                    "exe_sha256": npm_sha,
+                                }
+                            },
+                        }
+                    },
+                }
+            },
+        }
+
+    _NODE_CONTENT = b"#!/bin/sh\necho node\n"
+    _NPM_CONTENT = b"#!/usr/bin/env node\nrequire('../lib/cli.js')(process)\n"
+
+    def _fixture(
+        self, npm_sha: str, *, npm_content: bytes | None = None
+    ) -> tuple[dict, bytes]:
+        """A ready-to-provision `(lock, archive)` pair: a two-member archive
+        (`bin/node`, the npm subtree's `bin/npm-cli.js`) whose `sha256`
+        fields are all derived from the fixture bytes -- `npm_sha` is the
+        only value a caller injects, so a test can pin it wrong on purpose."""
+        npm_bytes = self._NPM_CONTENT if npm_content is None else npm_content
+        archive = _tar_gz_with_many(
+            {
+                "node-v24.9.0-linux-x64/bin/node": self._NODE_CONTENT,
+                "node-v24.9.0-linux-x64/lib/node_modules/npm/bin/npm-cli.js": npm_bytes,
+                "node-v24.9.0-linux-x64/lib/node_modules/npm/package.json": b"{}",
+            }
+        )
+        lock = self._npm_lock(hashlib.sha256(self._NODE_CONTENT).hexdigest(), npm_sha)
+        lock["tools"]["node"]["platforms"]["linux-x64"]["sha256"] = hashlib.sha256(
+            archive
+        ).hexdigest()
+        return lock, archive
+
+    def _resolve_both(self, lock: dict, store):
+        node = toolchain.resolve(
+            "store:node/bin/node", lock=lock, store=store, platform="linux-x64"
+        )
+        npm = toolchain.resolve(
+            "store:node/bin/npm", lock=lock, store=store, platform="linux-x64"
+        )
+        return node, npm
+
+    def test_provision_records_npm_alongside_node_hashed_independently(self, tmp_path):
+        npm_sha = hashlib.sha256(self._NPM_CONTENT).hexdigest()
+        lock, archive = self._fixture(npm_sha)
+        store = tmp_path / "store"
+
+        outcomes = provision_mod.provision(
+            lock, store, platform="linux-x64", fetcher=lambda url: archive
+        )
+        assert outcomes == [provision_mod.ProvisionOutcome("node", "provisioned")]
+
+        manifest = json.loads((store / "manifest.json").read_text())
+        executables = manifest["tools"]["node"]["executables"]
+        assert executables["bin/node"]["sha256"] != executables["bin/npm"]["sha256"]
+        assert executables["bin/npm"]["sha256"] == npm_sha
+
+        node_resolved, npm_resolved = self._resolve_both(lock, store)
+        assert isinstance(node_resolved, toolchain.ResolvedTool)
+        assert isinstance(npm_resolved, toolchain.ResolvedTool)
+        # The store's own node directory is on npm's resolved PATH, ahead of
+        # the `os.defpath` tail -- a nested `#!/usr/bin/env node` inside
+        # npm-cli.js finds the store node, never an ambient one.
+        assert node_resolved.executable.parent in npm_resolved.path_entries
+        assert npm_resolved.path_entries.index(
+            node_resolved.executable.parent
+        ) < npm_resolved.path_entries.index(Path("/usr/bin"))
+
+    def test_impostor_npm_cli_js_blocks_on_digest_mismatch(self, tmp_path):
+        """A swapped `npm-cli.js` BLOCKs -- and, critically, does NOT affect
+        `bin/node`'s own resolution, proving the two executables are
+        verified against independent hashes."""
+        npm_sha = hashlib.sha256(self._NPM_CONTENT).hexdigest()
+        lock, archive = self._fixture(npm_sha)
+        store = tmp_path / "store"
+        provision_mod.provision(
+            lock, store, platform="linux-x64", fetcher=lambda url: archive
+        )
+
+        impostor = b"#!/usr/bin/env node\nconsole.log('not really npm')\n"
+        (store / "tools/node/24.9.0/_npm/bin/npm-cli.js").write_bytes(impostor)
+
+        node_resolved, npm_resolved = self._resolve_both(lock, store)
+        assert npm_resolved == toolchain.BlockedReason(
+            "toolchain: node digest mismatch"
+        )
+        assert isinstance(node_resolved, toolchain.ResolvedTool)
+
+    def test_extra_executable_digest_mismatch_at_provision_time_blocks(self, tmp_path):
+        """The lock's declared `npm` hash is wrong for the archive's real
+        `npm-cli.js` bytes -- provisioning itself must BLOCK, not silently
+        record a hash nothing verified."""
+        lock, archive = self._fixture("0" * 64)  # deliberately wrong
+        store = tmp_path / "store"
+
+        outcomes = provision_mod.provision(
+            lock, store, platform="linux-x64", fetcher=lambda url: archive
+        )
+        assert outcomes == [
+            provision_mod.ProvisionOutcome(
+                "node", "blocked", "toolchain: node npm digest mismatch"
+            )
+        ]
+        assert not (store / "manifest.json").is_file()
+
+    def test_real_lock_node_npm_hashes_and_relative_paths(self):
+        """The committed lock's `node` entries: `npm`'s `exe_sha256` differs
+        from `node`'s own on every attested platform, and (being the same
+        pure-JS shim) is identical across platforms."""
+        lock_path = (
+            Path(__file__).resolve().parents[3] / "config" / "toolchain.lock.json"
+        )
+        lock = json.loads(lock_path.read_text(encoding="utf-8"))
+        node = lock["tools"]["node"]["platforms"]
+        npm_hashes = set()
+        for platform, entry in node.items():
+            npm = entry["extra_executables"]["npm"]
+            assert npm["exe_sha256"] != entry["exe_sha256"], platform
+            npm_hashes.add(npm["exe_sha256"])
+        assert len(npm_hashes) == 1  # a pure-JS shim: identical across platforms
 
 
 class TestValidateOffline:

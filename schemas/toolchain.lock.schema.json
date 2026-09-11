@@ -5,15 +5,22 @@
   "description": "Content-addressed provisioning lock for manifest provision. Every tool entry names the artifact kind (binary, python-env, node-env), its per-platform source, a sha256 that a real download/lockfile must satisfy, and an exe_sha256 that is the sole trust anchor toolchain.resolve() verifies against (never the store's own manifest.json) -- see exe_sha256 for its per-kind meaning. An entry with sha256 or exe_sha256: null is unattested and must resolve to BLOCKED, never PASS.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "tools"],
+  "required": [
+    "schema_version",
+    "tools"
+  ],
   "properties": {
-    "schema_version": { "const": 1 },
+    "schema_version": {
+      "const": 1
+    },
     "tools": {
       "type": "object",
       "additionalProperties": false,
       "minProperties": 1,
       "patternProperties": {
-        "^[A-Za-z0-9][A-Za-z0-9._-]*$": { "$ref": "#/$defs/toolEntry" }
+        "^[A-Za-z0-9][A-Za-z0-9._-]*$": {
+          "$ref": "#/$defs/toolEntry"
+        }
       }
     }
   },
@@ -23,22 +30,39 @@
       "minLength": 1
     },
     "sha256OrNull": {
-      "type": ["string", "null"],
+      "type": [
+        "string",
+        "null"
+      ],
       "pattern": "^[0-9a-f]{64}$"
     },
     "toolEntry": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["kind", "version", "platforms"],
+      "required": [
+        "kind",
+        "version",
+        "platforms"
+      ],
       "properties": {
-        "kind": { "enum": ["binary", "python-env", "node-env"] },
-        "version": { "$ref": "#/$defs/nonEmptyString" },
+        "kind": {
+          "enum": [
+            "binary",
+            "python-env",
+            "node-env"
+          ]
+        },
+        "version": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
         "platforms": {
           "type": "object",
           "additionalProperties": false,
           "minProperties": 1,
           "patternProperties": {
-            "^[a-z0-9]+-[a-z0-9]+$": { "$ref": "#/$defs/platformEntry" }
+            "^[a-z0-9]+-[a-z0-9]+$": {
+              "$ref": "#/$defs/platformEntry"
+            }
           }
         }
       }
@@ -46,9 +70,16 @@
     "platformEntry": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["url", "sha256", "exe_sha256", "path_in_archive"],
+      "required": [
+        "url",
+        "sha256",
+        "exe_sha256",
+        "path_in_archive"
+      ],
       "properties": {
-        "url": { "$ref": "#/$defs/nonEmptyString" },
+        "url": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
         "sha256": {
           "$ref": "#/$defs/sha256OrNull",
           "description": "Hash of the downloaded archive/binary, verified by manifest provision before extraction."
@@ -57,12 +88,43 @@
           "$ref": "#/$defs/sha256OrNull",
           "description": "The trust anchor `toolchain.resolve()` verifies at every preflight; null is unattested and must resolve to BLOCKED, never PASS, and the store's own manifest.json is never trusted for this value. Meaning depends on `kind` (Correction 3, phase-3-5-decisions.md): for `binary`, the sha256 of the materialized executable's bytes. For `python-env`/`node-env`, the sha256 of the installed DISTRIBUTION SET (every dist-info RECORD, or the node_modules/.package-lock.json packages object) -- never of one console script's bytes, which embed an absolute, store-location-dependent interpreter/launcher path and can never match a committed lock."
         },
-        "path_in_archive": { "$ref": "#/$defs/nonEmptyString" },
+        "path_in_archive": {
+          "$ref": "#/$defs/nonEmptyString"
+        },
         "console_scripts": {
           "description": "python-env / node-env only: every console-script relative path (under the materialized env's bin/) a registry check resolves through `store:<bundle>/<relative>`. Not individually hashed -- verified collectively via the bundle's single `exe_sha256` distribution-set digest, plus a per-script existence and launcher-provenance (inside-store) check.",
           "type": "array",
           "uniqueItems": true,
-          "items": { "$ref": "#/$defs/nonEmptyString" }
+          "items": {
+            "$ref": "#/$defs/nonEmptyString"
+          }
+        },
+        "extra_executables": {
+          "description": "binary kind only: an additional subtree extracted from the SAME archive as the primary `bin/<bundle>` executable (no second download) and recorded at `bin/<name>`, independently hashed -- e.g. `node`'s `npm`: `path_in_archive` names the archive-relative subtree directory (`.../lib/node_modules/npm`), `executable_relative` the runnable file inside it (`bin/npm-cli.js`), and `exe_sha256` is that file's OWN hash -- never the primary tool's `exe_sha256`.",
+          "type": "object",
+          "additionalProperties": false,
+          "patternProperties": {
+            "^[A-Za-z0-9][A-Za-z0-9._-]*$": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "path_in_archive",
+                "executable_relative",
+                "exe_sha256"
+              ],
+              "properties": {
+                "path_in_archive": {
+                  "$ref": "#/$defs/nonEmptyString"
+                },
+                "executable_relative": {
+                  "$ref": "#/$defs/nonEmptyString"
+                },
+                "exe_sha256": {
+                  "$ref": "#/$defs/sha256OrNull"
+                }
+              }
+            }
+          }
         }
       }
     }

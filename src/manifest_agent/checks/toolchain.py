@@ -209,7 +209,7 @@ def resolve(
     bundle, relative = parsed
     entry = (lock.get("tools") or {}).get(bundle)
     platform_entry = (entry or {}).get("platforms", {}).get(platform)
-    exe_sha256 = (platform_entry or {}).get("exe_sha256")
+    exe_sha256 = toolchain_env.expected_exe_sha256(bundle, relative, platform_entry)
     if entry is None or platform_entry is None or exe_sha256 is None:
         return BlockedReason(f"toolchain: {bundle} unattested for {platform}")
 

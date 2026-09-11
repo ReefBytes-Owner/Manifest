@@ -103,7 +103,7 @@ def materialize_python_env(ctx: MaterializeContext, env_root: Path) -> None:
     )
 
 
-def _extract_subtree(data: bytes, prefix: str, destination: Path) -> None:
+def extract_subtree(data: bytes, prefix: str, destination: Path) -> None:
     """Extract every archive member under `prefix` into `destination`,
     stripping `prefix` itself -- used to pull `lib/node_modules/npm` (which
     embeds `npm-cli.js` and every one of npm's own bundled dependencies) out
@@ -151,7 +151,7 @@ def materialize_node_env(ctx: MaterializeContext, env_root: Path, fetcher) -> No
     node_exe_prefix = node_platform["path_in_archive"].rsplit("/bin/node", 1)[0]
     npm_root = ctx.store / f"tools/node-env/_npm-cli/{node_entry.get('version')}"
     if not (npm_root / "bin" / "npm-cli.js").is_file():
-        _extract_subtree(archive, f"{node_exe_prefix}/lib/node_modules/npm/", npm_root)
+        extract_subtree(archive, f"{node_exe_prefix}/lib/node_modules/npm/", npm_root)
     env_root.mkdir(parents=True, exist_ok=True)
     project = ctx.repo_root / "config" / "toolchain"
     for name in ("package.json", "package-lock.json"):
