@@ -1016,9 +1016,13 @@ def _mock_uv_resolution(monkeypatch, packages_module, fake_uv: Path) -> None:
     importable directly in the test process (`monkeypatch.syspath_prepend`),
     so the exact fake path only has to match what `_fake_uv`'s `build`
     branch asserts, not resolve to anything real.
+
+    C7g: the resolution seam itself now lives in `packages_build` (the
+    module `packages.py` split its build/uv-resolution responsibility into),
+    so this patches `packages_module.packages_build.toolchain_resolve`.
     """
     monkeypatch.setattr(
-        packages_module.toolchain_resolve,
+        packages_module.packages_build.toolchain_resolve,
         "resolve_env",
         lambda ref, root, base_env: (
             str(fake_uv),
@@ -1026,7 +1030,7 @@ def _mock_uv_resolution(monkeypatch, packages_module, fake_uv: Path) -> None:
         ),
     )
     monkeypatch.setattr(
-        packages_module.toolchain_resolve,
+        packages_module.packages_build.toolchain_resolve,
         "resolve_tool",
         lambda ref, root: ("fake-python", ""),
     )

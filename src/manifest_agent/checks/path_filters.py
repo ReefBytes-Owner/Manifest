@@ -3,62 +3,54 @@
 from __future__ import annotations
 
 import fnmatch
+import json
 import os
 import re
 import stat
 from pathlib import Path
 from typing import Any
 
+from jsonschema import Draft202012Validator
+
 from .models import CheckSpec
 
-VALID_PATH_TYPES = frozenset(
-    {
-        "executable",
-        "go",
-        "javascript",
-        "json",
-        "jsx",
-        "markdown",
-        "pyi",
-        "python",
-        "rust",
-        "shell",
-        "terraform",
-        "text",
-        "ts",
-        "tsx",
-        "yaml",
-    }
-)
 # "executable" and "text" are pre-commit `identify` cross-cutting tags applied
 # to every regular file in addition to any suffix/shebang tag below (mirrors
 # identify's own "executable" = x-bit set, "text" = no NUL byte in a sample):
 # see `_path_tags`. `identify`'s "file" tag (implicitly true for every
 # regular file we tag at all) is not modeled -- requiring it would be a
 # no-op, since `_path_tags` already returns `None` for anything that is not
-# a regular file.
-_SUFFIX_TAGS = {
-    ".bash": frozenset({"shell"}),
-    ".bats": frozenset({"shell"}),
-    ".cjs": frozenset({"javascript"}),
-    ".go": frozenset({"go"}),
-    ".js": frozenset({"javascript"}),
-    ".json": frozenset({"json"}),
-    ".jsx": frozenset({"jsx"}),
-    ".markdown": frozenset({"markdown"}),
-    ".md": frozenset({"markdown"}),
-    ".mjs": frozenset({"javascript"}),
-    ".py": frozenset({"python"}),
-    ".pyi": frozenset({"pyi"}),
-    ".rs": frozenset({"rust"}),
-    ".sh": frozenset({"shell"}),
-    ".tf": frozenset({"terraform"}),
-    ".tfvars": frozenset({"terraform"}),
-    ".ts": frozenset({"ts"}),
-    ".tsx": frozenset({"tsx"}),
-    ".yaml": frozenset({"yaml"}),
-    ".yml": frozenset({"yaml"}),
-}
+# a regular file. The tag data itself lives in `config/path-types.json`
+# (CON-004/C-DATA: a literal table this size does not belong in source).
+_PATH_TYPES_CONFIG = Path(__file__).resolve().parents[3] / "config" / "path-types.json"
+_PATH_TYPES_SCHEMA = (
+    Path(__file__).resolve().parents[3] / "config" / "path-types.schema.json"
+)
+
+
+def _load_path_types(
+    config_path: Path = _PATH_TYPES_CONFIG, schema_path: Path = _PATH_TYPES_SCHEMA
+) -> tuple[frozenset[str], dict[str, frozenset[str]]]:
+    document = json.loads(config_path.read_text(encoding="utf-8"))
+    schema = json.loads(schema_path.read_text(encoding="utf-8"))
+    errors = sorted(
+        Draft202012Validator(schema).iter_errors(document),
+        key=lambda error: list(error.path),
+    )
+    if errors:
+        error = errors[0]
+        location = "/".join(str(part) for part in error.absolute_path) or "<root>"
+        raise ValueError(
+            f"{config_path} failed schema validation at {location}: {error.message}"
+        )
+    valid_types = frozenset(document["valid_types"])
+    suffix_tags = {
+        suffix: frozenset(tags) for suffix, tags in document["suffix_tags"].items()
+    }
+    return valid_types, suffix_tags
+
+
+VALID_PATH_TYPES, _SUFFIX_TAGS = _load_path_types()
 _BINARY_SAMPLE_BYTES = 8192
 _SHELLS = frozenset({"ash", "bash", "dash", "ksh", "sh", "zsh"})
 _PYTHON_INTERPRETER = re.compile(r"python(?:\d+(?:\.\d+)*)?\Z")

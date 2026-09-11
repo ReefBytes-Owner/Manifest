@@ -1,25 +1,21 @@
-#!/usr/bin/env python3
 """Offline, no-install package and lock verification bodies."""
 
 from __future__ import annotations
 
 import argparse
 import hashlib
-import importlib.util
 import json
-import os
 import subprocess
 import sys
 import tempfile
-import tomllib
 import zipfile
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
 try:
-    from tools.project_checks import toolchain_resolve
+    from tools.project_checks import packages_build
 except ModuleNotFoundError:  # direct script execution from this directory
-    import toolchain_resolve
+    import packages_build
 
 PASS = 0
 FAIL = 2
@@ -34,8 +30,10 @@ _PROJECTS = {
 }
 
 
-class BlockedError(RuntimeError):
-    """An offline tool, backend, lock, or source input is unavailable."""
+# Shared with `packages_build` so a build-seam `BlockedError` and a
+# lock/release-seam `BlockedError` are the exact same type -- `except
+# BlockedError` in `main()` must catch both without a second handler.
+BlockedError = packages_build.BlockedError
 
 
 def _root(arguments: argparse.Namespace) -> Path:
@@ -97,34 +95,6 @@ def _revalidate_project(root: Path, check_id: str, expected: Path) -> None:
         raise BlockedError(f"project changed during validation: {_PROJECTS[check_id]}")
 
 
-def _uv(root: Path) -> tuple[str, dict[str, str]]:
-    try:
-        return toolchain_resolve.resolve_env("store:uv/bin/uv", root, dict(os.environ))
-    except toolchain_resolve.ToolchainBlocked as error:
-        raise BlockedError(str(error)) from error
-
-
-def _build_python(root: Path) -> str:
-    """`store:python-env/bin/python` -- the interpreter `_build`'s
-    `--no-build-isolation` `uv build` must run the build backend under.
-
-    `--no-build-isolation` means uv never installs `[build-system]
-    requires` itself, so whatever interpreter it resolves has to already
-    have `hatchling` importable; the store's attested python-env bundle is
-    that interpreter (config/toolchain/pyproject.toml pins hatchling for
-    exactly this). Without an explicit `--python`, uv would fall back to
-    whatever ambient interpreter it can find, which the store's PATH
-    discipline deliberately does not offer it (C7f).
-    """
-    try:
-        executable, _ = toolchain_resolve.resolve_tool(
-            "store:python-env/bin/python", root
-        )
-    except toolchain_resolve.ToolchainBlocked as error:
-        raise BlockedError(str(error)) from error
-    return str(executable)
-
-
 def _run(
     command: tuple[str, ...], cwd: Path, env: dict[str, str] | None = None
 ) -> subprocess.CompletedProcess[str]:
@@ -155,7 +125,7 @@ def _lock(root: Path, check_id: str) -> int:
     lock = project / "uv.lock"
     if not lock.is_file():
         raise BlockedError(f"lockfile unavailable: {lock.relative_to(root)!s}")
-    executable, env = _uv(root)
+    executable, env = packages_build.uv(root)
     _revalidate_project(root, check_id, project)
     result = _run(
         (
@@ -181,61 +151,14 @@ def _lock(root: Path, check_id: str) -> int:
     raise BlockedError("offline lock validation could not execute")
 
 
-def _backend(project: Path) -> None:
-    try:
-        document = tomllib.loads(
-            (project / "pyproject.toml").read_text(encoding="utf-8")
-        )
-        backend = document["build-system"]["build-backend"]
-    except (
-        OSError,
-        UnicodeError,
-        tomllib.TOMLDecodeError,
-        KeyError,
-        TypeError,
-    ) as error:
-        raise BlockedError(f"build metadata unavailable: {error}") from error
-    if not isinstance(backend, str) or not backend:
-        raise BlockedError("build backend is not declared")
-    try:
-        available = importlib.util.find_spec(backend) is not None
-    except (ImportError, AttributeError, ValueError):
-        available = False
-    if not available:
-        raise BlockedError(f"preprovisioned build backend unavailable: {backend}")
-
-
-def _build_destination(output: Path, check_id: str) -> Path:
-    destination = output / check_id.replace(".", "-")
-    if destination.is_symlink() or (destination.exists() and not destination.is_dir()):
-        raise BlockedError(f"build output is unsafe: {destination}")
-    destination.mkdir(parents=False, exist_ok=True)
-    if destination.resolve(strict=True).parent != output.resolve(strict=True):
-        raise BlockedError(f"build output escapes output directory: {destination}")
-    if any(destination.iterdir()):
-        raise BlockedError(f"build output must be empty: {destination}")
-    return destination
-
-
-def _revalidate_destination(output: Path, destination: Path) -> None:
-    try:
-        unsafe = destination.is_symlink() or destination.resolve(
-            strict=True
-        ).parent != output.resolve(strict=True)
-    except OSError as error:
-        raise BlockedError(f"build output became unavailable: {error}") from error
-    if unsafe:
-        raise BlockedError("build output changed to an unsafe destination")
-
-
 def _build(root: Path, check_id: str, output: Path) -> int:
     project = _project(root, check_id)
-    _backend(project)
-    destination = _build_destination(output, check_id)
-    executable, env = _uv(root)
-    build_python = _build_python(root)
+    packages_build.backend(project)
+    destination = packages_build.build_destination(output, check_id)
+    executable, env = packages_build.uv(root)
+    build_python = packages_build.build_python(root)
     _revalidate_project(root, check_id, project)
-    _revalidate_destination(output, destination)
+    packages_build.revalidate_destination(output, destination)
     result = _run(
         (
             executable,
@@ -254,7 +177,7 @@ def _build(root: Path, check_id: str, output: Path) -> int:
         env,
     )
     diagnostic = _emit(result)
-    _revalidate_destination(output, destination)
+    packages_build.revalidate_destination(output, destination)
     if result.returncode:
         if any(
             word in diagnostic for word in ("offline", "not found in cache", "backend")
@@ -271,14 +194,13 @@ def _build(root: Path, check_id: str, output: Path) -> int:
                 f"{hashlib.sha256(artifact.read_bytes()).hexdigest()}  {artifact.name}"
             )
     if check_id == "package.coordinator":
+        required = "manifest_agent/data/project-checks.schema.json"
         try:
-            with zipfile.ZipFile(wheels[0]) as wheel:
-                names = set(wheel.namelist())
+            has_required = packages_build.wheel_contains(wheels[0], required)
         except (OSError, zipfile.BadZipFile) as error:
             print(f"FAIL: invalid wheel: {error}", file=sys.stderr)
             return FAIL
-        required = "manifest_agent/data/project-checks.schema.json"
-        if required not in names:
+        if not has_required:
             print(f"FAIL: wheel missing required member: {required}", file=sys.stderr)
             return FAIL
     return PASS
