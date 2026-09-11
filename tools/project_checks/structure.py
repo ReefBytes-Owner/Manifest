@@ -410,7 +410,7 @@ _PROJECT_ARGV = {
         "-rfE",
         "--tb=short",
         "-m",
-        "not native",
+        "not native and not network",
     ),
     "test.hooks": (
         "store:project-env/bin/python",

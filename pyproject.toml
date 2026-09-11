@@ -127,7 +127,10 @@ indent-style = "space"
 addopts = "--strict-markers --strict-config --import-mode=importlib"
 testpaths = ["tests/python"]
 pythonpath = [".", "src", "tests/python"]
-markers = ["native: isolated-home smoke tests requiring a native harness CLI"]
+markers = [
+    "native: isolated-home smoke tests requiring a native harness CLI",
+    "network: needs ambient network/checkout state (e.g. populated git submodules) a materialized test.python candidate cannot provide -- deselected when running inside a candidate (phase-3-5-decisions.md Correction 11)",
+]
 # pytest-asyncio's future default, pinned explicitly (unset emits PytestDeprecationWarning).
 asyncio_default_fixture_loop_scope = "function"
 

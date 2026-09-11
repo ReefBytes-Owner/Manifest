@@ -315,10 +315,15 @@ def test_setup_is_mapped_and_publication_is_outside_profiles():
 
 def test_pending_obligations_are_specific_and_block_affected_profiles():
     _, registry = _raw_documents()
+    # Every obligation names its check (`<check.id>: <reason>`) and either the
+    # original Phase 3 provisioning debt or a C7m (Correction 11) test
+    # deselection -- both are legitimate, permanent reasons a profile stays
+    # blocked; the string just has to say why, not which era coined it.
     for profile, obligations in registry["coverage_pending"].items():
         assert obligations, f"{profile} must remain blocked until Phase 3 provisioning"
         assert all(
-            ":" in obligation and "pending Phase 3" in obligation
+            ":" in obligation
+            and ("pending Phase 3" in obligation or "deselected via" in obligation)
             for obligation in obligations
         )
 

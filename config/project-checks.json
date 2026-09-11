@@ -1337,7 +1337,7 @@
         "-rfE",
         "--tb=short",
         "-m",
-        "not native"
+        "not native and not network"
       ],
       "cwd": ".",
       "inputs": [
@@ -3297,7 +3297,8 @@
       "hook.gitleaks: deterministic candidate prerequisite provisioning pending Phase 3 for security",
       "hook.terraform_trivy: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 wrapper and underlying tool pins pending Phase 3",
       "hook.terraform_trivy: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 action/runtime equivalence pending Phase 3",
-      "security.semgrep: deterministic candidate prerequisite provisioning pending Phase 3 for security"
+      "security.semgrep: deterministic candidate prerequisite provisioning pending Phase 3 for security",
+      "test.python: TestDynamicRecursionInvocationCount::test_manifest_check_never_shells_out_to_pre_commit_shim deselected via the network marker (Correction 11) -- materializes a nested candidate from a test.python candidate, whose own materialize_candidate never populates git submodules, so candidate.py's submodule precondition always blocks it inside a candidate"
     ],
     "security": [
       "hook.check-credentials: deterministic candidate prerequisite provisioning pending Phase 3 for security",
@@ -3399,7 +3400,8 @@
       "package.node-runtime: deterministic candidate prerequisite provisioning pending Phase 3 for release",
       "dependency.lock.root: deterministic candidate prerequisite provisioning pending Phase 3 for release",
       "dependency.lock.node: deterministic candidate prerequisite provisioning pending Phase 3 for release",
-      "security.semgrep: deterministic candidate prerequisite provisioning pending Phase 3 for release"
+      "security.semgrep: deterministic candidate prerequisite provisioning pending Phase 3 for release",
+      "test.python: TestDynamicRecursionInvocationCount::test_manifest_check_never_shells_out_to_pre_commit_shim deselected via the network marker (Correction 11) -- materializes a nested candidate from a test.python candidate, whose own materialize_candidate never populates git submodules, so candidate.py's submodule precondition always blocks it inside a candidate"
     ]
   }
 }

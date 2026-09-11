@@ -122,9 +122,20 @@ def _install_pre_commit_shim(bin_dir: Path, recorder: Path) -> None:
 
 
 class TestDynamicRecursionInvocationCount:
+    @pytest.mark.network
     def test_manifest_check_never_shells_out_to_pre_commit_shim(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
+        """Materializes a NESTED candidate from `ROOT` via the real `manifest
+        check` CLI (Correction 9 rule 3's exact concern): `ROOT` is a
+        `test.python`-materialized candidate, whose own `materialize_candidate`
+        never populates git submodules, so `candidate.py`'s own submodule
+        precondition ("submodule must be populated, clean and pinned") always
+        blocks the nested materialization before any check runs -- not a
+        network dependency in the usual sense, but the same "cannot run inside
+        a candidate at all" shape bucket (d) exists for; `network` is the
+        closest registered marker, so it is reused here rather than adding a
+        sixth deselection mechanism for one test."""
         bin_dir = tmp_path / "shim-bin"
         bin_dir.mkdir()
         recorder = tmp_path / "pre-commit-invocations.log"
