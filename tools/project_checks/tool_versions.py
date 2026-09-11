@@ -32,6 +32,14 @@ from pathlib import PurePath
 _DISTRIBUTION = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]*\Z")
 _EXECUTABLE_ALIASES = {"python": frozenset(("python", "python3"))}
 _PROBE_TIMEOUT_SECONDS = 10.0
+# Kept in sync with `manifest_agent.checks.toolchain_cache.OS_BASELINE_PATH`
+# (Correction 17, phase-3-5-decisions.md): this module deliberately does not
+# import `manifest_agent` (see the module docstring's trust-boundary note --
+# it must stay runnable under a bare system `python3`), so the OS baseline
+# PATH is duplicated here rather than imported. `/usr/sbin` and `/sbin`
+# hold `md5`/`sysctl` on macOS; Python's `os.defpath` (`/bin:/usr/bin`)
+# silently drops them.
+_OS_BASELINE_PATH = os.pathsep.join(("/usr/bin", "/bin", "/usr/sbin", "/sbin"))
 _COMMAND_PROBES = {
     "bash": (("--version",), re.compile(r"version\s+(\d+(?:\.\d+)+)", re.I)),
     "bats": (("--version",), re.compile(r"Bats\s+(\d+(?:\.\d+)+)", re.I)),
@@ -115,7 +123,7 @@ def _resolved_executable(probe: str, executable: str | None) -> str:
 
 def _probe_environment() -> dict[str, str]:
     return {
-        "PATH": os.environ.get("PATH", os.defpath),
+        "PATH": os.environ.get("PATH", _OS_BASELINE_PATH),
         "LC_ALL": "C",
         "LANG": "C",
         "PYTHONNOUSERSITE": "1",

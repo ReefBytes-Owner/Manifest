@@ -78,7 +78,7 @@ def resolve_scanner(check_id: str, root: Path) -> tuple[Path, str]:
 
     Returns ``(executable_path, child_path_env)``. Never touches ``PATH``:
     the child ``PATH`` is built exclusively from the resolved tool's own
-    store bin directories plus ``os.defpath`` (see
+    store bin directories plus the OS baseline PATH, Correction 17 (see
     ``toolchain.ResolvedTool.path_entries``).
     """
     lock_path = root / "config" / "toolchain.lock.json"

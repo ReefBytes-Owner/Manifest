@@ -25,6 +25,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
+from .toolchain_cache import OS_BASELINE_PATH
 from .toolchain_pth import EnvTrust, UntrustedPthError, normalized_pth_digest_line
 
 # UntrustedPthError re-exported: `toolchain.py` and tests import it from
@@ -339,11 +340,10 @@ def _checked_relative_path(store: Path, relative_path: str) -> Path | None:
 
 
 def with_default_path(bin_dirs: tuple[Path, ...]) -> tuple[Path, ...]:
-    """De-duplicated bin dirs, plus `os.defpath` -- never the caller's PATH."""
+    """De-duplicated bin dirs, plus the OS baseline PATH (Correction 17;
+    `/usr/bin`, `/bin`, `/usr/sbin`, `/sbin`) -- never the caller's PATH."""
     path_entries = tuple(dict.fromkeys(bin_dirs))
-    return path_entries + tuple(
-        Path(part) for part in os.defpath.split(os.pathsep) if part
-    )
+    return path_entries + tuple(Path(part) for part in OS_BASELINE_PATH)
 
 
 def _env_digest(

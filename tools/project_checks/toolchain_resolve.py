@@ -27,7 +27,8 @@ from pathlib import Path
 # with no `manifest_agent` package installed. This used to work only by
 # accident: a dev checkout's own `.venv/bin/python3` (with manifest_agent
 # already installed) happened to resolve first on `PATH`. C7c's honest PATH
-# (store bin dirs + os.defpath) exposed the hidden dependency by resolving
+# (store bin dirs + the OS baseline PATH, Correction 17) exposed the hidden
+# dependency by resolving
 # `python3` to the bare system interpreter instead -- the trust anchor for
 # WHICH engine runs stays the runner's preflight (toolchain.resolve()); this
 # is body-side import convenience only, same pattern already used by
@@ -51,7 +52,8 @@ def resolve_tool(store_ref: str, root: Path) -> tuple[Path, str]:
 
     Returns `(executable_path, path_env)`. Never touches the caller's own
     `PATH`: `path_env` is built exclusively from the resolved tool's own
-    store bin directories plus `os.defpath` (`toolchain.ResolvedTool.
+    store bin directories plus the OS baseline PATH, Correction 17
+    (`toolchain.ResolvedTool.
     path_entries`), so a subprocess run with it cannot find anything the
     lock did not attest to.
     """

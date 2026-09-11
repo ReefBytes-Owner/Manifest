@@ -40,7 +40,7 @@ DEFAULT_CACHE_RELATIVE = Path(".cache") / "manifest" / "toolchain"
 # "Always present" no longer means "found on PATH" (Correction 4): `python3`
 # means the interpreter already running `manifest check`, rewritten by
 # `resolve_interpreter_argv` to `sys.executable`, never a PATH search; `bash`
-# is still a genuine `os.defpath` lookup.
+# is an OS-baseline-PATH lookup (Correction 17), not `os.defpath`.
 ALWAYS_PRESENT_EXECUTABLES = frozenset({"python3", "bash"})
 
 _STORE_EXECUTABLE = re.compile(
@@ -69,10 +69,10 @@ def is_legal_plain_executable(value: str) -> bool:
 
     Only interpreters guaranteed present without provisioning (`python3` --
     meaning the runner's OWN interpreter, resolved by `resolve_interpreter_argv`,
-    never a `PATH` search; `bash` -- a genuine `os.defpath` lookup for the
-    system shell) or a repository-relative script path may bypass the store;
-    any other bare command name (resolved by searching `PATH`) is exactly the
-    trust gap 3a closes and must migrate to a `store:` form instead.
+    never a `PATH` search; `bash` -- an OS-baseline-PATH lookup, Correction 17)
+    or a repository-relative script path may bypass the store; any other bare
+    command name (resolved by searching `PATH`) is exactly the trust gap 3a
+    closes and must migrate to a `store:` form instead.
     """
     if value in ALWAYS_PRESENT_EXECUTABLES:
         return True
@@ -357,7 +357,7 @@ def resolve_interpreter_argv(argv: tuple[str, ...]) -> tuple[str, ...]:
 
 
 def resolved_env(env: Mapping[str, str], resolved: ResolvedTool) -> dict[str, str]:
-    """Build the child PATH from store bin dirs + `os.defpath` -- never the user PATH."""
+    """Build the child PATH from store bin dirs + the OS baseline PATH (Correction 17) -- never the user PATH."""
     result = dict(env)
     result["PATH"] = os.pathsep.join(str(entry) for entry in resolved.path_entries)
     return result
@@ -416,8 +416,8 @@ def resolve_for_preflight(
     `tool["path_prepend"]` (a tuple of `store:<bundle>/bin`-shaped refs, e.g.
     `test.bats`'s `["store:project-env/bin", "store:node/bin"]`) names extra
     bundles whose bin dirs go FIRST on the resolved PATH -- ahead of the
-    tool's own executable bin dir and `os.defpath` -- so a check body that
-    shells out to `python3`/`node` from inside a nested interpreter (bats
+    tool's own bin dir and the OS baseline PATH (Correction 17) -- so a check
+    body that shells out to `python3`/`node` from a nested interpreter (bats
     scripts) reaches the store's interpreter, never an ambient impostor.
     """
     refs = toolchain_path_prepend.store_refs(tool, parse_store_executable)

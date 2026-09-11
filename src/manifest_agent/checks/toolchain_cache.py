@@ -19,6 +19,17 @@ from collections.abc import Mapping
 from contextlib import contextmanager
 from pathlib import Path
 
+# The OS baseline PATH for a check body/probe with no store-resolved bin dirs
+# of its own (Correction 17, phase-3-5-decisions.md): every macOS/Linux base
+# install ships these four directories (`/usr/sbin` and `/sbin` hold `md5`
+# and `sysctl` on macOS; Python's `os.defpath` is only `/bin:/usr/bin` and
+# silently drops them). The honest baseline excludes USER paths, not OS
+# paths, so this replaces every bare `os.defpath` a body/probe env used to
+# append. Lives here (not `toolchain.py`) so `toolchain_env.py` -- which
+# must stay import-independent of `toolchain.py` -- can use it without a
+# circular import.
+OS_BASELINE_PATH: tuple[str, ...] = ("/usr/bin", "/bin", "/usr/sbin", "/sbin")
+
 
 @contextmanager
 def run_cache_directory():

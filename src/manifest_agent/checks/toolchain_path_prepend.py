@@ -4,7 +4,8 @@ step 1).
 
 A tool may declare `"path_prepend": ["store:<bundle>/bin", ...]`: each entry
 names a bundle whose bin directory goes FIRST on the resolved child `PATH`,
-ahead of the tool's own executable's bin dir and `os.defpath`. This exists
+ahead of the tool's own executable's bin dir and the OS baseline PATH
+(Correction 17). This exists
 for check bodies that shell out to a nested interpreter themselves (bats
 scripts running `python3 -c '...'`) -- `toolchain.rewrite_argv` only ever
 rewrites argv tokens the runner itself launches, never a token a nested
@@ -138,7 +139,8 @@ def merged_resolution(primary_ref: str, resolved_by_ref, resolved_tool_cls):
 
 def with_prepend(merged, prepend_dirs: tuple[Path, ...], resolved_tool_cls):
     """`merged` with `prepend_dirs` spliced FIRST on `path_entries`, ahead of
-    the executable's own bin dir and `os.defpath` -- de-duplicated."""
+    the executable's own bin dir and the OS baseline PATH (Correction 17) --
+    de-duplicated."""
     if not prepend_dirs:
         return merged
     entries = tuple(dict.fromkeys((*prepend_dirs, *merged.path_entries)))
