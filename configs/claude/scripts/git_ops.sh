@@ -56,21 +56,6 @@ issue_comment_args() {
     fi
 }
 
-# Get script directory for sourcing git_platform.sh
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
-# Source platform detection
-if [[ ! -f "${SCRIPT_DIR}/git_platform.sh" ]]; then
-    err "git_platform.sh not found in ${SCRIPT_DIR}"
-    exit 1
-fi
-
-# Detect platform
-if ! platform=$(bash "${SCRIPT_DIR}/git_platform.sh" 2>&1); then
-    err "Failed to detect Git platform: ${platform}"
-    exit 1
-fi
-
 usage() {
     cat << 'USAGE'
 Usage: git_ops.sh <subcommand> [args...]
@@ -109,7 +94,7 @@ Subcommands:
 USAGE
 }
 
-# Validate subcommand
+# Validate subcommand (before any platform/config/credential lookup)
 if [[ $# -eq 0 ]]; then
     usage >&2
     exit 1
@@ -122,6 +107,21 @@ fi
 
 subcommand="$1"
 shift
+
+# Get script directory for sourcing git_platform.sh
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Source platform detection
+if [[ ! -f "${SCRIPT_DIR}/git_platform.sh" ]]; then
+    err "git_platform.sh not found in ${SCRIPT_DIR}"
+    exit 1
+fi
+
+# Detect platform
+if ! platform=$(bash "${SCRIPT_DIR}/git_platform.sh" 2>&1); then
+    err "Failed to detect Git platform: ${platform}"
+    exit 1
+fi
 
 # Helper: Check if command exists
 command_exists() {
