@@ -3302,7 +3302,11 @@
       "hook.terraform_trivy: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 wrapper and underlying tool pins pending Phase 3",
       "hook.terraform_trivy: https://github.com/antonbabenko/pre-commit-terraform@v1.108.0 action/runtime equivalence pending Phase 3",
       "security.semgrep: deterministic candidate prerequisite provisioning pending Phase 3 for security",
-      "test.python: TestDynamicRecursionInvocationCount::test_manifest_check_never_shells_out_to_pre_commit_shim deselected via the network marker (Correction 11) -- materializes a nested candidate from a test.python candidate, whose own materialize_candidate never populates git submodules, so candidate.py's submodule precondition always blocks it inside a candidate"
+      "test.python: TestDynamicRecursionInvocationCount::test_manifest_check_never_shells_out_to_pre_commit_shim deselected via the network marker (Correction 11) -- materializes a nested candidate from a test.python candidate, whose own materialize_candidate never populates git submodules, so candidate.py's submodule precondition always blocks it inside a candidate",
+      "test.python: TestProjectEnvImportsTheCandidatesOwnSrc::test_pytest_collects_and_passes_against_a_synthetic_candidates_src deselected via the network marker (Correction 15 rule 2) -- materializes a nested toolchain store inside a test.python candidate; provisioning it under scratch HOME roots it inside the candidate's own tree, so its project-env digest never matches what the outer runner attested",
+      "test.python: TestImpostorNeverReachedByTheTestGroup::test_test_python_never_runs_a_path_impostor_pytest deselected via the network marker (Correction 15 rule 2) -- same nested-store precondition as TestProjectEnvImportsTheCandidatesOwnSrc",
+      "test.python: TestBatsBodyImportsYamlThroughTheStoreEnv::test_python3_dash_c_import_yaml_succeeds_via_path_prepend deselected via the network marker (Correction 15 rule 2) -- same nested-store precondition as TestProjectEnvImportsTheCandidatesOwnSrc",
+      "test.python: TestPathDependencyResolvesToTheCandidatesOwnCopy::test_marker_edit_in_candidates_manifest_model_policy_is_what_imports deselected via the network marker (Correction 15 rule 2) -- same nested-store precondition as TestProjectEnvImportsTheCandidatesOwnSrc"
     ],
     "security": [
       "hook.check-credentials: deterministic candidate prerequisite provisioning pending Phase 3 for security",
@@ -3405,7 +3409,11 @@
       "dependency.lock.root: deterministic candidate prerequisite provisioning pending Phase 3 for release",
       "dependency.lock.node: deterministic candidate prerequisite provisioning pending Phase 3 for release",
       "security.semgrep: deterministic candidate prerequisite provisioning pending Phase 3 for release",
-      "test.python: TestDynamicRecursionInvocationCount::test_manifest_check_never_shells_out_to_pre_commit_shim deselected via the network marker (Correction 11) -- materializes a nested candidate from a test.python candidate, whose own materialize_candidate never populates git submodules, so candidate.py's submodule precondition always blocks it inside a candidate"
+      "test.python: TestDynamicRecursionInvocationCount::test_manifest_check_never_shells_out_to_pre_commit_shim deselected via the network marker (Correction 11) -- materializes a nested candidate from a test.python candidate, whose own materialize_candidate never populates git submodules, so candidate.py's submodule precondition always blocks it inside a candidate",
+      "test.python: TestProjectEnvImportsTheCandidatesOwnSrc::test_pytest_collects_and_passes_against_a_synthetic_candidates_src deselected via the network marker (Correction 15 rule 2) -- materializes a nested toolchain store inside a test.python candidate; provisioning it under scratch HOME roots it inside the candidate's own tree, so its project-env digest never matches what the outer runner attested",
+      "test.python: TestImpostorNeverReachedByTheTestGroup::test_test_python_never_runs_a_path_impostor_pytest deselected via the network marker (Correction 15 rule 2) -- same nested-store precondition as TestProjectEnvImportsTheCandidatesOwnSrc",
+      "test.python: TestBatsBodyImportsYamlThroughTheStoreEnv::test_python3_dash_c_import_yaml_succeeds_via_path_prepend deselected via the network marker (Correction 15 rule 2) -- same nested-store precondition as TestProjectEnvImportsTheCandidatesOwnSrc",
+      "test.python: TestPathDependencyResolvesToTheCandidatesOwnCopy::test_marker_edit_in_candidates_manifest_model_policy_is_what_imports deselected via the network marker (Correction 15 rule 2) -- same nested-store precondition as TestProjectEnvImportsTheCandidatesOwnSrc"
     ]
   }
 }

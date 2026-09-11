@@ -113,6 +113,16 @@ class TestProjectEnvImportsTheCandidatesOwnSrc:
     `store:project-env/bin/python -m pytest` argv the registry declares,
     not a hand-built subprocess call."""
 
+    # Correction 15 rule 2: this test materializes a SECOND, nested
+    # toolchain store inside its own `tmp_path`. Run as-is inside a
+    # `test.python` candidate (itself already materialized under a scratch
+    # HOME/store), the nested store's provisioning ends up rooted under the
+    # candidate's own tree and its digest no longer matches what the outer
+    # runner attested -- "project-env digest mismatch". Nesting a store is
+    # exactly the ambient/network-shaped precondition the `network` marker
+    # exists to deselect inside a candidate (Correction 11 rule d).
+    pytestmark = pytest.mark.network
+
     def test_pytest_collects_and_passes_against_a_synthetic_candidates_src(
         self, tmp_path: Path
     ):
@@ -176,6 +186,10 @@ class TestImpostorNeverReachedByTheTestGroup:
     on the CALLER's `PATH` is never the one that actually runs -- proven by
     placing a real impostor on the caller PATH before resolution and
     checking the store's own binary answered instead."""
+
+    # Correction 15 rule 2: nested-store test, see the note on
+    # TestProjectEnvImportsTheCandidatesOwnSrc above.
+    pytestmark = pytest.mark.network
 
     def test_test_python_never_runs_a_path_impostor_pytest(self, tmp_path: Path):
         lock, store, _platform, provisioning_root = _fresh_store(tmp_path)
@@ -242,6 +256,10 @@ class TestBatsBodyImportsYamlThroughTheStoreEnv:
     reached through `path_prepend`, never a bare/absent ambient
     interpreter."""
 
+    # Correction 15 rule 2: nested-store test, see the note on
+    # TestProjectEnvImportsTheCandidatesOwnSrc above.
+    pytestmark = pytest.mark.network
+
     def test_python3_dash_c_import_yaml_succeeds_via_path_prepend(self, tmp_path: Path):
         lock, store, _platform, _provisioning_root = _fresh_store(tmp_path)
         tool = _registry_tool("test.bats")
@@ -275,6 +293,10 @@ class TestPathDependencyResolvesToTheCandidatesOwnCopy:
     the real `toolchain_pythonpath` roots + `test.python`'s registry argv."""
 
     _DEP_RELATIVE = Path("configs/claude/scripts/manifest_model_policy")
+
+    # Correction 15 rule 2: nested-store test, see the note on
+    # TestProjectEnvImportsTheCandidatesOwnSrc above.
+    pytestmark = pytest.mark.network
 
     def test_marker_edit_in_candidates_manifest_model_policy_is_what_imports(
         self, tmp_path: Path
