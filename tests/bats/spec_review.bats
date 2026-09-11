@@ -365,6 +365,21 @@ STUB
     assert_output --partial "CLARIFICATION REQUIRED: Migration"
 }
 
+@test "on-demand review is BLOCKED (never a clean verdict) when no reviewer CLI exists on PATH" {
+    # No 'agy' anywhere: PATH is pinned to a minimal set with no $SANDBOX entry,
+    # and SPEC_REVIEW_CLI is left unset (defaults to 'agy'). An absent reviewer
+    # must be an explicit error, never "No inconsistencies found" (false green).
+    mkdir -p "$SANDBOX/specs/001"
+    printf 's\n' > "$SANDBOX/specs/001/spec.md"
+    printf 'p\n' > "$SANDBOX/specs/001/plan.md"
+    PATH="/usr/bin:/bin" HOME="$SANDBOX/no-home" \
+        SPEC_REVIEW_TEMPLATE="$REPO_ROOT/configs/claude/prompts/spec_review.md" \
+        run bash "$SCRIPT" "$SANDBOX"
+    assert_failure
+    refute_output --partial "No inconsistencies found"
+    assert_output --partial "reviewer CLI not found"
+}
+
 # ---------------------------------------------------------------------------
 # SPEC_REVIEW_MODEL seam
 # ---------------------------------------------------------------------------
