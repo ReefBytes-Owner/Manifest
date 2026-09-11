@@ -12,15 +12,9 @@ from pathlib import Path
 from manifest_agent.process import redact_text
 
 from . import receipt as _receipt
-from . import toolchain
-from .candidate import (
-    CandidateBlockedError,
-    _git,
-    _safe_path,
-    _walk,
-    candidate_digest,
-    git_dir_snapshot,
-)
+from . import toolchain, toolchain_pythonpath
+from .candidate import CandidateBlockedError, _safe_path, _walk, git_dir_snapshot
+from .candidate_integrity import identity_error, post_run_diagnostic
 from .group_selection import guard_nonempty_group
 from .models import (
     Candidate,
@@ -43,34 +37,6 @@ from .status import executed_status as _executed_status
 VERSION_PREFLIGHT_TIMEOUT_SECONDS = 10.0
 
 
-def _identity_error(candidate: Candidate) -> str:
-    try:
-        root = candidate.root
-        source = candidate.source_root
-        if root.is_symlink() or root.resolve(strict=True) != root:
-            return "candidate identity unavailable: unsafe root"
-        git_dir = root / ".git"
-        state_path = git_dir / "candidate-state.json"
-        if git_dir.is_symlink() or state_path.is_symlink():
-            return "candidate identity unavailable: unsafe metadata"
-        state = json.loads(state_path.read_text())
-        if set(state) != {"digest"} or not isinstance(state["digest"], str):
-            return "candidate identity unavailable: invalid state"
-        if candidate_digest(root) != state["digest"]:
-            return "candidate identity changed"
-        if _git(root, "rev-parse", "HEAD").decode().strip() != candidate.head_sha:
-            return "candidate identity changed: HEAD"
-        if _git(root, "write-tree").decode().strip() != candidate.tree_sha:
-            return "candidate identity changed: tree"
-        if source.is_symlink() or source.resolve(strict=True) != source:
-            return "source identity unavailable: unsafe root"
-        if candidate_digest(source) != candidate.source_digest:
-            return "source identity changed"
-    except (CandidateBlockedError, OSError, ValueError, KeyError, TypeError) as error:
-        return "candidate or source identity unavailable: " + redact_text(str(error))
-    return ""
-
-
 def execute_check(
     check: CheckSpec,
     candidate: Candidate,
@@ -78,9 +44,9 @@ def execute_check(
     resolved: toolchain.ResolvedTool | None = None,
 ) -> CheckResult:
     """Execute one check without treating infrastructure failure as a finding."""
-    identity_error = _identity_error(candidate)
-    if identity_error:
-        return CheckResult(check.id, "BLOCKED", None, 0.0, identity_error, ())
+    initial_error = identity_error(candidate)
+    if initial_error:
+        return CheckResult(check.id, "BLOCKED", None, 0.0, initial_error, ())
     try:
         cwd, before, git_before = _execution_context(candidate, check)
     except (CandidateBlockedError, OSError) as error:
@@ -94,17 +60,15 @@ def execute_check(
     argv = toolchain.resolve_interpreter_argv(argv)
     argv = toolchain.rewrite_argv(argv, resolved)
     env = toolchain.resolved_env(env, resolved) if resolved is not None else env
+    env, path_error = toolchain_pythonpath.resolved_env_with_path_dependencies(
+        candidate.root, candidate.source_root, resolved, env
+    )
+    if path_error:
+        return CheckResult(check.id, "BLOCKED", None, 0.0, path_error, ())
     store_before = toolchain.fingerprint_for(resolved, env)
     result = run_argv(argv, cwd=cwd, env=env, timeout_seconds=check.timeout_seconds)
-    try:
-        changed = before != _walk(
-            candidate.root, exclude=(".git",)
-        ) or git_before != git_dir_snapshot(candidate.root)
-        identity_error = _identity_error(candidate)
-    except (CandidateBlockedError, OSError) as error:
-        changed, identity_error = True, redact_text(str(error))
-    diagnostic = toolchain.integrity_reason(
-        store_before, toolchain.fingerprint_for(resolved, env), changed, identity_error
+    diagnostic = post_run_diagnostic(
+        candidate, (before, git_before), resolved, store_before, env
     )
     if diagnostic:
         return CheckResult(
@@ -311,7 +275,7 @@ def run_profile(
     with toolchain.run_cache_directory() as run_tmp:
         env = toolchain.cache_environment(env, run_tmp)
         results: list[CheckResult] = []
-        initial_identity_error = _identity_error(candidate)
+        initial_identity_error = identity_error(candidate)
         if initial_identity_error:
             results = [
                 CheckResult(check.id, "BLOCKED", None, 0.0, initial_identity_error, ())
@@ -326,7 +290,7 @@ def run_profile(
             registry, candidate, env, tool_results, failed_preparations
         )
         results = _run_checks(context, checks)
-        final_identity_error = _identity_error(candidate)
+        final_identity_error = identity_error(candidate)
         if final_identity_error:
             results = [
                 _blocked_after_identity(result, final_identity_error)

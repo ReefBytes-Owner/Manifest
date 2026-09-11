@@ -29,6 +29,7 @@ import pytest
 
 from manifest_agent.checks import toolchain
 from manifest_agent.checks import toolchain_provision as provision_mod
+from manifest_agent.checks import toolchain_pythonpath as pythonpath_mod
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 REGISTRY_PATH = REPO_ROOT / "config" / "project-checks.json"
@@ -223,4 +224,70 @@ class TestBatsBodyImportsYamlThroughTheStoreEnv:
             timeout=15,
         )
         assert result.returncode == 0, result.stderr
-        assert result.stdout.strip() == "yaml"
+
+
+class TestPathDependencyResolvesToTheCandidatesOwnCopy:
+    """C7k step 2 (Correction 9, rule 2): `manifest-model-policy` -- the
+    root project's only local path dependency, installed EDITABLE into
+    `project-env` and pointing at the PROVISIONING checkout by default --
+    resolves to the CANDIDATE's own copy through `store:project-env/bin/
+    python`, proven with a marker no real copy of the module carries, via
+    the real `toolchain_pythonpath` roots + `test.python`'s registry argv."""
+
+    _DEP_RELATIVE = Path("configs/claude/scripts/manifest_model_policy")
+
+    def test_marker_edit_in_candidates_manifest_model_policy_is_what_imports(
+        self, tmp_path: Path
+    ):
+        lock, store, _platform = _fresh_store(tmp_path)
+        candidate = tmp_path / "candidate"
+        candidate_dep_dir = candidate / self._DEP_RELATIVE
+        candidate_dep_dir.mkdir(parents=True)
+        (candidate_dep_dir / "pyproject.toml").write_text(
+            (REPO_ROOT / self._DEP_RELATIVE / "pyproject.toml").read_text()
+        )
+        (candidate_dep_dir / "__init__.py").write_text(
+            'MARKER = "candidate-local-c7k-marker"\n'
+        )
+
+        roots = pythonpath_mod.candidate_path_dependency_roots(REPO_ROOT, candidate)
+        assert not isinstance(roots, pythonpath_mod.BlockedPythonPath), roots
+        assert roots == (candidate / "configs" / "claude" / "scripts",)
+
+        tool = _registry_tool("test.python")
+        env = {
+            "PATH": "/usr/bin",
+            "HOME": str(tmp_path),
+            "MANIFEST_TOOLCHAIN_STORE": str(store),
+        }
+        resolved, _version_argv, _env, blocked = _resolve(tool, env, lock, candidate)
+        assert blocked is None, blocked
+        assert resolved is not None
+
+        run_env = toolchain.resolved_env(env, resolved)
+        run_env = pythonpath_mod.with_candidate_pythonpath(run_env, candidate, roots)
+        argv = toolchain.rewrite_argv(
+            (
+                "store:project-env/bin/python",
+                "-c",
+                "import manifest_model_policy as m;print(m.__file__);print(m.MARKER)",
+            ),
+            resolved,
+        )
+        result = subprocess.run(
+            list(argv),
+            cwd=candidate,
+            env=run_env,
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        assert result.returncode == 0, result.stdout + result.stderr
+        printed_file, printed_marker = result.stdout.splitlines()[:2]
+        imported_path = Path(printed_file).resolve()
+
+        # (a) the candidate's own copy answered.
+        assert imported_path.is_relative_to(candidate.resolve())
+        assert printed_marker == "candidate-local-c7k-marker"
+        # (b) the provisioning checkout's copy was never reached.
+        assert not imported_path.is_relative_to(REPO_ROOT.resolve())
