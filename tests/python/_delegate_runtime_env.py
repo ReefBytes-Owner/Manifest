@@ -6,11 +6,13 @@ Named `_delegate_runtime_env` (not `conftest`) for the same reason as
 _delegate_harness.py: these are plain helpers, not pytest fixtures.
 """
 
+import json
 import os
 import shutil
 import subprocess
 import sys
 import sysconfig
+import tempfile
 from collections.abc import Sequence
 from importlib import metadata
 from pathlib import Path
@@ -313,3 +315,88 @@ def _site_packages(python: Path) -> Path:
     )
     assert query.returncode == 0, query.stderr
     return Path(query.stdout.strip())
+
+
+def _store_config_env_root() -> Path | None:
+    """The store's `config-env` bundle's venv root (the `bin/manifest` its
+    `manifest.json` index declares, two levels up).
+
+    Mirrors `tests/test_helper/stub_home_runtime.bash`'s
+    `_stub_home_store_manifest_path`: the store's index only declares
+    `bin/manifest` as a console script for `config-env` (its lock entry
+    names no other one), but `configs/claude`'s real, non-editable install of
+    `manifest-model-policy==0.1.0` (`configs/claude/pyproject.toml`) sits in
+    the same venv. The caller symlinks this WHOLE directory in as
+    `~/.claude/.venv` (not just its `bin/python`) because delegate.py's own
+    re-exec comment says why that matters: a venv's identity comes from the
+    `pyvenv.cfg` beside the interpreter *as invoked*, so a bare `bin/python`
+    symlink with no `pyvenv.cfg` sibling resolves to the base interpreter
+    with no site-packages instead of this venv's.
+    Returns None (never raises) when no store is configured or the bundle is
+    missing, so the caller can fall back to a throwaway venv.
+    """
+    store = os.environ.get("MANIFEST_TOOLCHAIN_STORE")
+    if not store:
+        return None
+    index = Path(store) / "manifest.json"
+    if not index.is_file():
+        return None
+    try:
+        manifest = json.loads(index.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    relative = (
+        manifest.get("tools", {})
+        .get("config-env", {})
+        .get("executables", {})
+        .get("bin/manifest", {})
+        .get("path")
+    )
+    if not relative:
+        return None
+    manifest_bin = Path(store) / relative
+    env_root = manifest_bin.parent.parent
+    return env_root if (env_root / "pyvenv.cfg").is_file() else None
+
+
+_manifest_home_dir: str | None = None
+_manifest_home_path: Path | None = None
+
+
+def manifest_home() -> Path:
+    """A throwaway `$HOME` whose `~/.claude/.venv/bin/python` satisfies
+    delegate.py's `installed_runtime` trust path (`_trusted_model_policy_
+    distribution` in plugins/manifest-delegate/scripts/delegate.py), so the
+    delegate CLI-subprocess suites never depend on the developer's real
+    `~/.claude`.
+
+    Prefers the store's `config-env` bundle (`MANIFEST_TOOLCHAIN_STORE`,
+    C7k step 4): its `manifest-model-policy` install is already real,
+    hash-verified, and non-editable, so a plain symlink is enough -- no venv
+    is built, nothing is copied. Falls back to a throwaway `_trusted_policy_
+    venv` (also a real, non-editable wheel install) when no store is
+    configured, e.g. a developer running the dev venv directly.
+
+    Built once per test process and removed at interpreter exit via `atexit`,
+    matching `_delegate_harness.py`'s `_trusted_python()` cache: delegate.py's
+    trust gate does not change mid-run, and rebuilding per-test would add a
+    real `uv`/venv round trip to every one of the ~40 tests that need it.
+    """
+    global _manifest_home_dir, _manifest_home_path
+    if _manifest_home_path is not None:
+        return _manifest_home_path
+    _manifest_home_dir = tempfile.mkdtemp(prefix="manifest-delegate-home-")
+    base = Path(_manifest_home_dir)
+    home = base / "home"
+    (home / ".claude").mkdir(parents=True)
+    env_root = _store_config_env_root()
+    if env_root is None:
+        policy_root = base / "policy-venv"
+        policy_root.mkdir(parents=True)
+        env_root = _trusted_policy_venv(policy_root)
+    (home / ".claude" / ".venv").symlink_to(env_root, target_is_directory=True)
+    _manifest_home_path = home
+    import atexit
+
+    atexit.register(lambda: shutil.rmtree(_manifest_home_dir, ignore_errors=True))
+    return _manifest_home_path

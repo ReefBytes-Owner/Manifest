@@ -20,18 +20,7 @@ import time
 from pathlib import Path
 
 import pytest
-from _delegate_runtime_env import in_tree_trusted_python
-
-# Captured at import time (module collection, before any fixture -- including
-# a DIFFERENT package's session-scoped one -- runs): `manifest_agent/conftest.py`'s
-# `_isolated_home` scratches `$HOME` for its OWN suite via a manually
-# instantiated `pytest.MonkeyPatch()` (not the per-test `monkeypatch` fixture),
-# undone only at session end. `os.environ` is process-global state, so once any
-# test under that package runs first in a full-suite collection, EVERY later
-# test in this file would otherwise inherit the scratch HOME too, including
-# delegate.py's own `~/.claude/.venv` fallback resolution, which needs the
-# REAL one.
-_REAL_HOME = os.environ.get("HOME")
+from _delegate_runtime_env import in_tree_trusted_python, manifest_home
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT_PATH = REPO_ROOT / "plugins" / "manifest-delegate" / "scripts" / "delegate.py"
@@ -98,8 +87,15 @@ def env_factory(tmp_path):
         # (`_trusted_python`) -- an inherited raw-source entry ahead of that
         # venv's own site-packages only confuses its trust gate.
         env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
-        if _REAL_HOME is not None:
-            env["HOME"] = _REAL_HOME
+        # Own HOME (Correction 15 rule 1): delegate.py's trust gate re-execs
+        # `~/.claude/.venv/bin/python` when the launcher interpreter itself
+        # has no manifest-model-policy distribution (true for `_trusted_
+        # python()` below -- its throwaway venv has no PyYAML, so importing
+        # the policy package fails and the gate falls through to that
+        # re-exec). Pointing HOME at `manifest_home()` gives that re-exec a
+        # real, trusted target built from the toolchain store instead of the
+        # developer's own machine.
+        env["HOME"] = str(manifest_home())
         env["PATH"] = str(bin_dir) + os.pathsep + env.get("PATH", "")
         env["MANIFEST_DELEGATE_REGISTRY_PATH"] = str(registry_path)
         env["MANIFEST_DELEGATIONS_DIR"] = str(delegations_dir)
