@@ -2939,7 +2939,8 @@
       ],
       "groups": [
         "structure",
-        "lint"
+        "lint",
+        "test"
       ],
       "timeout_seconds": 60,
       "tool": "prepare.skill-mirror",
