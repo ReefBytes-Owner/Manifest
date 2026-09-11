@@ -98,7 +98,7 @@ def clean_git_environment(env: Mapping[str, str]) -> dict[str, str]:
         GIT_TERMINAL_PROMPT="0",
         GIT_OPTIONAL_LOCKS="0",
         GIT_NO_LAZY_FETCH="1",
-        GIT_ALLOW_PROTOCOL="",
+        GIT_ALLOW_PROTOCOL="file",  # local-path remotes only; network transports refused
         GIT_PROTOCOL_FROM_USER="0",
     )
     return result

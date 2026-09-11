@@ -404,3 +404,32 @@ def test_timed_out_run_gets_no_failure_trailer(tmp_path):
 
     assert result.timed_out
     assert "# failure summary" not in result.stdout
+
+
+def test_git_file_protocol_allowed_but_network_transports_refused(tmp_path: Path):
+    """Bodies may push to a local bare remote (file transport); https stays refused."""
+    from manifest_agent.checks.process import clean_git_environment
+
+    env = clean_git_environment({"PATH": os.defpath, "HOME": str(tmp_path)})
+    identity = {
+        "GIT_AUTHOR_NAME": "t",
+        "GIT_AUTHOR_EMAIL": "t@example.invalid",
+        "GIT_COMMITTER_NAME": "t",
+        "GIT_COMMITTER_EMAIL": "t@example.invalid",
+    }
+    env.update(identity)
+    bare = tmp_path / "origin.git"
+    work = tmp_path / "work"
+    work.mkdir()
+    run = lambda *argv, cwd: subprocess.run(  # noqa: E731
+        ["git", *argv], cwd=cwd, env=env, capture_output=True, text=True
+    )
+    assert run("init", "-q", "--bare", str(bare), cwd=tmp_path).returncode == 0
+    assert run("init", "-q", "-b", "main", ".", cwd=work).returncode == 0
+    assert run("commit", "-q", "--allow-empty", "-m", "init", cwd=work).returncode == 0
+    assert run("remote", "add", "origin", str(bare), cwd=work).returncode == 0
+    push = run("push", "-q", "-u", "origin", "main", cwd=work)
+    assert push.returncode == 0, push.stderr
+    fetch = run("fetch", "https://example.invalid/repo.git", cwd=work)
+    assert fetch.returncode != 0
+    assert "not allowed" in fetch.stderr.lower() or "protocol" in fetch.stderr.lower()
