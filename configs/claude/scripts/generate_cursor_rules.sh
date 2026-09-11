@@ -32,6 +32,24 @@ created=0
 updated=0
 skipped=0
 
+# Per-skill model guidance used to cost up to two `python3` launches INSIDE
+# this loop (a capability probe plus a heredoc script per skill). Probe
+# once, batch-compute every skill's guidance in ONE python3 process
+# (cursor_rules_model_guidance.py: one output file per skill that has
+# guidance, under a temp dir), and have the loop below just check whether
+# a file exists -- never launch python3 itself (C7h / Correction 6 step 5:
+# under the runner's cache env the per-skill launches pushed this
+# generator past its 20s timeout). A plain temp dir, not an associative
+# array: this script targets bash 3.2 (see the `shfmt -ln bash` convention
+# used elsewhere here), which has no associative arrays.
+guidance_dir="$(mktemp -d)"
+trap 'rm -rf "$guidance_dir"' EXIT
+if command -v python3 > /dev/null 2>&1 && python3 -c 'import yaml' > /dev/null 2>&1; then
+    PYTHONPATH="$REPO_ROOT/configs/claude/scripts" python3 \
+        "$REPO_ROOT/configs/claude/scripts/cursor_rules_model_guidance.py" \
+        "$SKILLS_DIR" "$guidance_dir"
+fi
+
 for skill_dir in "$SKILLS_DIR"/*/; do
     skill_name="$(basename "$skill_dir")"
     skill_file="$skill_dir/SKILL.md"
@@ -89,36 +107,8 @@ for skill_dir in "$SKILLS_DIR"/*/; do
     description="${description:-$skill_name skill}"
 
     model_guidance=""
-    if command -v python3 > /dev/null 2>&1 && python3 -c 'import yaml' > /dev/null 2>&1; then
-        model_guidance="$(
-            PYTHONPATH="$REPO_ROOT/configs/claude/scripts" python3 - "$skill_file" "$skill_name" << 'PY'
-import sys
-from pathlib import Path
-
-from manifest_model_policy import (
-    ModelFallbackMode,
-    ModelPolicyError,
-    parse_skill_model_policy,
-)
-
-try:
-    policy = parse_skill_model_policy(Path(sys.argv[1]))
-except ModelPolicyError as error:
-    # A malformed `models:` block in one skill must not abort the generator
-    # for every other skill: report it, emit no guidance for this skill only.
-    # (No apostrophes here: bash parses this $( ) body before the heredoc.)
-    print(f"{sys.argv[2]}: {error}", file=sys.stderr)
-    sys.exit(0)
-tiers = policy.chains.get("cursor")
-if tiers:
-    mode = (policy.fallback_mode or ModelFallbackMode.CONFIRM).value
-    print(
-        "Model-aware invocation: `manifest skill-run "
-        f"{sys.argv[2]} --harness cursor "
-        f"--model-chain {','.join(tiers)} --model-fallback {mode}`."
-    )
-PY
-        )"
+    if [[ -f "$guidance_dir/$skill_name" ]]; then
+        model_guidance="$(cat "$guidance_dir/$skill_name")"
     fi
     model_guidance_block=""
     if [[ -n "$model_guidance" ]]; then

@@ -337,6 +337,10 @@ EOF
     mkdir -p "$SKILLS_DIR" "$RULES_DIR" "$AGENTS_SRC" "$SCRIPTS_DIR" "$CONFIG_DIR"
     cp "$GEN" "$SCRIPTS_DIR/generate_cursor_agents.py"
     cp "$REPO_ROOT/configs/claude/scripts/generate_cursor_rules.sh" "$SCRIPTS_DIR/generate_cursor_rules.sh"
+    cp "$REPO_ROOT/configs/claude/scripts/cursor_rules_model_guidance.py" \
+        "$SCRIPTS_DIR/cursor_rules_model_guidance.py"
+    cp -R "$REPO_ROOT/configs/claude/scripts/manifest_model_policy" \
+        "$SCRIPTS_DIR/manifest_model_policy"
     # generate_cursor_rules.sh also regenerates configs/cursor/mcp.json (WS-1);
     # stage that generator + a minimal fixture registry too, mirroring
     # generate_cursor_mcp.bats's own sandbox setup.
