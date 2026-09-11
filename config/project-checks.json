@@ -1310,7 +1310,8 @@
         "."
       ],
       "dependencies": [],
-      "timeout_seconds": 300,
+      "timeout_seconds": 960,
+      "budget_evidence": "two isolated runs of the full bats suite under the store env on 2026-09-10 measured 456.8s and 457.1s wall (1672 tests); budget = 2x457.1s rounded up to the minute",
       "selection": "project",
       "tool": "test.bats",
       "version": "command:bats=1.11.1",
@@ -1334,7 +1335,8 @@
         "."
       ],
       "dependencies": [],
-      "timeout_seconds": 300,
+      "timeout_seconds": 780,
+      "budget_evidence": "two isolated runner-driven single-check runs against a fresh darwin-arm64 store on 2026-09-10 measured 378.5s and 363.9s wall; budget = 2x378.5s rounded up to the minute",
       "selection": "project",
       "tool": "test.python",
       "version": "distribution:pytest=9.1.1",
@@ -1356,7 +1358,8 @@
         "."
       ],
       "dependencies": [],
-      "timeout_seconds": 300,
+      "timeout_seconds": 60,
+      "budget_evidence": "two isolated runner-driven single-check runs against a fresh darwin-arm64 store on 2026-09-10 measured 11.0s and 10.9s wall; budget = 2x11.0s rounded up to the minute",
       "selection": "project",
       "tool": "test.hooks",
       "version": "distribution:pytest=9.1.1",
@@ -1382,7 +1385,8 @@
         "."
       ],
       "dependencies": [],
-      "timeout_seconds": 300,
+      "timeout_seconds": 60,
+      "budget_evidence": "two isolated runner-driven single-check runs against a fresh darwin-arm64 store on 2026-09-10 measured 12.5s and 11.6s wall; budget = 2x12.5s rounded up to the minute",
       "selection": "project",
       "tool": "test.smoke.lite",
       "version": "ok",
@@ -1427,7 +1431,8 @@
         "."
       ],
       "dependencies": [],
-      "timeout_seconds": 300,
+      "timeout_seconds": 60,
+      "budget_evidence": "two isolated runner-driven single-check runs against a fresh darwin-arm64 store on 2026-09-10 measured 13.6s and 13.3s wall; budget = 2x13.6s rounded up to the minute",
       "selection": "project",
       "tool": "test.bundle-partition",
       "version": "command:bats=1.11.1",

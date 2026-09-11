@@ -137,6 +137,7 @@
           "type": "number",
           "exclusiveMinimum": 0
         },
+        "budget_evidence": { "type": "string", "minLength": 1 },
         "selection": { "enum": ["changed", "project"] },
         "pass_filenames": { "type": "boolean" },
         "honors_status_contract": { "type": "boolean" },

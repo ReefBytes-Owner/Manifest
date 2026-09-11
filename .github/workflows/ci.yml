@@ -212,7 +212,11 @@ jobs:
 
   test:
     name: Test
-    timeout-minutes: 30
+    # 35: the test group's registry timeout_seconds now sum to 1920s (32min)
+    # -- evidence-derived budgets per check (config/project-checks.json
+    # budget_evidence, C7j) exceed the prior 30min ceiling; bumped with
+    # headroom on the same evidence, not widened blind.
+    timeout-minutes: 35
     needs: lint
     runs-on: ubuntu-latest
     steps:
@@ -737,7 +741,10 @@ jobs:
 
   shadow-checks-test:
     name: Shadow Checks (test)
-    timeout-minutes: 30
+    # 37 = ceil(sum(test group timeout_seconds)/60) + 5 = ceil(1920/60) + 5
+    # (Correction 8 rule 3, C7j) -- re-derive if any test.* budget_evidence
+    # changes.
+    timeout-minutes: 37
     runs-on: ubuntu-latest
     continue-on-error: true
     permissions:

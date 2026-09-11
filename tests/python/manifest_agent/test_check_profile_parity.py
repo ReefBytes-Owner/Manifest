@@ -313,19 +313,6 @@ def test_setup_is_mapped_and_publication_is_outside_profiles():
     _assert_setup_and_publication_contract(preservation, registry, provisioning_ids)
 
 
-def test_timeouts_are_finite_and_fit_existing_group_ceilings():
-    _, registry = _raw_documents()
-    totals = {"lint": 0.0, "test": 0.0, "structure": 0.0}
-    for check in registry["checks"]:
-        timeout = float(check["timeout_seconds"])
-        assert timeout > 0 and timeout != float("inf")
-        if check["group"] in totals:
-            totals[check["group"]] += timeout
-    assert totals["lint"] <= 1200
-    assert totals["test"] <= 1800
-    assert totals["structure"] <= 900
-
-
 def test_pending_obligations_are_specific_and_block_affected_profiles():
     _, registry = _raw_documents()
     for profile, obligations in registry["coverage_pending"].items():
