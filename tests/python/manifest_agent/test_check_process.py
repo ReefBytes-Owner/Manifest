@@ -112,28 +112,43 @@ def test_timeout_kills_parent_and_sleeping_child(tmp_path):
     assert not _pid_exists(child_pid)
 
 
-@pytest.mark.skipif(os.name != "posix", reason="POSIX signal cancellation fixture")
-def test_cancellation_reaps_process_family_and_emits_no_success_receipt(tmp_path):
-    worker = tmp_path / "worker.py"
-    checker = tmp_path / "checker.py"
-    # 600s sleeps: the fixture must never finish before SIGINT under load.
-    checker.write_text(
+def _write_cancellation_fixture(tmp_path: Path) -> None:
+    """Write `worker.py` (runs `checker.py` under `run_argv`) and
+    `checker.py` (a forking process family) into `tmp_path`.
+
+    Both `checker.py` processes carry a 600s budget so the fixture never
+    finishes before SIGINT under load -- but as short, bounded polls (not
+    one blind `time.sleep(600)`): each re-checks its own parent pid every
+    0.1s and exits the moment it is orphaned (SIGTERM handling failed, or
+    the ancestor above it died outright). Worst case is one 0.1s step late,
+    never minutes (Correction 14 / C7o rule 2) -- a sleeping grandchild must
+    never be able to hold the whole test.python budget hostage if the
+    SIGTERM path misfires.
+    """
+    (tmp_path / "checker.py").write_text(
         "import os, signal, sys, time\n"
         "from pathlib import Path\n"
+        "BUDGET, STEP = 600, 0.1\n"
+        "def survive_while_parent_alive(expected_ppid):\n"
+        "    deadline = time.monotonic() + BUDGET\n"
+        "    while time.monotonic() < deadline and os.getppid() == expected_ppid:\n"
+        "        time.sleep(STEP)\n"
         "child = os.fork()\n"
         "if child == 0:\n"
         "    Path('child.pid').write_text(str(os.getpid()))\n"
+        "    leader_pid = os.getppid()\n"
         "    signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))\n"
-        "    time.sleep(600)\n"
+        "    survive_while_parent_alive(leader_pid)\n"
         "else:\n"
         "    Path('parent.pid').write_text(str(os.getpid()))\n"
+        "    worker_pid = os.getppid()\n"
         "    def stop(*_):\n"
         "        os.waitpid(child, 0)\n"
         "        raise SystemExit(0)\n"
         "    signal.signal(signal.SIGTERM, stop)\n"
-        "    time.sleep(600)\n"
+        "    survive_while_parent_alive(worker_pid)\n"
     )
-    worker.write_text(
+    (tmp_path / "worker.py").write_text(
         "import os, sys\n"
         "from pathlib import Path\n"
         "from manifest_agent.checks.process import run_argv\n"
@@ -144,13 +159,24 @@ def test_cancellation_reaps_process_family_and_emits_no_success_receipt(tmp_path
         "else:\n"
         "    Path('success-receipt').write_text('wrong')\n"
     )
+
+
+def _spawn_cancellation_worker(tmp_path: Path) -> subprocess.Popen:
     environment = os.environ.copy()
     environment["PYTHONPATH"] = os.pathsep.join(
         (str(Path(__file__).parents[3] / "src"), *sys.path)
     )
-    process = subprocess.Popen(
-        (sys.executable, str(worker)), cwd=tmp_path, env=environment
+    return subprocess.Popen(
+        (sys.executable, str(tmp_path / "worker.py")), cwd=tmp_path, env=environment
     )
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX signal cancellation fixture")
+def test_cancellation_reaps_process_family_and_emits_no_success_receipt(tmp_path):
+    """SIGINT to the worker must reap the whole checker process family (the
+    forked grandchild included) and never leave a success receipt behind."""
+    _write_cancellation_fixture(tmp_path)
+    process = _spawn_cancellation_worker(tmp_path)
     deadline = time.monotonic() + 3
     while (
         not all((tmp_path / name).exists() for name in ("parent.pid", "child.pid"))
