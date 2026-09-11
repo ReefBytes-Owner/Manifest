@@ -49,17 +49,22 @@ def _engine_env(base_env: Mapping[str, str], *bin_dirs: Path) -> dict[str, str]:
 
 
 def _run(argv: list[str], *, cwd: Path, env: Mapping[str, str]) -> None:
-    result = subprocess.run(
-        argv,
-        cwd=cwd,
-        env=dict(env),
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        timeout=_SYNC_TIMEOUT_SECONDS,
-        text=True,
-        check=False,
-    )
+    """Run `argv`, raising `MaterializationError` (never a raw traceback) on
+    a missing/unreadable executable or a hung process."""
+    try:
+        result = subprocess.run(
+            argv,
+            cwd=cwd,
+            env=dict(env),
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            timeout=_SYNC_TIMEOUT_SECONDS,
+            text=True,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as error:
+        raise MaterializationError(f"{argv[0]} could not execute: {error}") from error
     if result.returncode != 0:
         raise MaterializationError(
             f"{argv[0]} exited {result.returncode}: {result.stdout[-4000:]}"
@@ -150,7 +155,13 @@ def materialize_node_env(ctx: MaterializeContext, env_root: Path, fetcher) -> No
     env_root.mkdir(parents=True, exist_ok=True)
     project = ctx.repo_root / "config" / "toolchain"
     for name in ("package.json", "package-lock.json"):
-        (env_root / name).write_bytes((project / name).read_bytes())
+        try:
+            data = (project / name).read_bytes()
+        except OSError as error:
+            raise MaterializationError(
+                f"node-env project file unavailable: {name}: {error}"
+            ) from error
+        (env_root / name).write_bytes(data)
     run_env = _engine_env(ctx.env, resolved_node.executable.parent)
     _run(
         [str(resolved_node.executable), str(npm_root / "bin" / "npm-cli.js"), "ci"],

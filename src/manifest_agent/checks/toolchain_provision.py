@@ -130,12 +130,25 @@ def _record_env_bundle(
     _with_store_lock(ctx.store, body)
 
 
+class _SourceUnavailable(RuntimeError):
+    """A `file://` lock source could not be read; carries the reason text."""
+
+
 def _read_source_bytes(ctx: ProvisionContext, url: str) -> bytes:
     """`file://` lockfile URLs are read relative to `ctx.repo_root` -- never
     fetched over the network; only the archive/binary `Fetcher` seam does
-    that. A non-`file://` URL is a lock authoring error, not a runtime one."""
+    that. A non-`file://` URL is a lock authoring error, not a runtime one.
+
+    Raises `_SourceUnavailable` (never a raw `OSError`) so a missing or
+    unreadable source -- e.g. a `file://` lock source that exists on the
+    author's machine but was never committed -- BLOCKs `manifest provision`
+    instead of crashing it with a traceback."""
     relative = url.removeprefix("file://")
-    return (ctx.repo_root / relative).read_bytes()
+    path = ctx.repo_root / relative
+    try:
+        return path.read_bytes()
+    except OSError as error:
+        raise _SourceUnavailable(f"source unavailable: {relative}: {error}") from error
 
 
 def _provision_env_entry(
@@ -149,7 +162,10 @@ def _provision_env_entry(
     platform_entry = _platform_entry(entry, bundle, ctx.platform)
     if isinstance(platform_entry, ProvisionOutcome):
         return platform_entry
-    source_bytes = _read_source_bytes(ctx, platform_entry["url"])
+    try:
+        source_bytes = _read_source_bytes(ctx, platform_entry["url"])
+    except _SourceUnavailable as error:
+        return ProvisionOutcome(bundle, "blocked", f"toolchain: {bundle} {error}")
     source_sha256 = hashlib.sha256(source_bytes).hexdigest()
     if source_sha256 != platform_entry["sha256"]:
         return ProvisionOutcome(

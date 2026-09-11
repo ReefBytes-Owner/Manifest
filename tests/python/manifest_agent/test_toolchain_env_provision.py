@@ -7,8 +7,7 @@ enumerates is exercised offline: unattested, store stale, digest mismatch
 outside the store, and a missing console script.
 
 One test (`TestRealMaterializationNeverUsesAmbientEngines`) runs the real
-provisioner with `PATH=""` and only network-gated when
-`MANIFEST_C7B_NETWORK=1` -- it never fakes a pass.
+provisioner with `PATH=""`, network-gated on `MANIFEST_C7B_NETWORK=1`.
 """
 
 from __future__ import annotations
@@ -38,6 +37,28 @@ _NETWORK_SKIP = "set MANIFEST_C7B_NETWORK=1 to materialize the real envs"
 def _write(path: Path, content: bytes) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(content)
+
+
+def _one_env_bundle_lock(kind: str, url: str, source_sha256: str) -> dict:
+    """A `linux-x64`-only lock with one env-kind bundle and no other tools --
+    shared by the "blocks before touching the store" tests below."""
+    return {
+        "schema_version": 1,
+        "tools": {
+            kind: {
+                "kind": kind,
+                "version": "x",
+                "platforms": {
+                    "linux-x64": {
+                        "url": url,
+                        "sha256": source_sha256,
+                        "exe_sha256": "a" * 64,
+                        "path_in_archive": ".",
+                    }
+                },
+            }
+        },
+    }
 
 
 def _fake_python_env(root: Path) -> None:
@@ -255,29 +276,13 @@ class TestProvisionerNeverFallsBackToAmbientEngines:
     def test_python_env_provisioning_blocks_when_uv_is_not_provisioned(
         self, tmp_path: Path
     ):
-        """`_provision_env_entry` must surface `MaterializationError` as a
-        `blocked` outcome, never silently fall back to an ambient `uv`."""
+        """No `uv` bundle -> `blocked`, never an ambient `uv` fallback."""
         store = tmp_path / "store"
         pyproject = REPO_ROOT / "config" / "toolchain" / "uv.lock"
         source_sha256 = hashlib.sha256(pyproject.read_bytes()).hexdigest()
-        lock = {
-            "schema_version": 1,
-            "tools": {
-                "python-env": {
-                    "kind": "python-env",
-                    "version": "x",
-                    "platforms": {
-                        "linux-x64": {
-                            "url": "file://config/toolchain/uv.lock",
-                            "sha256": source_sha256,
-                            "exe_sha256": "a" * 64,
-                            "path_in_archive": ".",
-                        }
-                    },
-                }
-                # No `uv` bundle in this lock at all.
-            },
-        }
+        lock = _one_env_bundle_lock(
+            "python-env", "file://config/toolchain/uv.lock", source_sha256
+        )
         outcomes = tp.provision(
             lock,
             store,
@@ -288,6 +293,27 @@ class TestProvisionerNeverFallsBackToAmbientEngines:
         )
         assert outcomes[0].status == "blocked"
         assert "uv" in outcomes[0].reason
+
+    def test_a_missing_file_url_source_blocks_instead_of_crashing(self, tmp_path: Path):
+        """C7g (ee640879): a missing `file://` lock source must BLOCK with a
+        reason, never raise a raw `FileNotFoundError`."""
+        store = tmp_path / "store"
+        repo_root = tmp_path / "repo"
+        repo_root.mkdir()
+        lock = _one_env_bundle_lock(
+            "node-env", "file://config/toolchain/package-lock.json", "a" * 64
+        )
+        outcomes = tp.provision(
+            lock,
+            store,
+            platform="linux-x64",
+            fetcher=lambda url: b"",
+            repo_root=repo_root,
+            env={"PATH": ""},
+        )
+        assert outcomes[0].status == "blocked"
+        assert "config/toolchain/package-lock.json" in outcomes[0].reason
+        assert not store.exists() or not any(store.rglob("*"))
 
 
 @pytest.mark.skipif(not _NETWORK, reason=_NETWORK_SKIP)

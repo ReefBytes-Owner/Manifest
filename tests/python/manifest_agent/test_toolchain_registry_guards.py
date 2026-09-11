@@ -19,6 +19,7 @@ without needing to know anything about the registry."""
 from __future__ import annotations
 
 import ast
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -250,3 +251,32 @@ def test_no_distribution_version_probe_names_a_python_env_distribution_on_ambien
         )
         if names_python_env_distribution:
             assert argv[0] == "store:python-env/bin/python", (name, argv)
+
+
+def test_every_file_url_lock_source_is_git_tracked():
+    """C7g: `config/toolchain/package-lock.json` (a node-env `file://`
+    source) was untracked by the repo-wide `package-lock.json` .gitignore
+    rule -- every local `manifest provision` "worked" only because the
+    untracked file happened to exist on that machine, and a fresh checkout
+    crashed. `git ls-files --error-unmatch` is the same check a fresh
+    checkout gets: an ignored or otherwise untracked `file://` source can
+    never silently recur."""
+    lock = toolchain.load_lock_file(REGISTRY_PATH.parent / "toolchain.lock.json")
+    sources = set()
+    for entry in (lock.get("tools") or {}).values():
+        for platform_entry in (entry.get("platforms") or {}).values():
+            url = platform_entry.get("url")
+            if isinstance(url, str) and url.startswith("file://"):
+                sources.add(url.removeprefix("file://"))
+    assert sources, "expected at least one file:// lock source to check"
+    repo_root = REGISTRY_PATH.parents[1]
+    for relative in sorted(sources):
+        result = subprocess.run(
+            ["git", "-C", str(repo_root), "ls-files", "--error-unmatch", relative],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        assert result.returncode == 0, (
+            f"{relative} is not git-tracked (stderr: {result.stderr.strip()})"
+        )
