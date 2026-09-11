@@ -20,6 +20,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -143,10 +144,36 @@ class LauncherTarget:
 
 _ENV_SHEBANG_PREFIXES = ("/usr/bin/env ", "/bin/env ")
 
+# `#!/bin/sh` launchers pip/uv emit when the REAL interpreter's absolute
+# path is too long for the OS shebang-line limit (~127 bytes on Linux) --
+# a polyglot: valid `sh` (the `'''exec' ... ' '''` re-execs the real
+# interpreter) AND valid Python (that same text is a triple-quoted string
+# literal the interpreter's own parser skips over). Store paths under a
+# deeply nested temp dir (CI runners, `pytest`'s `tmp_path`, some `XDG_*`
+# layouts) push `<env_root>/bin/python` past that limit reliably enough
+# that this shape is not a corner case -- C7h found it FAILING closed
+# (interpreted as a launcher escaping the store, "digest mismatch") the
+# first time a `config-env` store happened to live under a long path.
+_LONG_SHEBANG_TRAMPOLINE = re.compile(r"""^'''exec' '(?P<path>[^']+)' "\$0" "\$@"$""")
+
+
+def _trampoline_interpreter(exe_path: Path) -> str | None:
+    """The real interpreter path inside a `#!/bin/sh` long-shebang
+    trampoline's second line, or `None` if `exe_path` is not that shape."""
+    try:
+        with open(exe_path, encoding="utf-8", errors="replace") as stream:
+            stream.readline()  # the `#!/bin/sh` line itself
+            second_line = stream.readline().strip()
+    except OSError:
+        return None
+    match = _LONG_SHEBANG_TRAMPOLINE.match(second_line)
+    return match.group("path") if match else None
+
 
 def launcher_target(exe_path: Path) -> LauncherTarget | None:
     """Where a console script actually runs from: a symlink target, the
-    interpreter named on a `#!` shebang line, or -- a self-contained binary
+    interpreter named on a `#!` shebang line (including the `#!/bin/sh`
+    long-shebang trampoline shape above), or -- a self-contained binary
     with neither, e.g. ruff's own compiled executable -- itself. `None` only
     when the file could not be read at all; callers must treat that as
     untrusted, never as "no opinion"."""
@@ -162,6 +189,10 @@ def launcher_target(exe_path: Path) -> LauncherTarget | None:
     except OSError:
         return None
     shebang = first_line[2:].strip()
+    if shebang in ("/bin/sh", "/bin/bash"):
+        trampoline_path = _trampoline_interpreter(exe_path)
+        if trampoline_path:
+            return LauncherTarget(Path(trampoline_path), False)
     for prefix in _ENV_SHEBANG_PREFIXES:
         if shebang.startswith(prefix):
             name = shebang[len(prefix) :].split()[0] if shebang[len(prefix) :] else ""

@@ -71,8 +71,28 @@ def _run(argv: list[str], *, cwd: Path, env: Mapping[str, str]) -> None:
         )
 
 
-def materialize_python_env(ctx: MaterializeContext, env_root: Path) -> None:
-    """`uv sync --locked --no-dev` a python-env bundle into `env_root`.
+def _resolved_uv(ctx: MaterializeContext) -> Path:
+    resolved_uv = toolchain.resolve(
+        "store:uv/bin/uv", lock=ctx.lock, store=ctx.store, platform=ctx.platform
+    )
+    if isinstance(resolved_uv, toolchain.BlockedReason):
+        raise MaterializationError(resolved_uv.reason)
+    return resolved_uv.executable
+
+
+def materialize_python_env(
+    ctx: MaterializeContext,
+    env_root: Path,
+    *,
+    project_relative: str = "config/toolchain",
+) -> None:
+    """`uv sync --locked --no-dev` a python-env bundle into `env_root`,
+    directly against `project_relative`'s OWN real `pyproject.toml` /
+    `uv.lock` -- used for bundles that need a real, installed project
+    (its own `[project.scripts]` entry point), e.g. `config-env`'s
+    `bin/manifest` (`configs/claude/`). `project-env` (the ROOT project)
+    uses `materialize_project_env` below instead -- it deliberately never
+    installs the local project package.
 
     The engine is the store-attested `uv` (never ambient); the interpreter
     behind the venv is the ambient `python3` (out of scope for pinning --
@@ -80,25 +100,58 @@ def materialize_python_env(ctx: MaterializeContext, env_root: Path) -> None:
     `uv` itself is not provisioned -- rather than ever falling back to a
     `PATH`-found `uv`.
     """
-    resolved_uv = toolchain.resolve(
-        "store:uv/bin/uv", lock=ctx.lock, store=ctx.store, platform=ctx.platform
-    )
-    if isinstance(resolved_uv, toolchain.BlockedReason):
-        raise MaterializationError(resolved_uv.reason)
+    uv_executable = _resolved_uv(ctx)
     env_root.mkdir(parents=True, exist_ok=True)
-    project = ctx.repo_root / "config" / "toolchain"
-    run_env = _engine_env(ctx.env, resolved_uv.executable.parent)
+    project = ctx.repo_root / project_relative
+    run_env = _engine_env(ctx.env, uv_executable.parent)
+    run_env["UV_PROJECT_ENVIRONMENT"] = str(env_root)
+    _run(
+        [str(uv_executable), "sync", "--locked", "--no-dev", "--project", str(project)],
+        cwd=project,
+        env=run_env,
+    )
+
+
+def materialize_project_env(ctx: MaterializeContext, env_root: Path) -> None:
+    """`uv sync --frozen --all-groups --no-install-project` the ROOT
+    project's dependency set into `env_root` -- Correction 7 step 1.
+
+    `--frozen` is the trust anchor: it forbids uv from ever regenerating
+    or even re-resolving the lock, so this ALWAYS installs exactly the
+    packages the committed `uv.lock` -- whose bytes `_provision_env_entry`
+    already hashed against the lock's `sha256` before calling here --
+    pins, never whatever `pyproject.toml` alone would currently resolve
+    to. A plain COPY of just `pyproject.toml` + `uv.lock` (isolated from
+    the rest of the tree) was tried and rejected: the root project has a
+    local path dependency (`configs/claude/scripts/manifest_model_policy`)
+    that `uv sync` must find on disk relative to the project root
+    regardless of `--no-install-project`, so the sync has to run against
+    the real checkout `manifest provision` is invoked from -- `--frozen`
+    is what keeps that checkout-relative sync pinned to the verified lock
+    instead of trusting the live tree's current dependency graph.
+
+    `--no-install-project` is deliberate: this env carries the project's
+    DEPENDENCIES only, never a baked-in copy of `manifest_agent` itself --
+    a check that runs `store:project-env/bin/python -m pytest` puts the
+    CANDIDATE's own `src/` on `PYTHONPATH` so a candidate-local edit is
+    what gets tested, not a stale copy this env would otherwise freeze at
+    provision time.
+    """
+    uv_executable = _resolved_uv(ctx)
+    env_root.mkdir(parents=True, exist_ok=True)
+    run_env = _engine_env(ctx.env, uv_executable.parent)
     run_env["UV_PROJECT_ENVIRONMENT"] = str(env_root)
     _run(
         [
-            str(resolved_uv.executable),
+            str(uv_executable),
             "sync",
-            "--locked",
-            "--no-dev",
+            "--frozen",
+            "--all-groups",
+            "--no-install-project",
             "--project",
-            str(project),
+            str(ctx.repo_root),
         ],
-        cwd=project,
+        cwd=ctx.repo_root,
         env=run_env,
     )
 

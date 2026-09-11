@@ -177,6 +177,38 @@ def _read_source_bytes(ctx: ProvisionContext, url: str) -> bytes:
         raise _SourceUnavailable(f"source unavailable: {relative}: {error}") from error
 
 
+def _materialize_env(
+    ctx: ProvisionContext, bundle: str, entry: Mapping, env_root: Path, names: list[str]
+) -> dict[str, str]:
+    """Dispatch to the right materializer by bundle name/kind, and return
+    its console scripts. `project-env`/`config-env` are the two fixed
+    Correction 7 step 1 additions, each with its own real project dir;
+    every other `python-env`/`node-env` bundle keeps the original
+    kind-only dispatch."""
+    ctx_m = materialize.MaterializeContext(
+        ctx.lock, ctx.store, ctx.platform, ctx.repo_root, ctx.env
+    )
+    if bundle == "project-env":
+        # The ROOT project's dependency set ONLY -- never installs
+        # `manifest_agent` itself (Correction 7 step 1).
+        materialize.materialize_project_env(ctx_m, env_root)
+        return materialize.python_env_console_scripts(env_root, names)
+    if bundle == "config-env":
+        # `configs/claude`'s OWN project, installed for real so its
+        # `[project.scripts] manifest` entry point exists at `bin/manifest`
+        # -- unlike project-env, this env IS meant to carry an installed
+        # project (Correction 7 step 1).
+        materialize.materialize_python_env(
+            ctx_m, env_root, project_relative="configs/claude"
+        )
+        return materialize.python_env_console_scripts(env_root, names)
+    if entry["kind"] == "python-env":
+        materialize.materialize_python_env(ctx_m, env_root)
+        return materialize.python_env_console_scripts(env_root, names)
+    materialize.materialize_node_env(ctx_m, env_root, ctx.fetcher)
+    return materialize.node_env_console_scripts(env_root, names)
+
+
 def _provision_env_entry(
     ctx: ProvisionContext, bundle: str, entry: Mapping
 ) -> ProvisionOutcome:
@@ -199,16 +231,8 @@ def _provision_env_entry(
         )
     env_root = ctx.store / f"tools/{bundle}/{source_sha256[:16]}"
     names = [Path(script).name for script in platform_entry.get("console_scripts", ())]
-    ctx_m = materialize.MaterializeContext(
-        ctx.lock, ctx.store, ctx.platform, ctx.repo_root, ctx.env
-    )
     try:
-        if entry["kind"] == "python-env":
-            materialize.materialize_python_env(ctx_m, env_root)
-            scripts = materialize.python_env_console_scripts(env_root, names)
-        else:
-            materialize.materialize_node_env(ctx_m, env_root, ctx.fetcher)
-            scripts = materialize.node_env_console_scripts(env_root, names)
+        scripts = _materialize_env(ctx, bundle, entry, env_root, names)
     except materialize.MaterializationError as error:
         return ProvisionOutcome(bundle, "blocked", str(error))
     missing = sorted(set(names) - set(scripts))
