@@ -73,10 +73,11 @@ def _provisioning_source_root(tmp_path: Path) -> Path:
 
 def _fresh_store(tmp_path: Path) -> tuple[dict, Path, str, Path]:
     """A real store, freshly provisioned from the repo's own committed lock
-    -- `project-env`/`node-env`/`node` bundles only (what this file's checks
-    need), never the whole nine-bundle set, to keep this fast. Returns the
-    `tmp_path`-local provisioning source root alongside the store so callers
-    needing the "trusted provisioning checkout" concept (e.g.
+    -- `project-env`/`node-env`/`node`/`uv`/`shellcheck` bundles only (what
+    this file's checks need, i.e. test.bats' full path_prepend set), never
+    the whole nine-bundle set, to keep this fast. Returns the `tmp_path`-
+    local provisioning source root alongside the store so callers needing
+    the "trusted provisioning checkout" concept (e.g.
     `candidate_path_dependency_roots`) reuse the same disposable copy."""
     store = tmp_path / "store"
     lock = json.loads(LOCK_PATH.read_text())
@@ -86,7 +87,7 @@ def _fresh_store(tmp_path: Path) -> tuple[dict, Path, str, Path]:
         lock,
         store,
         platform=platform,
-        only=frozenset({"uv", "node", "node-env", "project-env"}),
+        only=frozenset({"uv", "node", "node-env", "project-env", "shellcheck"}),
         repo_root=provisioning_root,
         env=dict(os.environ),
     )

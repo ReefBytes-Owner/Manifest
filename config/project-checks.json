@@ -206,8 +206,7 @@
         "store:project-env/bin",
         "store:node/bin",
         "store:uv/bin",
-        "store:shellcheck/bin",
-        "store:config-env/bin"
+        "store:shellcheck/bin"
       ]
     },
     "test.python": {
