@@ -10,6 +10,7 @@ import os
 import shutil
 import subprocess
 import sys
+import sysconfig
 from collections.abc import Sequence
 from importlib import metadata
 from pathlib import Path
@@ -139,8 +140,21 @@ def _uv_install(python: Path, *arguments: str) -> None:
     """Install into one interpreter from local artifacts only.
 
     `--offline` keeps a test from reaching the network for a build backend, and
-    `--no-deps` keeps it from pulling anything the fixture did not ask for.
+    `--no-deps` keeps it from pulling anything the fixture did not ask for. An
+    `--editable` install still needs to *run* a build backend (hatchling +
+    editables) even with no network: `--no-build-isolation` skips resolving
+    one into a throwaway env, and `PYTHONPATH` points the build-hook
+    subprocess (which uv launches with the target interpreter) at the
+    currently-running interpreter's own site-packages, where this repo's own
+    `project-env` toolchain already installed both packages to build itself
+    with -- never a package cache that a fresh honest-env run starts empty.
     """
+    site_packages = str(Path(sysconfig.get_path("purelib")))
+    env = dict(os.environ)
+    inherited = env.get("PYTHONPATH")
+    env["PYTHONPATH"] = (
+        os.pathsep.join((site_packages, inherited)) if inherited else site_packages
+    )
     installed = subprocess.run(
         [
             "uv",
@@ -150,8 +164,10 @@ def _uv_install(python: Path, *arguments: str) -> None:
             str(python),
             "--offline",
             "--no-deps",
+            "--no-build-isolation",
             *arguments,
         ],
+        env=env,
         capture_output=True,
         text=True,
         check=False,
@@ -170,6 +186,33 @@ def _trusted_policy_venv(tmp_path: Path) -> Path:
     _install_offline_pyyaml(venv)
     _uv_install(venv / "bin/python", str(next(wheel_dir.glob("*.whl"))))
     return venv
+
+
+def in_tree_trusted_python(tmp_path: Path) -> Path:
+    """An interpreter delegate.py's OWN trust gate accepts for THIS repo copy.
+
+    `delegate.py`'s `_trusted_editable_policy_roots` anchors trust to its own
+    `__file__` -- the repo copy it is actually running from (this repo's
+    checkout, or a `test.python` candidate materialization of it, both
+    equally legitimate). The shared `project-env` toolchain's own editable
+    install of `manifest-model-policy` is pinned at PROVISION time to
+    whichever checkout `manifest provision` ran from, so a check running
+    delegate.py out of a materialized candidate (a different, disposable
+    checkout of the same tree) never matches it -- not a tampered install,
+    just a distribution pinned to a different, equally-trusted copy. Building
+    one throwaway editable install FROM the copy actually under test keeps
+    the trust gate's real guarantee (only ITS OWN checkout's policy source is
+    accepted) intact while letting delegate-CLI-subprocess suites exercise
+    job-lifecycle behavior rather than re-deriving this gate per test.
+    """
+    repo_root = Path(__file__).resolve().parents[2]
+    venv = _create_venv(tmp_path, "in-tree-trusted-venv")
+    _uv_install(
+        venv / "bin/python",
+        "--editable",
+        str(repo_root / "configs/claude/scripts/manifest_model_policy"),
+    )
+    return venv / "bin/python"
 
 
 def _recorder_runtime_home(tmp_path: Path) -> tuple[Path, Path, Path]:

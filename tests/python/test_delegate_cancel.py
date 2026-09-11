@@ -10,7 +10,6 @@ cancelled job's orphan). Shared harness lives in _delegate_harness.py.
 import json
 import os
 import subprocess
-import sys
 import time
 
 from _delegate_harness import (
@@ -20,6 +19,7 @@ from _delegate_harness import (
     _materialize_workspace,
     _run,
     _spawn_orphan_holding_backend_lock,
+    _trusted_python,
 )
 
 
@@ -122,7 +122,7 @@ class TestForegroundOwnership:
             }
         )
         proc = subprocess.Popen(
-            [sys.executable, str(SCRIPT_PATH), "task", "--json", "hi"],
+            [str(_trusted_python()), str(SCRIPT_PATH), "task", "--json", "hi"],
             env=env,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -176,7 +176,7 @@ class TestForegroundCancelSafety:
             }
         )
         proc = subprocess.Popen(
-            [sys.executable, str(SCRIPT_PATH), "task", "--json", "hi"],
+            [str(_trusted_python()), str(SCRIPT_PATH), "task", "--json", "hi"],
             env=env,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,

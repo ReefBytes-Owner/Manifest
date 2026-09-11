@@ -5,6 +5,7 @@ Every test here drives the executable trust gate through a real subprocess: the
 gate runs at import time, so an in-process call would skip it entirely.
 """
 
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -109,6 +110,32 @@ def test_editable_policy_outside_the_trusted_home_is_rejected(tmp_path: Path) ->
     assert "Delegate tasks/reviews" not in result.stdout
 
 
+def _resolved_import_origin(python: Path) -> subprocess.CompletedProcess[str]:
+    """Where `python` would actually import `manifest_model_policy` from.
+
+    `PYTHONPATH` dropped: `test.python`'s own honest env (Correction 9) points
+    it at the CANDIDATE's own manifest_model_policy so in-process checks
+    import the code under test -- inherited unchanged here, it would shadow
+    the throwaway venv's own site-packages ahead of every `.pth` a test just
+    wrote, making a "did it import from the trusted tree" precondition pass
+    for the wrong reason regardless of which distribution the venv trusts.
+    """
+    env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
+    return subprocess.run(
+        [
+            str(python),
+            "-c",
+            "import importlib.util, pathlib; "
+            "print(pathlib.Path("
+            "importlib.util.find_spec('manifest_model_policy').origin).resolve())",
+        ],
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
 def test_editable_metadata_must_name_the_path_it_imports_from(tmp_path: Path) -> None:
     """A trusted import path cannot launder metadata that points somewhere else.
 
@@ -134,18 +161,7 @@ def test_editable_metadata_must_name_the_path_it_imports_from(tmp_path: Path) ->
     (_site_packages(python) / "_a_trusted_scripts.pth").write_text(
         f"{home / '.claude/scripts'}\n", encoding="utf-8"
     )
-    origin = subprocess.run(
-        [
-            str(python),
-            "-c",
-            "import importlib.util, pathlib; "
-            "print(pathlib.Path("
-            "importlib.util.find_spec('manifest_model_policy').origin).resolve())",
-        ],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    origin = _resolved_import_origin(python)
     assert origin.returncode == 0, origin.stderr
     assert Path(origin.stdout.strip()).is_relative_to(home), (
         "precondition failed: the import did not resolve to the trusted tree, "
