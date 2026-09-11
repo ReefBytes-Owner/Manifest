@@ -4,11 +4,9 @@ Network is permitted here, and only here -- `manifest check` never calls into
 this module. Every download goes through an injectable `Fetcher` callable so
 tests drive real code paths with local fixture bytes and never touch the
 network (mirrors the seam `tools/project_checks/ci_context.py` uses for
-`fetch_jobs`).
-
-Store writes are serialized with the same `fcntl.flock` primitive
-`preparation.py` already uses, so two concurrent `manifest provision`
-invocations cannot interleave a torn `manifest.json`.
+`fetch_jobs`). Store writes are serialized with the same `fcntl.flock`
+primitive `preparation.py` already uses, so two concurrent `manifest
+provision` invocations cannot interleave a torn `manifest.json`.
 """
 
 from __future__ import annotations
@@ -23,7 +21,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import toolchain
+from . import toolchain, toolchain_npm_cache
 from . import toolchain_materialize as materialize
 
 Fetcher = Callable[[str], bytes]
@@ -411,12 +409,9 @@ def provision(
     repo_root: Path | None = None,
     env: Mapping[str, str] | None = None,
 ) -> list[ProvisionOutcome]:
-    """Provision every (or `only`-selected) lock tool for `platform`.
-
-    Binary bundles provision before python-env/node-env ones regardless of
-    the lock's key order: `uv` and `node` must already be in the store
-    before a `python-env`/`node-env` materialization can resolve them.
-    """
+    """Provision every (or `only`-selected) lock tool/cache for `platform`;
+    binaries provision first so `python-env`/`node-env`/`caches.*` can
+    resolve `uv`/`node`, regardless of the lock's own key order."""
     ctx = ProvisionContext(
         store,
         lock,
@@ -446,4 +441,9 @@ def provision(
             outcomes.append(_provision_env_entry(ctx, bundle, entry))
         else:
             outcomes.append(_provision_binary_entry(ctx, bundle, entry))
+    outcomes.extend(  # caches.* (Correction 10 rule 2)
+        ProvisionOutcome(bundle, *toolchain_npm_cache.provision(ctx, bundle))
+        for bundle in (lock.get("caches") or {})
+        if only is None or bundle in only
+    )
     return outcomes

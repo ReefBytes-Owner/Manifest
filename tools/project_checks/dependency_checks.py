@@ -29,7 +29,7 @@ _SRC = _REPO_ROOT / "src"
 if str(_SRC) not in sys.path:
     sys.path.insert(0, str(_SRC))
 
-from manifest_agent.checks import debt  # noqa: E402
+from manifest_agent.checks import debt, toolchain, toolchain_npm_cache  # noqa: E402
 
 try:
     from tools.project_checks import toolchain_resolve
@@ -222,9 +222,22 @@ def _node(root: Path) -> tuple[str, dict[str, str]]:
         raise BlockedError(str(error)) from error
 
 
+def _node_cache(root: Path) -> str:
+    """The verified `node-cache` directory's path -- never `~/.npm`, never
+    online (phase-3-5-decisions.md Correction 10, rule 2). BLOCKs with the
+    precise reason (unattested, not provisioned, stale, or a digest
+    mismatch) rather than ever falling back to the runner's empty per-run
+    cache dir, which is what produced the `ENOTCACHED` this replaces."""
+    outcome = toolchain_npm_cache.resolve_for_check(root)
+    if isinstance(outcome, toolchain.BlockedReason):
+        raise BlockedError(outcome.reason)
+    return str(outcome.directory)
+
+
 def _node_runtime(root: Path, output: Path) -> int:
     npm, npm_env = _npm(root)
     node, node_env = _node(root)
+    npm_env = {**npm_env, "npm_config_cache": _node_cache(root)}
     project = _isolated_bundle_copy(root, output)
     install = _run([npm, "ci", "--ignore-scripts", "--offline"], project, npm_env)
     diagnostic = _emit(install)

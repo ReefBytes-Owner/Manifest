@@ -22,6 +22,16 @@
           "$ref": "#/$defs/toolEntry"
         }
       }
+    },
+    "caches": {
+      "description": "Store-provisioned, hash-anchored content caches (Correction 10, rule 2) -- distinct from `tools`: a cache entry names no executable, so `toolchain.resolve()` never touches it; `toolchain_npm_cache.resolve()` is its own verifier.",
+      "type": "object",
+      "additionalProperties": false,
+      "patternProperties": {
+        "^[A-Za-z0-9][A-Za-z0-9._-]*$": {
+          "$ref": "#/$defs/cacheEntry"
+        }
+      }
     }
   },
   "$defs": {
@@ -62,6 +72,40 @@
           "patternProperties": {
             "^[a-z0-9]+-[a-z0-9]+$": {
               "$ref": "#/$defs/platformEntry"
+            }
+          }
+        }
+      }
+    },
+    "cacheEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_sha256",
+        "platforms"
+      ],
+      "properties": {
+        "source_sha256": {
+          "$ref": "#/$defs/sha256OrNull",
+          "description": "sha256 of the exact package-lock.json bytes this cache was primed from; a check compares the CANDIDATE's own copy against this before trusting the cache (`toolchain_npm_cache.resolve`)."
+        },
+        "platforms": {
+          "type": "object",
+          "additionalProperties": false,
+          "minProperties": 1,
+          "patternProperties": {
+            "^[a-z0-9]+-[a-z0-9]+$": {
+              "type": [
+                "object",
+                "null"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "digest": {
+                  "$ref": "#/$defs/sha256OrNull",
+                  "description": "sha256 over the sorted set of the materialized npm cache's own `_cacache/index-v5` entry paths; null is unattested and must resolve to BLOCKED."
+                }
+              }
             }
           }
         }
