@@ -225,7 +225,7 @@
       "platforms": {
         "linux-x64": {
           "url": "file://configs/claude/uv.lock",
-          "sha256": "cceed04d9fc7bda097f0c72d809f984873e08eec86eac1c74be953cbc787798e",
+          "sha256": "11b3b09e1670ab758e18fec8619d6413374b6a2b8e207d646a8a9a7e9d3c4056",
           "exe_sha256": null,
           "path_in_archive": ".",
           "console_scripts": [
@@ -234,8 +234,8 @@
         },
         "darwin-arm64": {
           "url": "file://configs/claude/uv.lock",
-          "sha256": "cceed04d9fc7bda097f0c72d809f984873e08eec86eac1c74be953cbc787798e",
-          "exe_sha256": "5e7a7f060c1afa6d0481a2cbebecf9d71fce49deaa9f36d9bd90e4203663503c",
+          "sha256": "11b3b09e1670ab758e18fec8619d6413374b6a2b8e207d646a8a9a7e9d3c4056",
+          "exe_sha256": "1d29b8099e3054ece8a960f9797e627740a36de5e43c30e7d4156cb60cc5e7ec",
           "path_in_archive": ".",
           "console_scripts": [
             "bin/manifest"

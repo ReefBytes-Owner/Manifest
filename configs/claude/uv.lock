@@ -1278,7 +1278,7 @@ wheels = [
 [[package]]
 name = "manifest-model-policy"
 version = "0.1.0"
-source = { editable = "scripts/manifest_model_policy" }
+source = { directory = "scripts/manifest_model_policy" }
 dependencies = [
     { name = "pyyaml" },
 ]
@@ -1321,7 +1321,7 @@ requires-dist = [
     { name = "google-auth", specifier = ">=2.0.0" },
     { name = "google-genai", marker = "python_full_version >= '3.9'", specifier = ">=1.0.0" },
     { name = "google-generativeai", specifier = ">=0.8.0" },
-    { name = "manifest-model-policy", editable = "scripts/manifest_model_policy" },
+    { name = "manifest-model-policy", directory = "scripts/manifest_model_policy" },
     { name = "pyyaml", specifier = ">=6.0.1" },
     { name = "rich", specifier = ">=13.0.0" },
 ]
