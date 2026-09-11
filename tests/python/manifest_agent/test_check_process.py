@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import errno
 import os
 import signal
@@ -167,7 +168,18 @@ def _spawn_cancellation_worker(tmp_path: Path) -> subprocess.Popen:
         (str(Path(__file__).parents[3] / "src"), *sys.path)
     )
     return subprocess.Popen(
-        (sys.executable, str(tmp_path / "worker.py")), cwd=tmp_path, env=environment
+        (sys.executable, str(tmp_path / "worker.py")),
+        cwd=tmp_path,
+        env=environment,
+        # Correction 15 rule 4: `manifest check` bodies run under the
+        # runner with SIGINT ignored (SIG_IGN, inherited from the
+        # start_new_session'd process that launched the whole check tree --
+        # ignored dispositions, unlike caught ones, survive exec). This
+        # fixture's own `process.send_signal(SIGINT)` below needs the
+        # *worker* to actually raise KeyboardInterrupt regardless of what
+        # its own ancestry did, so reset SIGINT to its default disposition
+        # in the worker itself rather than depend on the ambient one.
+        preexec_fn=lambda: signal.signal(signal.SIGINT, signal.SIG_DFL),
     )
 
 
@@ -177,24 +189,44 @@ def test_cancellation_reaps_process_family_and_emits_no_success_receipt(tmp_path
     forked grandchild included) and never leave a success receipt behind."""
     _write_cancellation_fixture(tmp_path)
     process = _spawn_cancellation_worker(tmp_path)
-    deadline = time.monotonic() + 3
-    while (
-        not all((tmp_path / name).exists() for name in ("parent.pid", "child.pid"))
-        and time.monotonic() < deadline
-    ):
-        time.sleep(0.01)
-    parent_pid = int((tmp_path / "parent.pid").read_text())
-    child_pid = int((tmp_path / "child.pid").read_text())
-    assert parent_pid != child_pid
+    parent_pid = child_pid = None
+    try:
+        deadline = time.monotonic() + 3
+        while (
+            not all((tmp_path / name).exists() for name in ("parent.pid", "child.pid"))
+            and time.monotonic() < deadline
+        ):
+            time.sleep(0.01)
+        parent_pid = int((tmp_path / "parent.pid").read_text())
+        child_pid = int((tmp_path / "child.pid").read_text())
+        assert parent_pid != child_pid
 
-    process.send_signal(signal.SIGINT)
-    # 30s = ~3x the 10.05s SIGINT-to-reap measured under full-suite load (2026-09-11).
-    assert process.wait(timeout=30) == 0
+        process.send_signal(signal.SIGINT)
+        # 30s = ~3x the 10.05s SIGINT-to-reap measured under full-suite load
+        # (2026-09-11).
+        assert process.wait(timeout=30) == 0
 
-    assert (tmp_path / "cancelled").read_text() == "yes"
-    assert not (tmp_path / "success-receipt").exists()
-    assert not _pid_exists(parent_pid)
-    assert not _pid_exists(child_pid)
+        assert (tmp_path / "cancelled").read_text() == "yes"
+        assert not (tmp_path / "success-receipt").exists()
+        assert not _pid_exists(parent_pid)
+        assert not _pid_exists(child_pid)
+    finally:
+        # Reap on every exit path (Correction 15 rule 4), not only the
+        # happy path above: an assertion failure or timeout before this
+        # point must never leave the worker, `checker.py` (its own
+        # process-group leader, spawned via run_argv's start_new_session),
+        # or the forked grandchild (a bounded 600s poller -- C7o rule 2)
+        # running past the test.
+        if process.poll() is None:
+            process.kill()
+            process.wait(timeout=5)
+        for pid in (parent_pid, child_pid):
+            if pid is None:
+                continue
+            # Already reaped by the happy path or the worker's own SIGTERM
+            # handler above -- ESRCH here means cleanup, not a leak.
+            with contextlib.suppress(OSError):
+                os.kill(pid, signal.SIGKILL)
 
 
 def test_unsupported_process_group_lifecycle_is_observable_and_does_not_spawn(

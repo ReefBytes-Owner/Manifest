@@ -1,4 +1,17 @@
-"""Bounded argv execution with an explicit environment and process-group cleanup."""
+"""Bounded argv execution with an explicit environment and process-group cleanup.
+
+Check bodies spawned through ``run_argv`` are not SIGINT-interruptible by
+design: ``start_new_session=True`` detaches each body into its own session,
+and whatever launched the whole check tree may itself run with SIGINT
+ignored (SIG_IGN survives exec, unlike a caught handler, so an ignoring
+ancestor's disposition propagates all the way down). Cancellation therefore
+never relies on SIGINT reaching a body -- ``_cleanup`` below always drives it
+through SIGTERM, then SIGKILL, against the whole process group. A caller
+that needs to prove SIGINT semantics for its OWN spawned process (as
+``tests/python/manifest_agent/test_check_process.py``'s cancellation test
+does) must reset SIGINT to its default disposition in that process itself
+(``preexec_fn``), not assume the ambient one.
+"""
 
 from __future__ import annotations
 
