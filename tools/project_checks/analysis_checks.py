@@ -1,13 +1,20 @@
 """Project check bodies for ``types.python`` (pyright) and ``security.semgrep``.
 
-Both scan the CANDIDATE tree only (no base-tree double-scan): these are
-brand-new controls introduced by this chunk, so there is no historical
-``F_base`` worth diffing against -- every finding is evaluated against
-``config/debt-baseline.json`` directly (``debt.py``'s five verdict rules
-still apply; see the module docstring of ``debt.py``). Compare
-``debt_checks.py``, which DOES need the base-tree diff because
-``debt.constitution``/``debt.bundle-links`` replace an EXISTING count
-baseline with real history behind it.
+Both scan the candidate tree AND the protected base tree (``debt.
+materialize_base_tree``), exactly like ``debt_checks.py``'s
+``debt.constitution``/``debt.bundle-links`` (phase-3-5-decisions.md
+Correction 10, rule 1). An earlier version of this module scanned the
+candidate only and hard-coded ``findings_base=[]``, on the theory that a
+brand-new control has no history worth diffing against -- that was wrong:
+with no base findings, EVERY finding on the candidate looks like "new
+debt", including pre-existing findings in files no chunk ever touched (a
+whack-a-mole symptom: the "new debt" line kept relocating to a different
+untouched file after each fix, because fixing the file pyright happened to
+report first just exposed the next one). The base run resolves the SAME
+scanner executable, from the SAME store, via ONE ``resolve_scanner()`` call
+shared by both scans -- never re-resolved per tree -- so a candidate finding
+is only "new" if the identical tool, run against the base tree's own copy
+of the same file, does not already report it.
 
 Both scanners are resolved from the hash-verified toolchain store
 (``manifest_agent.checks.toolchain.resolve``), never ``PATH`` -- this check's
@@ -26,6 +33,7 @@ import argparse
 import ast
 import json
 import os
+import shutil
 import subprocess
 import sys
 from datetime import date
@@ -137,10 +145,9 @@ def python_anchor(path: Path, line: int) -> str:
     return best_name
 
 
-def _pyright_findings(root: Path) -> list[debt.RawFinding]:
+def _pyright_findings(root: Path, exe: Path, path_env: str) -> list[debt.RawFinding]:
     if not (root / "pyrightconfig.json").is_file():
-        raise Blocked("pyrightconfig.json is missing")
-    exe, path_env = resolve_scanner("types.python", root)
+        raise Blocked(f"pyrightconfig.json is missing in {root}")
     result = _run_scanner([str(exe), "--outputjson"], root, path_env, "pyright")
     if result.returncode not in (0, 1):
         raise Blocked(f"pyright exited {result.returncode}: {result.stderr[:500]}")
@@ -184,10 +191,9 @@ def _semgrep_argv(executable: str) -> list[str]:
     ]
 
 
-def _semgrep_findings(root: Path) -> list[debt.RawFinding]:
+def _semgrep_findings(root: Path, exe: Path, path_env: str) -> list[debt.RawFinding]:
     if not (root / SEMGREP_CONFIG).is_file():
-        raise Blocked(f"{SEMGREP_CONFIG} is missing")
-    exe, path_env = resolve_scanner("security.semgrep", root)
+        raise Blocked(f"{SEMGREP_CONFIG} is missing in {root}")
     argv = _semgrep_argv(str(exe))
     result = _run_scanner(argv, root, path_env, "semgrep")
     if result.returncode not in (0, 1):
@@ -216,6 +222,19 @@ def _semgrep_findings(root: Path) -> list[debt.RawFinding]:
 
 
 _COLLECT = {"types.python": _pyright_findings, "security.semgrep": _semgrep_findings}
+_REQUIRED_CONFIG = {
+    "types.python": "pyrightconfig.json",
+    "security.semgrep": SEMGREP_CONFIG,
+}
+
+
+def _require_config(check_id: str, root: Path) -> None:
+    """The candidate's own config precondition, checked BEFORE store
+    resolution -- a candidate missing e.g. ``pyrightconfig.json`` must BLOCK
+    with that reason, not a toolchain-lock lookup its scan never needed."""
+    relative = _REQUIRED_CONFIG[check_id]
+    if not (root / relative).is_file():
+        raise Blocked(f"{relative} is missing")
 
 
 def _load_baseline(path: Path) -> debt.Baseline:
@@ -225,12 +244,44 @@ def _load_baseline(path: Path) -> debt.Baseline:
         raise Blocked(f"invalid baseline at {path}: {error}") from error
 
 
+def _materialize_base(root: Path, base_sha_override: str | None) -> Path:
+    base_sha = _base_sha(root, base_sha_override)
+    try:
+        return debt.materialize_base_tree(root, base_sha)
+    except debt.BaseUnavailableError as error:
+        raise Blocked(str(error)) from error
+
+
+def _collect_pair(
+    check_id: str, root: Path, args: argparse.Namespace
+) -> tuple[list[debt.RawFinding], list[debt.RawFinding]]:
+    """Scan the candidate, THEN the base tree, with the SAME resolved
+    scanner (one ``resolve_scanner`` call, reused for both runs) -- see the
+    module docstring: a base run resolved separately, or resolved against
+    the base tree's own (possibly absent) toolchain lock, would make every
+    candidate finding look new for reasons that have nothing to do with the
+    candidate's own code. Candidate-side preconditions (e.g. a missing
+    ``pyrightconfig.json``) surface before the base tree is ever
+    materialized, so a candidate-only defect BLOCKs with its own reason,
+    not a base-sha lookup the candidate scan never needed."""
+    _require_config(check_id, root)
+    exe, path_env = resolve_scanner(check_id, root)
+    collect = _COLLECT[check_id]
+    findings_cand = collect(root, exe, path_env)
+    base_root = _materialize_base(root, args.base_sha)
+    try:
+        findings_base = collect(base_root, exe, path_env)
+    finally:
+        shutil.rmtree(base_root, ignore_errors=True)
+    return findings_cand, findings_base
+
+
 def _evaluate(check_id: str, root: Path, args: argparse.Namespace) -> debt.DebtReport:
-    findings = _COLLECT[check_id](root)
+    findings_cand, findings_base = _collect_pair(check_id, root, args)
     baseline_cand = _load_baseline(root / args.baseline)
     inputs = debt.EvaluationInputs(
-        findings_cand=findings,
-        findings_base=[],
+        findings_cand=findings_cand,
+        findings_base=findings_base,
         baseline_cand=baseline_cand,
         baseline_base=debt.Baseline(),
         today=date.today(),
@@ -241,12 +292,12 @@ def _evaluate(check_id: str, root: Path, args: argparse.Namespace) -> debt.DebtR
 
 
 def _propose(check_id: str, root: Path, args: argparse.Namespace) -> int:
-    findings = _COLLECT[check_id](root)
-    existing = _load_baseline(root / args.baseline)
+    findings, findings_base = _collect_pair(check_id, root, args)
     base_sha = _base_sha(root, args.base_sha)
+    existing = _load_baseline(root / args.baseline)
     inputs = debt.ProposalInputs(
         findings_cand=findings,
-        findings_base=[],
+        findings_base=findings_base,
         existing_cand=existing,
         repo_root=root,
         base_sha=base_sha,

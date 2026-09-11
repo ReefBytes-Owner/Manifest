@@ -91,7 +91,25 @@ def _fake_store(store: Path, bundle: str, relative: str, script_body: str) -> di
     return lock
 
 
-def _init_repo(root: Path, extra_setup=None) -> None:
+def _head(root: Path) -> str:
+    return subprocess.run(
+        ["git", "-C", str(root), "rev-parse", "HEAD"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+
+
+def _commit_all(root: Path, message: str) -> str:
+    subprocess.run(["git", "-C", str(root), "add", "-A"], check=True)
+    subprocess.run(
+        ["git", "-C", str(root), "commit", "--quiet", "-m", message], check=True
+    )
+    return _head(root)
+
+
+def _init_repo(root: Path, extra_setup=None) -> str:
+    """One commit ("base"); returns its sha (also HEAD)."""
     root.mkdir(parents=True, exist_ok=True)
     (root / "config").mkdir()
     (root / "config" / "debt-baseline.json").write_text(
@@ -104,10 +122,7 @@ def _init_repo(root: Path, extra_setup=None) -> None:
     subprocess.run(["git", "-C", str(root), "config", "user.name", "T"], check=True)
     if extra_setup:
         extra_setup(root)
-    subprocess.run(["git", "-C", str(root), "add", "-A"], check=True)
-    subprocess.run(
-        ["git", "-C", str(root), "commit", "--quiet", "-m", "base"], check=True
-    )
+    return _commit_all(root, "base")
 
 
 def _run(
@@ -161,18 +176,23 @@ def test_types_python_missing_pyrightconfig_is_blocked(tmp_path):
 # --- fake-scanner path: exercises the real body end to end -----------------
 
 
-def _fake_pyright_with_error(
-    root: Path, relative_path: str, line0: int, message: str
-) -> str:
-    """A fake pyright script with the candidate root baked into its source at
-    fixture-build time (never via the child's env: `_run_scanner` builds a
-    deliberately minimal env -- `PATH`/`LC_ALL`/`LANG` only -- matching what
-    the real body actually hands a resolved scanner)."""
+def _fake_pyright_with_error(relative_path: str, line0: int, message: str) -> str:
+    """A fake pyright script that reads its target file's absolute path from
+    `os.getcwd()` at RUN time, never a path baked in at fixture-build time:
+    the real body always invokes the resolved scanner with `cwd=<the tree
+    being scanned>` (`_run_scanner`), and a base-tree run must see the same
+    finding-shaped output a candidate-tree run would -- exactly the
+    behaviour this fixture needs to exercise the base-tree diff (Correction
+    10, rule 1), not just the candidate-only path the fixture used to prove
+    before that diff existed. `_run_scanner`'s child env is otherwise
+    minimal -- `PATH`/`LC_ALL`/`LANG` only -- matching what the real body
+    actually hands a resolved scanner.
+    """
     payload = json.dumps(
         {
             "generalDiagnostics": [
                 {
-                    "file": str(root / relative_path),
+                    "file": "__FILE__",
                     "severity": "error",
                     "message": message,
                     "range": {"start": {"line": line0, "character": 0}},
@@ -180,10 +200,17 @@ def _fake_pyright_with_error(
             ]
         }
     )
-    return f"print({payload!r})\n"
+    return (
+        "import json, os\n"
+        f"payload = json.loads({payload!r}.replace("
+        f"'__FILE__', os.path.join(os.getcwd(), {relative_path!r})))\n"
+        "print(json.dumps(payload))\n"
+    )
 
 
-def _pyright_fixture_repo(tmp_path: Path) -> tuple[Path, str]:
+def _pyright_fixture_repo(tmp_path: Path) -> tuple[Path, str, str]:
+    """One commit; the fixture file and its bug are present from the start
+    -- used where base == candidate (an UNCHANGED file across both trees)."""
     root = tmp_path / "repo"
     target_relpath = "tests/fixtures/types/pkg_b.py"
     fixture = REPO_ROOT / target_relpath
@@ -194,33 +221,56 @@ def _pyright_fixture_repo(tmp_path: Path) -> tuple[Path, str]:
         dest.parent.mkdir(parents=True)
         dest.write_text(fixture.read_text())
 
-    _init_repo(root, setup)
-    return root, target_relpath
+    head = _init_repo(root, setup)
+    return root, target_relpath, head
 
 
-def _pyright_fixture_with_error(tmp_path: Path) -> tuple[Path, Path, str]:
-    """A candidate repo, a fake store, and the target's repo-relative path --
-    the fake pyright reports one error on line 15 (1-based) of the real
-    `tests/fixtures/types/pkg_b.py` fixture (`use()`'s
-    `return double(get_value())`; pyright itself reports 0-based lines)."""
-    root, target_relpath = _pyright_fixture_repo(tmp_path)
+def _pyright_fixture_repo_new_file(tmp_path: Path) -> tuple[Path, str, str]:
+    """Two commits: `base` has only `pyrightconfig.json` (no target file);
+    a second commit ADDS `tests/fixtures/types/pkg_b.py` -- a genuinely new
+    file the base tree never saw, so a finding in it is genuinely new debt,
+    not an artifact of an empty base scan (Correction 10, rule 1)."""
+    root = tmp_path / "repo"
+    target_relpath = "tests/fixtures/types/pkg_b.py"
+    fixture = REPO_ROOT / target_relpath
+    base_sha = _init_repo(root, lambda r: (r / "pyrightconfig.json").write_text("{}"))
+    dest = root / target_relpath
+    dest.parent.mkdir(parents=True)
+    dest.write_text(fixture.read_text())
+    _commit_all(root, "add pkg_b.py")
+    return root, target_relpath, base_sha
+
+
+def _pyright_fixture_with_error(
+    tmp_path: Path, repo_builder=_pyright_fixture_repo_new_file
+) -> tuple[Path, Path, str, str]:
+    """A candidate repo, a fake store, the target's repo-relative path, and
+    the base sha `repo_builder` produced -- the fake pyright reports one
+    error on line 15 (1-based) of the real `tests/fixtures/types/pkg_b.py`
+    fixture (`use()`'s `return double(get_value())`; pyright itself reports
+    0-based lines)."""
+    root, target_relpath, base_sha = repo_builder(tmp_path)
     store = tmp_path / "store"
-    script = _fake_pyright_with_error(
-        root, target_relpath, 14, "Argument type mismatch"
-    )
+    script = _fake_pyright_with_error(target_relpath, 14, "Argument type mismatch")
     lock = _fake_store(store, "node-env", "bin/pyright", script)
     (root / "config" / "toolchain.lock.json").write_text(json.dumps(lock))
-    return root, store, target_relpath
+    return root, store, target_relpath, base_sha
 
 
 def test_types_python_reports_fail_and_computes_python_anchor(tmp_path):
     """Real body, faked pyright binary AND a matching lock (so store
     resolution succeeds) -- proves subprocess invocation, JSON parsing, and
     anchor computation against the real `tests/fixtures/types/` cross-package
-    fixture, not a mock of `analysis_checks.py` itself."""
-    root, store, target_relpath = _pyright_fixture_with_error(tmp_path)
+    fixture, not a mock of `analysis_checks.py` itself. The base tree here
+    never contained `pkg_b.py` at all, so this finding is genuinely new."""
+    root, store, target_relpath, base_sha = _pyright_fixture_with_error(tmp_path)
     result = _run(
-        root, "types.python", "--json", env={"MANIFEST_TOOLCHAIN_STORE": str(store)}
+        root,
+        "types.python",
+        "--json",
+        "--base-sha",
+        base_sha,
+        env={"MANIFEST_TOOLCHAIN_STORE": str(store)},
     )
     assert result.returncode == 2, result.stderr
     payload = json.loads(result.stdout)
@@ -231,29 +281,54 @@ def test_types_python_reports_fail_and_computes_python_anchor(tmp_path):
     assert fail["reason"] == "new debt"
 
 
+def test_types_python_unchanged_finding_is_not_new_debt(tmp_path):
+    """Correction 10, rule 1: an UNCHANGED file (base sha == candidate's own
+    HEAD, same content in both trees) must never yield "new debt", even
+    with a real store present and a fake scanner that genuinely reports the
+    finding on both scans -- proving the base-tree diff, not an accident of
+    an always-empty base scan, is what excuses it."""
+    root, target_relpath, head = _pyright_fixture_repo(tmp_path)
+    store = tmp_path / "store"
+    script = _fake_pyright_with_error(target_relpath, 14, "Argument type mismatch")
+    lock = _fake_store(store, "node-env", "bin/pyright", script)
+    (root / "config" / "toolchain.lock.json").write_text(json.dumps(lock))
+
+    result = _run(
+        root,
+        "types.python",
+        "--json",
+        "--base-sha",
+        head,
+        env={"MANIFEST_TOOLCHAIN_STORE": str(store)},
+    )
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout)["status"] == "PASS"
+
+
 def test_types_python_clean_scan_passes(tmp_path):
-    root, _ = _pyright_fixture_repo(tmp_path)
+    root, _, head = _pyright_fixture_repo(tmp_path)
     store = tmp_path / "store"
     script = "import json\nprint(json.dumps({'generalDiagnostics': []}))\n"
     lock = _fake_store(store, "node-env", "bin/pyright", script)
     (root / "config" / "toolchain.lock.json").write_text(json.dumps(lock))
 
-    result = _run(root, "types.python", env={"MANIFEST_TOOLCHAIN_STORE": str(store)})
+    result = _run(
+        root,
+        "types.python",
+        "--base-sha",
+        head,
+        env={"MANIFEST_TOOLCHAIN_STORE": str(store)},
+    )
     assert result.returncode == 0, result.stderr
 
 
 def test_types_python_finding_excused_by_baseline_entry_passes(tmp_path):
-    root, store, target_relpath = _pyright_fixture_with_error(tmp_path)
+    root, store, target_relpath, base_sha = _pyright_fixture_with_error(tmp_path)
     env = {"MANIFEST_TOOLCHAIN_STORE": str(store)}
-    first = _run(root, "types.python", "--json", env=env)
+    first = _run(root, "types.python", "--json", "--base-sha", base_sha, env=env)
     identity = json.loads(first.stdout)["fails"][0]["identity"]
 
-    head = subprocess.run(
-        ["git", "-C", str(root), "rev-parse", "HEAD"],
-        capture_output=True,
-        text=True,
-        check=True,
-    ).stdout.strip()
+    head = _head(root)
     entry = {
         "identity": identity,
         "check": "types.python",
@@ -268,7 +343,7 @@ def test_types_python_finding_excused_by_baseline_entry_passes(tmp_path):
     (root / "config" / "debt-baseline.json").write_text(
         json.dumps({"version": 2, "entries": [entry]})
     )
-    second = _run(root, "types.python", env=env)
+    second = _run(root, "types.python", "--base-sha", base_sha, env=env)
     assert second.returncode == 0, second.stderr
 
 
