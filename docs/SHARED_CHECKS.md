@@ -850,6 +850,63 @@ Phase 3 is the prerequisite for promoting any shared command past shadow
 status. Phase 5 separately enables protected required statuses once
 promotion has happened.
 
+## C7g: provision failure modes and one more debt-ratchet fix
+
+Two defects the controller's clean-checkout measurement of C7f caught, closed
+by C7g:
+
+1. **`tools/project_checks/packages.py` and `src/manifest_agent/checks/
+   path_filters.py` were themselves new debt** (C7f had pushed the former to
+   459/500 lines and left a 17+-line literal suffix/type table in the
+   latter). `path_filters.py`'s `VALID_PATH_TYPES` / suffix-tag table now
+   loads from `config/path-types.json` (schema-checked against
+   `config/path-types.schema.json`), and `packages.py`'s uv/build-backend
+   resolution seam — `uv()`, `build_python()`, `backend()`,
+   `build_destination()`, `revalidate_destination()`, `wheel_contains()` —
+   moved to `tools/project_checks/packages_build.py`. Neither module's own
+   `BlockedError` type forked: `packages.py` aliases it from
+   `packages_build`, so `except BlockedError` in `main()` still catches
+   both seams with one handler.
+2. **`manifest provision` must BLOCK on a missing/unreadable `file://` lock
+   source or a failed materialization subprocess, never crash.**
+   `toolchain_provision.py::_read_source_bytes` and
+   `toolchain_materialize.py`'s `_run()`/node-env project-file reads used to
+   let a raw `OSError`/`subprocess.TimeoutExpired` escape as a traceback —
+   exactly what happened on a fresh checkout before
+   `config/toolchain/package-lock.json` was committed. Every one of those
+   paths now raises a typed error the caller turns into
+   `ProvisionOutcome(bundle, "blocked", reason)`, so the CLI still exits 3
+   with the reason in the JSON report.
+   `test_every_file_url_lock_source_is_git_tracked`
+   (`tests/python/manifest_agent/test_toolchain_registry_guards.py`) asserts
+   every `file://` source `config/toolchain.lock.json` names is
+   `git ls-files --error-unmatch`-tracked, so an ignored lock source cannot
+   silently recur the way `package-lock.json` did.
+
+Also folded in from the controller's own clean-store measurement at
+`b26d1495`: `tools/project_checks/*.py` are launched exclusively as
+`python3 <path>` by the registry (never executed directly), so their
+shebang lines — stale from before that convention was enforced, and the
+reason `hook.check-shebang-scripts-are-executable` FAILed once C7f made
+candidate file modes honest — were removed rather than chmod'd +x; and
+`configs/claude/scripts/agents/orchestrator.py`'s Gemini credit-check path
+now `assert genai is not None` before use (`genai` is `ModuleType | None`
+at its `config.py` import site; `HAS_GENAI`/`HAS_GENAI_NEW` are the runtime
+guarantee pyright cannot follow across the module boundary without an
+explicit narrowing assert — never a `# type: ignore`).
+
+**Not completed in this pass** (scope beyond the above two defects):
+selector `types`/`exclude` parity for `hook.ruff`/`hook.ruff-format`/
+`hook.check-ast`/`hook.debug-statements`/`hook.shfmt`/`hook.check-yaml`/
+`hook.check-json`; `bin/npm` as a store-attested extra executable; and the
+`generated.cursor`/`hook.check-cursor-rules-drift` 20-second timeouts. A
+direct `types.python` run (`store:node-env/bin/pyright` against this
+checkout's real dependency set) also surfaced roughly 700 findings across
+files this chunk never touched — far more than the single
+`orchestrator.py:672` finding reported upstream — which needs the
+controller's own re-measurement to reconcile before anyone treats
+`types.python` as close to green.
+
 ## Related Documents
 
 - [SHARED_CHECKS_HOOKS.md](SHARED_CHECKS_HOOKS.md) — native hook adapters (`manifest hook <client> <event>`), split out here since this file is already over its line cap
