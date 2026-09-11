@@ -95,7 +95,7 @@ fail to gate anything.
 
 Append to `.github/CODEOWNERS` (exact lines to add, after the existing two rules):
 
-```
+```text
 # Phase 5 extension: policy surfaces that define or enforce what "passing" means.
 # Each line pairs the confirmed owner with a second independent reviewer so that
 # review is possible even when @RB-chrismandich authors the change.
@@ -379,3 +379,31 @@ it once the owner decides to.
   class (the ledger's running tallies); the field exists in
   `config/project-checks.json` as a dict, confirmed structurally present, but its
   per-reason breakdown was not re-tallied here.
+
+## 10. Status as of ad9931d8 (2026-09-11)
+
+Measured on a clean detached checkout with a freshly provisioned ten-bundle store,
+scratch HOME, and the honest environment; every number below is from the real
+`manifest check` runner, not from a developer venv.
+
+| Group | Result |
+|---|---|
+| structure | 16 PASS |
+| lint | 28 PASS, 16 NOT_APPLICABLE, 1 BLOCKED (`lint.markdown.keydocs`, owner) |
+| security | 1 PASS |
+| package | 8 PASS |
+| test | 5 PASS (bats 1633/1633, pytest 3608 passed / 0 failed / 19 deselected) |
+
+Zero FAIL, zero "candidate identity changed". The one BLOCKED check waits for the
+owner to confirm the pinned markdownlint action version (§8); nothing else is
+engineering-owned. Preconditions from §5 that are now met: binary tools attested for
+both platforms from the pinned release artifacts (C7); `python-env`, `node-env`,
+`project-env`, `config-env` and the npm cache provisioned from store-attested tools with
+reproducible digests (C7b, C7h, C7j, C7k, C7l-b); every preflight probes the store
+engine (C7c); bodies run under the runner's interpreter with caches, HOME and uv's
+environment redirected outside the candidate (C7d, C7o, C7k-5b); the `full` profile
+has reached PASS for everything engineering owns. Still unmet: linux-x64 attestation
+of the env bundles needs one CI provision run (§8), the `security` producers stay
+folded into `full` (Correction 1), and the aggregate and its producers still carry
+`continue-on-error: true`, so `manifest branch-protection --apply` keeps refusing by
+construction until the owner removes it (§9).
