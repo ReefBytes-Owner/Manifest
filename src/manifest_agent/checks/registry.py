@@ -366,6 +366,7 @@ def _normalize(document: dict[str, Any]) -> dict[str, Any]:
             pass_filenames=check.get("pass_filenames", check["selection"] == "changed"),
             honors_status_contract=check.get("honors_status_contract", False),
             scratch_home=check.get("scratch_home", False),
+            failure_line_regex=check.get("failure_line_regex", ""),
         )
         for check in document["checks"]
     )

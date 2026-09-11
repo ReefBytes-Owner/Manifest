@@ -281,3 +281,126 @@ def test_child_receives_only_explicit_environment_and_literal_argv(
         "present",
         "$AMBIENT_CHECK_SECRET",
     ]
+
+
+def test_failure_trailer_names_an_early_line_in_a_one_megabyte_stream(tmp_path):
+    """Correction 16 rule 1: the trailer must be built WHILE STREAMING.
+
+    The failure line is the very first thing written; a 1 MB stream after it
+    would push it out of the tail-bounded capture window entirely if the
+    trailer were built from the already-truncated result (C7p's defect).
+    """
+    from manifest_agent.checks.process import run_argv
+
+    script = tmp_path / "early-failure.py"
+    script.write_text(
+        "import sys\n"
+        "sys.stdout.write('not ok 1 something broke\\n')\n"
+        "sys.stdout.write('x' * (1024 * 1024))\n"
+        "sys.stdout.write('\\n')\n"
+    )
+
+    # subprocess-env: exempt -- synthetic tmp_path script, no manifest_agent/
+    # tools import; proves run_argv's own explicit-only env contract.
+    result = run_argv(
+        (sys.executable, str(script)),
+        cwd=tmp_path,
+        env={},
+        timeout_seconds=10,
+        failure_line_regex="^not ok ",
+    )
+
+    assert result.returncode == 0
+    assert result.stdout.rstrip().endswith(
+        "# failure summary: 1\nnot ok 1 something broke"
+    )
+
+
+def test_failure_trailer_is_zero_when_nothing_matches(tmp_path):
+    from manifest_agent.checks.process import run_argv
+
+    script = tmp_path / "all-ok.py"
+    script.write_text("import sys\nsys.stdout.write('ok 1 fine\\nok 2 fine\\n')\n")
+
+    # subprocess-env: exempt -- synthetic tmp_path script, no manifest_agent/
+    # tools import; proves run_argv's own explicit-only env contract.
+    result = run_argv(
+        (sys.executable, str(script)),
+        cwd=tmp_path,
+        env={},
+        timeout_seconds=5,
+        failure_line_regex="^not ok ",
+    )
+
+    assert result.returncode == 0
+    assert result.stdout.rstrip().endswith("# failure summary: 0")
+
+
+def test_no_trailer_when_check_declares_no_failure_line_regex(tmp_path):
+    from manifest_agent.checks.process import run_argv
+
+    script = tmp_path / "untracked.py"
+    script.write_text("import sys\nsys.stdout.write('not ok 1 whatever\\n')\n")
+
+    # subprocess-env: exempt -- synthetic tmp_path script, no manifest_agent/
+    # tools import; proves run_argv's own explicit-only env contract.
+    result = run_argv(
+        (sys.executable, str(script)), cwd=tmp_path, env={}, timeout_seconds=5
+    )
+
+    assert result.returncode == 0
+    assert "# failure summary" not in result.stdout
+
+
+def test_failure_trailer_reports_multiple_matches_in_order(tmp_path):
+    from manifest_agent.checks.process import run_argv
+
+    script = tmp_path / "multi-failure.py"
+    script.write_text(
+        "import sys\n"
+        "sys.stdout.write('not ok 1 a\\n')\n"
+        "sys.stdout.write('ok 2 b\\n')\n"
+        "sys.stdout.write('not ok 3 c\\n')\n"
+    )
+
+    # subprocess-env: exempt -- synthetic tmp_path script, no manifest_agent/
+    # tools import; proves run_argv's own explicit-only env contract.
+    result = run_argv(
+        (sys.executable, str(script)),
+        cwd=tmp_path,
+        env={},
+        timeout_seconds=5,
+        failure_line_regex="^not ok ",
+    )
+
+    assert result.stdout.rstrip().splitlines()[-3:] == [
+        "# failure summary: 2",
+        "not ok 1 a",
+        "not ok 3 c",
+    ]
+
+
+def test_timed_out_run_gets_no_failure_trailer(tmp_path):
+    """A timed-out run has no complete stream to summarize honestly."""
+    from manifest_agent.checks.process import run_argv
+
+    script = tmp_path / "hangs.py"
+    script.write_text(
+        "import sys, time\n"
+        "sys.stdout.write('not ok 1 hung\\n')\n"
+        "sys.stdout.flush()\n"
+        "time.sleep(10)\n"
+    )
+
+    # subprocess-env: exempt -- synthetic tmp_path script, no manifest_agent/
+    # tools import; proves run_argv's own explicit-only env contract.
+    result = run_argv(
+        (sys.executable, str(script)),
+        cwd=tmp_path,
+        env={},
+        timeout_seconds=0.3,
+        failure_line_regex="^not ok ",
+    )
+
+    assert result.timed_out
+    assert "# failure summary" not in result.stdout

@@ -142,6 +142,7 @@
         "pass_filenames": { "type": "boolean" },
         "honors_status_contract": { "type": "boolean" },
         "scratch_home": { "type": "boolean" },
+        "failure_line_regex": { "type": "string" },
         "include_regex": { "type": "string" },
         "exclude_regex": { "type": "string" },
         "types": { "$ref": "#/$defs/pathTypes" },

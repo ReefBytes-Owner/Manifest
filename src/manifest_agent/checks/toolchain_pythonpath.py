@@ -31,7 +31,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from . import toolchain
+from .path_filters import forwarded_paths
+
 if TYPE_CHECKING:
+    from .models import Candidate, CheckSpec
     from .toolchain import ResolvedTool
 
 _ROOT_PYTHONPATH_MEMBER = ("src",)
@@ -192,3 +196,37 @@ def resolved_env_with_path_dependencies(
     if isinstance(roots, BlockedPythonPath):
         return dict(env), roots.reason
     return with_candidate_pythonpath(env, candidate_root, roots), ""
+
+
+@dataclass(frozen=True)
+class ArgvEnvRequest:
+    """The arguments `resolve_argv_and_env` needs -- they only ever travel
+    together, one per executed check."""
+
+    check: CheckSpec
+    candidate: Candidate
+    cwd: Path
+    selected: tuple[str, ...]
+    resolved: ResolvedTool | None
+
+
+def resolve_argv_and_env(
+    request: ArgvEnvRequest, env: dict[str, str]
+) -> tuple[tuple[str, ...], dict[str, str], str]:
+    """Resolve a check's argv and environment against the toolchain store."""
+    check, candidate, cwd, selected, resolved = (
+        request.check,
+        request.candidate,
+        request.cwd,
+        request.selected,
+        request.resolved,
+    )
+    execution_paths = forwarded_paths(candidate.root, cwd, selected)
+    argv = check.argv + execution_paths if check.pass_filenames else check.argv
+    argv = toolchain.resolve_interpreter_argv(argv)
+    argv = toolchain.rewrite_argv(argv, resolved)
+    env = toolchain.resolved_env(env, resolved) if resolved is not None else env
+    env, path_error = resolved_env_with_path_dependencies(
+        candidate.root, candidate.source_root, resolved, env
+    )
+    return argv, env, path_error

@@ -13,7 +13,6 @@ from manifest_agent.process import redact_text
 
 from . import receipt as _receipt
 from . import toolchain, toolchain_pythonpath
-from .bats_trailer import with_bats_trailer
 from .candidate import CandidateBlockedError, _safe_path, _walk, git_dir_snapshot
 from .candidate_integrity import identity_error, post_run_diagnostic
 from .group_selection import guard_nonempty_group
@@ -26,7 +25,7 @@ from .models import (
     ToolKey,
     ToolOutcome,
 )
-from .path_filters import filter_inputs, forwarded_paths, has_path_filters, matches
+from .path_filters import filter_inputs, has_path_filters, matches
 from .preparation import _prepare_candidate_guarded
 from .process import ProcessResult, run_argv
 from .registry import applicable_pending, resolve_checks
@@ -56,19 +55,20 @@ def execute_check(
     selected, unavailable = _selection_outcome(check, candidate, names)
     if unavailable:
         return unavailable
-    execution_paths = forwarded_paths(candidate.root, cwd, selected)
-    argv = check.argv + execution_paths if check.pass_filenames else check.argv
-    argv = toolchain.resolve_interpreter_argv(argv)
-    argv = toolchain.rewrite_argv(argv, resolved)
-    env = toolchain.resolved_env(env, resolved) if resolved is not None else env
-    env, path_error = toolchain_pythonpath.resolved_env_with_path_dependencies(
-        candidate.root, candidate.source_root, resolved, env
+    argv, env, path_error = toolchain_pythonpath.resolve_argv_and_env(
+        toolchain_pythonpath.ArgvEnvRequest(check, candidate, cwd, selected, resolved),
+        env,
     )
     if path_error:
         return CheckResult(check.id, "BLOCKED", None, 0.0, path_error, ())
     store_before = toolchain.fingerprint_for(resolved, env)
-    result = run_argv(argv, cwd=cwd, env=env, timeout_seconds=check.timeout_seconds)
-    result = with_bats_trailer(check, result)
+    result = run_argv(
+        argv,
+        cwd=cwd,
+        env=env,
+        timeout_seconds=check.timeout_seconds,
+        failure_line_regex=check.failure_line_regex,
+    )
     diagnostic = post_run_diagnostic(
         candidate, (before, git_before), resolved, store_before, env
     )

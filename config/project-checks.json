@@ -1323,7 +1323,8 @@
       "tool": "test.bats",
       "version": "command:bats=1.11.1",
       "pass_filenames": false,
-      "scratch_home": true
+      "scratch_home": true,
+      "failure_line_regex": "^not ok "
     },
     {
       "id": "test.python",
@@ -1351,7 +1352,8 @@
       "tool": "test.python",
       "version": "distribution:pytest=9.1.1",
       "pass_filenames": false,
-      "scratch_home": true
+      "scratch_home": true,
+      "failure_line_regex": "^FAILED "
     },
     {
       "id": "test.hooks",
@@ -1377,7 +1379,8 @@
       "tool": "test.hooks",
       "version": "distribution:pytest=9.1.1",
       "pass_filenames": false,
-      "scratch_home": true
+      "scratch_home": true,
+      "failure_line_regex": "^FAILED "
     },
     {
       "id": "test.smoke.lite",
