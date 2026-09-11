@@ -25,6 +25,11 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
+from .toolchain_pth import EnvTrust, UntrustedPthError, normalized_pth_digest_line
+
+# UntrustedPthError re-exported: `toolchain.py` and tests import it from
+# here rather than reaching into the `.pth`-normalization module directly.
+
 
 class LauncherError(ValueError):
     """A console script's on-disk shape could not be read or understood."""
@@ -48,24 +53,33 @@ class BlockedReason:
     reason: str
 
 
-def distribution_set_digest(env_root: Path, kind: str) -> str:
+def distribution_set_digest(
+    env_root: Path,
+    kind: str,
+    *,
+    store: Path | None = None,
+    checkout_root: Path | None = None,
+) -> str:
     """`sha256` over the materialized distribution set of a python-env/node-env.
 
     python-env: sorted `(relative RECORD path, RECORD bytes)` over every
-    installed distribution's `*.dist-info/RECORD` file under
-    `lib/python*/site-packages/`.
+    installed distribution's `*.dist-info/RECORD` file, with every `.pth`
+    file's content normalized to a checkout/store-independent placeholder
+    (Correction 9; `store`/`checkout_root` recognize a `.pth` line pointing
+    inside the toolchain store / the provisioning checkout respectively --
+    either may be `None` when no `.pth` line needs it).
 
     node-env: `sha256` of the canonical (sorted-key, compact) JSON of
-    `node_modules/.package-lock.json`'s `"packages"` object -- every
-    installed package's resolved version and `integrity` in one document.
+    `node_modules/.package-lock.json`'s `"packages"` object.
 
-    Pure function of the files on disk: no network, no lock, no store
-    manifest. This is what makes it independently testable against a
-    hand-built fake env and what `toolchain.resolve()` re-derives on every
-    preflight to compare against the committed `exe_sha256`.
+    Pure function of on-disk bytes plus `store`/`checkout_root` (never the
+    network or the store manifest's hashes) -- independently testable and
+    what `toolchain.resolve()` re-derives on every preflight. Raises
+    `UntrustedPthError` for a `.pth` line that is not a trusted plain-path
+    shape -- callers must treat that as BLOCKED, never "not provisioned".
     """
     if kind == "python-env":
-        return _python_distribution_set_digest(env_root)
+        return _python_distribution_set_digest(env_root, store, checkout_root)
     if kind == "node-env":
         return _node_distribution_set_digest(env_root)
     raise ValueError(f"distribution_set_digest: unknown env kind {kind!r}")
@@ -77,7 +91,8 @@ def _record_line_path(line: bytes) -> bytes:
 
 def _is_location_or_time_dependent_record_line(relative_path: bytes) -> bool:
     """Whether a single `RECORD` line's path field is provably location- or
-    time-dependent metadata, never a distribution's own payload.
+    time-dependent DATA (never executed, never a distribution's own
+    payload) that must stay excluded from the digest outright.
 
     Measured by materializing `project-env`/`config-env` twice from the same
     committed lock on two different checkout paths (Correction 8, rule 1)
@@ -88,52 +103,69 @@ def _is_location_or_time_dependent_record_line(relative_path: bytes) -> bool:
 
     - `../../../bin/NAME,sha256=...,size` -- console-script launchers uv
       writes OUTSIDE site-packages, whose bytes embed an absolute,
-      store-location-dependent shebang (pre-existing exclusion).
+      store-location-dependent shebang (pre-existing exclusion). `bin/
+      python` itself is the one launcher line intentionally exempted from
+      launcher-provenance verification (Correction 3, rule 2); it is
+      excluded here too (via the `../` prefix), for the same reason -- its
+      bytes are not part of the anchor.
     - `*.dist-info/direct_url.json` -- pip/uv's record of where an editable
       install's source tree lives (`"url": "file://<checkout path>"`);
-      by definition a different absolute path on every checkout.
+      by definition a different absolute path on every checkout, and pure
+      data -- Python's site machinery never reads it.
     - `*.dist-info/uv_cache.json` -- uv's own editable-install cache
-      metadata, keyed by the same absolute source path.
-    - top-level `*.pth` files (e.g. `_editable_impl_NAME.pth`,
-      `_NAME.pth`) -- the editable-install path-configuration files
-      Python's site machinery reads at import time; their bytes are the
-      absolute checkout path, encoded as either a bare path line or an
-      `import` hook whose payload embeds it.
+      metadata, keyed by the same absolute source path; also pure data.
 
-    Keeping any of these would make the digest vary with WHERE the checkout
-    happens to live, defeating the whole point of this anchor (Correction 3,
-    rule 3: "deterministic given the same lockfile and platform"). `bin/
-    python` itself is the one launcher line intentionally exempted from
-    launcher-provenance verification (rule 2 of that same correction); it is
-    excluded here too (via the `../` prefix), for the same reason -- its
-    bytes are not part of the anchor.
+    Top-level `*.pth` files are deliberately NOT in this list (Correction 9):
+    they are executed by Python's site machinery at interpreter start (an
+    `import ...` line in a `.pth` runs code), so excluding them would leave
+    an unanchored code-execution surface inside the trusted env. They are
+    instead NORMALIZED -- see `toolchain_pth.normalized_pth_digest_line`.
     """
     if relative_path.startswith(b"../"):
         return True
     name = relative_path.rsplit(b"/", 1)[-1]
-    if name in (b"direct_url.json", b"uv_cache.json"):
-        return True
-    return name.endswith(b".pth")
+    return name in (b"direct_url.json", b"uv_cache.json")
 
 
-def _record_lines_excluding_generated_launchers(record_bytes: bytes) -> bytes:
-    """Every `RECORD` line except the location/time-dependent metadata
-    `_is_location_or_time_dependent_record_line` identifies -- never a
-    payload line. See that function's docstring for what was excluded and
-    why, and the measurement that produced the list."""
-    kept = [
-        line
-        for line in record_bytes.splitlines(keepends=True)
-        if not _is_location_or_time_dependent_record_line(_record_line_path(line))
-    ]
+def _record_lines_normalized(
+    record_bytes: bytes,
+    site_packages: Path,
+    store: Path | None,
+    checkout_root: Path | None,
+) -> bytes:
+    """Every `RECORD` line except the pure-data metadata
+    `_is_location_or_time_dependent_record_line` excludes, with each `.pth`
+    line's content replaced by its normalized, checkout/store-independent
+    form (Correction 9; `toolchain_pth.normalized_pth_digest_line`).
+    `site_packages` is the RECORD's OWN directory -- every line's path
+    field is relative to it, not to `env_root`."""
+    kept: list[bytes] = []
+    for line in record_bytes.splitlines(keepends=True):
+        relative_path = _record_line_path(line)
+        if _is_location_or_time_dependent_record_line(relative_path):
+            continue
+        if relative_path.endswith(b".pth"):
+            pth_path = site_packages / relative_path.decode("utf-8", "surrogateescape")
+            kept.append(relative_path)
+            kept.append(b"\0")
+            kept.append(normalized_pth_digest_line(pth_path, store, checkout_root))
+            kept.append(b"\n")
+        else:
+            kept.append(line)
     return b"".join(kept)
 
 
-def _python_distribution_set_digest(env_root: Path) -> str:
+def _python_distribution_set_digest(
+    env_root: Path, store: Path | None, checkout_root: Path | None
+) -> str:
     records: list[tuple[str, bytes]] = []
     for record_path in env_root.glob("lib/python*/site-packages/*.dist-info/RECORD"):
         relative = record_path.relative_to(env_root).as_posix()
-        content = _record_lines_excluding_generated_launchers(record_path.read_bytes())
+        # `record_path` is `<site-packages>/<dist>.dist-info/RECORD`.
+        site_packages = record_path.parent.parent
+        content = _record_lines_normalized(
+            record_path.read_bytes(), site_packages, store, checkout_root
+        )
         records.append((relative, content))
     records.sort(key=lambda item: item[0])
     hasher = hashlib.sha256()
@@ -314,10 +346,13 @@ def with_default_path(bin_dirs: tuple[Path, ...]) -> tuple[Path, ...]:
     )
 
 
-def _env_digest(bundle: str, exe_path: Path, kind: str, exe_sha256: str):
+def _env_digest(
+    bundle: str, exe_path: Path, kind: str, exe_sha256: str, env_trust: EnvTrust
+):
     """Steps (b): the distribution-set digest, computed and compared. Returns
-    the digest on success, or a `BlockedReason` (never provisioned / digest
-    mismatch)."""
+    the digest on success, or a `BlockedReason`: untrusted `.pth` content
+    (Correction 9) is distinct from never-provisioned -- there IS something
+    there, it just cannot be trusted -- so it is checked first."""
     # python-env console scripts sit at `<env_root>/bin/NAME` (2 segments);
     # node-env's are npm's own `<env_root>/node_modules/.bin/NAME` (3).
     env_root = (
@@ -326,7 +361,14 @@ def _env_digest(bundle: str, exe_path: Path, kind: str, exe_sha256: str):
         else exe_path.parent.parent.parent
     )
     try:
-        digest = distribution_set_digest(env_root, kind)
+        digest = distribution_set_digest(
+            env_root,
+            kind,
+            store=env_trust.store,
+            checkout_root=env_trust.checkout_root,
+        )
+    except UntrustedPthError:
+        return BlockedReason(f"toolchain: {bundle} untrusted .pth")
     except (OSError, ValueError):
         return _not_provisioned(bundle)
     if digest != exe_sha256:
@@ -351,7 +393,7 @@ def verify_env_exe(
     bundle: str,
     kind: str,
     exe_info: Mapping,
-    store: Path,
+    env_trust: EnvTrust,
     exe_sha256: str,
     node_result: ResolvedTool | BlockedReason | None,
 ):
@@ -360,8 +402,9 @@ def verify_env_exe(
     console script's bytes -- its bytes embed an absolute, store-location-
     dependent interpreter path and can never match a committed lock. Verifies
     (b) the distribution-set digest, (c) the requested console script exists,
-    and (d) its launcher resolves to somewhere inside `store` -- a launcher
-    pointing anywhere else is `digest mismatch`, same as a swapped binary.
+    and (d) its launcher resolves to somewhere inside `env_trust.store` -- a
+    launcher pointing anywhere else is `digest mismatch`, same as a swapped
+    binary.
 
     Every `node-env` console script gets the store's `store:node/bin/node`
     as its `interpreter`, unconditionally -- most of npm's own generated
@@ -374,10 +417,11 @@ def verify_env_exe(
     `toolchain.resolve()` itself, which would import this module back and
     create a cycle.
     """
+    store = env_trust.store
     exe_path = _checked_relative_path(store, exe_info.get("path", ""))
     if exe_path is None:
         return _not_provisioned(bundle)
-    digest = _env_digest(bundle, exe_path, kind, exe_sha256)
+    digest = _env_digest(bundle, exe_path, kind, exe_sha256, env_trust)
     if isinstance(digest, BlockedReason):
         return digest
     # `bin/python` is the venv interpreter itself, a symlink to the ambient

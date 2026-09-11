@@ -23,6 +23,7 @@ import platform as _platform
 import re
 import sys
 from collections.abc import Mapping
+from dataclasses import dataclass
 from pathlib import Path
 
 from . import (
@@ -240,15 +241,50 @@ def resolve(
             f"toolchain: {bundle} not provisioned (run manifest provision)"
         )
     if entry.get("kind") in ("python-env", "node-env"):
-        node_result = None
-        if entry["kind"] == "node-env" and bundle != "node":
-            node_result = resolve(
-                "store:node/bin/node", lock=lock, store=store, platform=platform
-            )
-        return toolchain_env.verify_env_exe(
-            bundle, entry["kind"], exe_info, store, exe_sha256, node_result
-        )
+        inputs = _EnvExeInputs(bundle, entry, exe_info, bundle_manifest, exe_sha256)
+        return _resolve_env_exe(inputs, lock=lock, store=store, platform=platform)
     return _verify_exe(bundle, exe_info, store, exe_sha256)
+
+
+@dataclass(frozen=True)
+class _EnvExeInputs:
+    """The `resolve()` locals its `python-env`/`node-env` branch needs
+    together, bundled so `_resolve_env_exe` stays under the parameter
+    ceiling -- these five always travel together, never independently."""
+
+    bundle: str
+    entry: Mapping
+    exe_info: Mapping
+    bundle_manifest: Mapping
+    exe_sha256: str
+
+
+def _resolve_env_exe(
+    inputs: _EnvExeInputs, *, lock: Mapping, store: Path, platform: str
+):
+    """The `python-env`/`node-env` branch of `resolve()`, split out to keep
+    `resolve()` itself under the Code Constitution's line ceiling."""
+    node_result = None
+    if inputs.entry["kind"] == "node-env" and inputs.bundle != "node":
+        node_result = resolve(
+            "store:node/bin/node", lock=lock, store=store, platform=platform
+        )
+    # `source_checkout` (Correction 9): purely location metadata `manifest
+    # provision` recorded for THIS materialization -- used only to
+    # recognize a `.pth` line pointing at it, never a security-relevant
+    # hash (see toolchain_env.EnvTrust).
+    source_checkout = inputs.bundle_manifest.get("source_checkout")
+    env_trust = toolchain_env.EnvTrust(
+        store, Path(source_checkout) if source_checkout else None
+    )
+    return toolchain_env.verify_env_exe(
+        inputs.bundle,
+        inputs.entry["kind"],
+        inputs.exe_info,
+        env_trust,
+        inputs.exe_sha256,
+        node_result,
+    )
 
 
 def _checked_relative_path(store: Path, relative_path: str) -> Path | None:

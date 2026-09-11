@@ -146,6 +146,8 @@ def _record_env_bundle(
         manifest = _load_manifest(ctx.store, ctx.lock)
         manifest["tools"][bundle] = {
             "source_sha256": source_sha256,
+            # Location metadata for `.pth` normalization (Correction 9).
+            "source_checkout": str(ctx.repo_root.resolve()),
             "executables": {
                 f"bin/{name}": {"path": relative} for name, relative in scripts.items()
             },

@@ -92,6 +92,36 @@ def _record_path(root: Path) -> Path:
     return root / "lib/python3.11/site-packages/demo_pkg-1.0.dist-info/RECORD"
 
 
+_NSPKG_CONTENT = (
+    "import sys, types, os;"
+    "p = os.path.join(sys._getframe(1).f_locals['sitedir'], *('google',));"
+    "importlib = __import__('importlib.util');"
+    "__import__('importlib.machinery');"
+    "m = sys.modules.setdefault('google', importlib.util.module_from_spec("
+    "importlib.machinery.PathFinder.find_spec('google', [os.path.dirname(p)])));"
+    "m = m or sys.modules.setdefault('google', types.ModuleType('google'));"
+    "mp = (m or []) and m.__dict__.setdefault('__path__',[]);"
+    "(p not in mp) and mp.append(p)\n"
+)
+
+
+def _nspkg_env(root: Path) -> Path:
+    """An env carrying ONLY a setuptools namespace-package `.pth` shim --
+    isolates its contribution to the digest from any other dist-info."""
+    dist_info = root / "lib/python3.11/site-packages/nspkg-1.0.dist-info"
+    _write(dist_info / "RECORD", b"google_nspkg.pth,sha256=abc,10\n")
+    _write(
+        root / "lib/python3.11/site-packages/google_nspkg.pth", _NSPKG_CONTENT.encode()
+    )
+    return root
+
+
+def _checkout_root(checkout: str) -> Path:
+    """The absolute root `_env_with_editable_metadata`'s `.pth` line embeds
+    for `checkout` -- `/checkouts/{checkout}/src`'s parent."""
+    return Path(f"/checkouts/{checkout}")
+
+
 class TestDigestExcludesLocationDependentMetadata:
     """Offline reproduction of the real-checkout RECORD diff, one shape at
     a time -- never a network call, never the real store."""
@@ -103,33 +133,58 @@ class TestDigestExcludesLocationDependentMetadata:
         root_b = tmp_path / "checkout-b" / "env"
         _env_with_editable_metadata(root_a, checkout="checkout-a")
         _env_with_editable_metadata(root_b, checkout="checkout-b")
-        assert te.distribution_set_digest(
-            root_a, "python-env"
-        ) == te.distribution_set_digest(root_b, "python-env")
+        digest_a = te.distribution_set_digest(
+            root_a, "python-env", checkout_root=_checkout_root("checkout-a")
+        )
+        digest_b = te.distribution_set_digest(
+            root_b, "python-env", checkout_root=_checkout_root("checkout-b")
+        )
+        assert digest_a == digest_b
 
     def test_direct_url_json_alone_is_excluded(self, tmp_path: Path):
         root = tmp_path / "env"
         _env_with_editable_metadata(root, checkout="one")
-        before = te.distribution_set_digest(root, "python-env")
+        checkout_root = _checkout_root("one")
+        before = te.distribution_set_digest(
+            root, "python-env", checkout_root=checkout_root
+        )
         record = _record_path(root)
         record.write_bytes(record.read_bytes().replace(b"urlone", b"urlDIFFERENT"))
-        assert te.distribution_set_digest(root, "python-env") == before
+        assert (
+            te.distribution_set_digest(root, "python-env", checkout_root=checkout_root)
+            == before
+        )
 
     def test_uv_cache_json_alone_is_excluded(self, tmp_path: Path):
         root = tmp_path / "env"
         _env_with_editable_metadata(root, checkout="one")
-        before = te.distribution_set_digest(root, "python-env")
+        checkout_root = _checkout_root("one")
+        before = te.distribution_set_digest(
+            root, "python-env", checkout_root=checkout_root
+        )
         record = _record_path(root)
         record.write_bytes(record.read_bytes().replace(b"cacheone", b"cacheDIFFERENT"))
-        assert te.distribution_set_digest(root, "python-env") == before
+        assert (
+            te.distribution_set_digest(root, "python-env", checkout_root=checkout_root)
+            == before
+        )
 
-    def test_top_level_pth_line_alone_is_excluded(self, tmp_path: Path):
+    def test_top_level_pth_record_hash_tamper_is_ignored(self, tmp_path: Path):
+        """The `.pth` file's RECORD hash/size fields are never part of the
+        digest input -- only the (normalized) file content is -- so
+        tampering just the RECORD line's own hash field changes nothing."""
         root = tmp_path / "env"
         _env_with_editable_metadata(root, checkout="one")
-        before = te.distribution_set_digest(root, "python-env")
+        checkout_root = _checkout_root("one")
+        before = te.distribution_set_digest(
+            root, "python-env", checkout_root=checkout_root
+        )
         record = _record_path(root)
         record.write_bytes(record.read_bytes().replace(b"pthone", b"pthDIFFERENT"))
-        assert te.distribution_set_digest(root, "python-env") == before
+        assert (
+            te.distribution_set_digest(root, "python-env", checkout_root=checkout_root)
+            == before
+        )
 
     def test_payload_line_tamper_still_changes_the_digest(self, tmp_path: Path):
         """Control: the exclusions above must never swallow a real payload
@@ -137,10 +192,70 @@ class TestDigestExcludesLocationDependentMetadata:
         flips the digest."""
         root = tmp_path / "env"
         _env_with_editable_metadata(root, checkout="one")
-        before = te.distribution_set_digest(root, "python-env")
+        checkout_root = _checkout_root("one")
+        before = te.distribution_set_digest(
+            root, "python-env", checkout_root=checkout_root
+        )
         record = _record_path(root)
         record.write_bytes(record.read_bytes().replace(b"sha256=abc", b"sha256=BAD"))
-        assert te.distribution_set_digest(root, "python-env") != before
+        assert (
+            te.distribution_set_digest(root, "python-env", checkout_root=checkout_root)
+            != before
+        )
+
+    def test_pth_import_line_is_untrusted(self, tmp_path: Path):
+        """Correction 9, rule 1: a `.pth` line that is not a plain existing
+        path -- e.g. an `import` hook, which Python's site machinery
+        executes at interpreter start -- must BLOCK, never silently hash to
+        a placeholder like a real path would."""
+        root = tmp_path / "env"
+        _env_with_editable_metadata(root, checkout="one")
+        pth = root / "lib/python3.11/site-packages/_demo_pkg.pth"
+        pth.write_text("import _demo_hook\n")
+        with pytest.raises(te.UntrustedPthError):
+            te.distribution_set_digest(
+                root, "python-env", checkout_root=_checkout_root("one")
+            )
+
+    def test_pth_pointing_outside_known_roots_changes_the_digest(self, tmp_path: Path):
+        """A `.pth` whose path is outside BOTH the store and the recorded
+        checkout is untrusted -- the digest it would need to match never
+        gets produced (raises), so it can never equal the attested one:
+        the attestation BLOCKs rather than silently accepting an escaped
+        `.pth`."""
+        root = tmp_path / "env"
+        _env_with_editable_metadata(root, checkout="one")
+        attested = te.distribution_set_digest(
+            root, "python-env", checkout_root=_checkout_root("one")
+        )
+        pth = root / "lib/python3.11/site-packages/_demo_pkg.pth"
+        pth.write_text("/somewhere/else/entirely\n")
+        with pytest.raises(te.UntrustedPthError):
+            te.distribution_set_digest(
+                root, "python-env", checkout_root=_checkout_root("one")
+            )
+        # No successfully-computed digest can equal the attested one if the
+        # call never returns a digest at all -- confirmed by the raise
+        # above; `attested` is retained to document the pre-tamper value.
+        assert attested
+
+    def test_setuptools_namespace_package_pth_is_trusted_verbatim(self, tmp_path: Path):
+        """A real finding from materializing `config-env` for real:
+        `google-generativeai` installs a setuptools namespace-package
+        `.pth` shim (`<dist>-<version>-<pyver>-nspkg.pth`) whose content
+        is an `import ...` line -- but it is a fixed, well-known template
+        naming no checkout or store path at all (only `sitedir`, resolved
+        at import time), so it must be trusted verbatim, not rejected as
+        an untrusted `import` hook the way an arbitrary one would be. Two
+        envs carrying the IDENTICAL shim, under different roots, must
+        digest identically -- its bytes never vary with the checkout."""
+        digest_a = te.distribution_set_digest(
+            _nspkg_env(tmp_path / "checkout-a" / "env"), "python-env"
+        )
+        digest_b = te.distribution_set_digest(
+            _nspkg_env(tmp_path / "checkout-b" / "env"), "python-env"
+        )
+        assert digest_a == digest_b
 
 
 def _provision_into(repo_root: Path, store: Path, lock: dict, platform: str) -> None:
@@ -157,7 +272,12 @@ def _provision_into(repo_root: Path, store: Path, lock: dict, platform: str) -> 
 
 def _bundle_digest(store: Path, bundle: str) -> str:
     (env_dir,) = (store / "tools" / bundle).iterdir()
-    return te.distribution_set_digest(env_dir, "python-env")
+    manifest = json.loads((store / "manifest.json").read_text())
+    source_checkout = manifest["tools"][bundle].get("source_checkout")
+    checkout_root = Path(source_checkout) if source_checkout else None
+    return te.distribution_set_digest(
+        env_dir, "python-env", store=store, checkout_root=checkout_root
+    )
 
 
 @pytest.mark.skipif(not _NETWORK, reason=_NETWORK_SKIP)
