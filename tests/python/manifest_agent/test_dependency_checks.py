@@ -1,27 +1,25 @@
 """tools/project_checks/dependency_checks.py: dependency.lock.node,
 package.node-runtime, dependency.audit.python, dependency.audit.node.
 
-npm/node/uv happen to be installed on THIS host. `dependency.lock.node` and
-`package.node-runtime` resolve `npm`/`node` from the hash-verified toolchain
-store only (C2b, phase-3-5-decisions.md Correction 2) -- every "fake tool on
-PATH" fixture below now proves the check BLOCKs and never invokes the
-impostor, rather than proving PASS/FAIL behavior driven by the fake. Real
-host `npm`/`node` are used only in
-`test_node_runtime_ignores_real_host_npm_and_node_and_blocks`, to show a
-REAL correctly-versioned tool on `PATH` is ignored too.
-`tests/fixtures/advisory/*.json` supply the stub feed responses for the two
-`dependency.audit.*` tests (unmigrated -- see `_which`), no network involved.
+npm/node/uv happen to be installed on THIS host. All four checks resolve their
+engines from the hash-verified toolchain store only. PATH-impostor fixtures
+prove missing store evidence BLOCKs before the impostor runs; advisory parser
+tests inject a store-resolver seam and use `tests/fixtures/advisory/*.json`, so
+they remain deterministic and network-free.
 """
 
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 import sys
 from pathlib import Path
 
 import pytest
+
+from tools.project_checks import dependency_checks as checks
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 SCRIPT = REPO_ROOT / "tools/project_checks/dependency_checks.py"
@@ -340,6 +338,19 @@ def _init_git(root: Path) -> None:
     )
 
 
+def _stub_audit_store(monkeypatch, bin_dir: Path) -> None:
+    by_ref = {
+        "store:uv/bin/uv": bin_dir / "uv",
+        "store:python-env/bin/pip-audit": bin_dir / "pip-audit",
+        "store:node/bin/npm": bin_dir / "npm",
+    }
+
+    def resolve_env(store_ref: str, _root: Path, _env: dict[str, str]):
+        return str(by_ref[store_ref]), {**os.environ, "PATH": str(bin_dir)}
+
+    monkeypatch.setattr(checks.toolchain_resolve, "resolve_env", resolve_env)
+
+
 def test_audit_python_blocked_when_feed_unreachable(tmp_path):
     root = tmp_path / "repo"
     _init_git(root)
@@ -360,22 +371,29 @@ def test_audit_python_blocked_when_feed_unreachable(tmp_path):
     assert "BLOCKED" in result.stderr
 
 
-def test_audit_python_reports_fail_for_unexcused_advisory(tmp_path):
+def test_audit_python_reports_fail_for_unexcused_advisory(
+    tmp_path, monkeypatch, capsys
+):
     root = tmp_path / "repo"
     _init_git(root)
     bin_dir = tmp_path / "bin"
     _fake_script(bin_dir / "uv", "raise SystemExit(0)\n")
     stub = (ADVISORY_FIXTURES / "pip-audit-stub.json").read_text()
     _fake_script(bin_dir / "pip-audit", f"print({stub!r})\nraise SystemExit(0)\n")
-    result = _run(
-        root,
-        "dependency.audit.python",
-        "--output",
-        str(tmp_path / "output"),
-        path_prepend=bin_dir,
+    _stub_audit_store(monkeypatch, bin_dir)
+
+    result = checks.main(
+        [
+            "dependency.audit.python",
+            "--root",
+            str(root),
+            "--output",
+            str(tmp_path / "output"),
+        ]
     )
-    assert result.returncode == 2, result.stderr
-    assert "PYSEC-2024-0001" in result.stderr
+
+    assert result == 2
+    assert "PYSEC-2024-0001" in capsys.readouterr().err
 
 
 def test_audit_node_blocked_when_feed_unreachable(tmp_path):
@@ -397,22 +415,27 @@ def test_audit_node_blocked_when_feed_unreachable(tmp_path):
     assert result.returncode == 3
 
 
-def test_audit_node_reports_fail_for_unexcused_advisory(tmp_path):
+def test_audit_node_reports_fail_for_unexcused_advisory(tmp_path, monkeypatch, capsys):
     root = tmp_path / "repo"
     _init_git(root)
     _node_project(root)
     bin_dir = tmp_path / "bin"
     stub = (ADVISORY_FIXTURES / "npm-audit-stub.json").read_text()
     _fake_script(bin_dir / "npm", f"print({stub!r})\nraise SystemExit(1)\n")
-    result = _run(
-        root,
-        "dependency.audit.node",
-        "--output",
-        str(tmp_path / "output"),
-        path_prepend=bin_dir,
+    _stub_audit_store(monkeypatch, bin_dir)
+
+    result = checks.main(
+        [
+            "dependency.audit.node",
+            "--root",
+            str(root),
+            "--output",
+            str(tmp_path / "output"),
+        ]
     )
-    assert result.returncode == 2, result.stderr
-    assert "GHSA-stub-0001" in result.stderr
+
+    assert result == 2
+    assert "GHSA-stub-0001" in capsys.readouterr().err
 
 
 # --- no TS project: the C5 scope-cut is data-backed, not just asserted -----

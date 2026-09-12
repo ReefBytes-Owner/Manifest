@@ -43,13 +43,6 @@ SHUTIL_WHICH_ALLOW_LIST = {
     ("structure.py", "_shell_syntax"): (
         "bash -- same always-present interpreter allow-list as above."
     ),
-    ("dependency_checks.py", "_which"): (
-        "uv/pip-audit/npm, only as the shared helper behind "
-        "dependency.audit.python/dependency.audit.node. Chunk C8 enables "
-        "those checks only in the release profile; the scheduled release "
-        "audit job provisions the attested environment first, so the runner "
-        "restricts PATH to the verified store before this lookup runs."
-    ),
     ("tool_versions.py", "_resolved_executable"): (
         "the shared version-probe adapter every check's version_argv runs "
         "through. It never opens a second, independent PATH: for store: "

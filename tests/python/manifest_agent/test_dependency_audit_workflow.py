@@ -27,6 +27,9 @@ def test_dependency_audits_run_weekly_in_release_only() -> None:
     assert "manifest check release" in run_text
     assert "--group security" in run_text
     assert '--output "${RUNNER_TEMP}/dependency-audit.json"' in run_text
+    assert "'dependency.audit.python'" in run_text
+    assert "'dependency.audit.node'" in run_text
+    assert "scheduled dependency audit did not pass" in run_text
     assert (
         job["env"]["MANIFEST_TOOLCHAIN_STORE"]
         == "${{ runner.temp }}/manifest-toolchain"

@@ -538,15 +538,15 @@ two properties so this gap cannot silently reopen: (1) every real-registry
 scripts — plus the two dormant, zero-input `hook.cargo-*` checks, pinned
 separately by `test_registry_dormant_cargo_checks_never_select_inputs`); (2)
 an AST scan of every `tools/project_checks/*.py` source file finds zero
-`shutil.which(...)` call sites outside an explicit, justified four-entry
+`shutil.which(...)` call sites outside an explicit, justified three-entry
 allow-list (`generated.py::_cursor_preflight` and
 `structure.py::_shell_syntax` — always-present `bash`/`python3`;
-`dependency_checks.py::_which` — used by the release-only
-`dependency.audit.*` bodies after the attested environment is provisioned;
 `tool_versions.py::_resolved_executable` — the shared version-probe adapter,
-which never opens a second PATH because it
-always runs inside whatever PATH the caller already restricted). A check
-body added later that imports `shutil` and calls `.which("some-new-engine")`
+which never opens a second PATH because it always runs inside whatever PATH
+the caller already restricted). Dependency audit engines now resolve directly
+through `toolchain_resolve`, not `shutil.which`.
+A check body added later that imports `shutil` and calls
+`.which("some-new-engine")`
 fails test (2) immediately, by name, without needing any registry knowledge.
 
 **C7d (`python3` means the runner's interpreter; caches redirected outside

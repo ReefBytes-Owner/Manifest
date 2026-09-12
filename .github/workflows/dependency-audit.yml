@@ -46,12 +46,35 @@ jobs:
       - name: Run release dependency audits
         run: |
           set -euo pipefail
+          set +e
           uv run manifest check release \
             --group security \
             --project-config config/project-checks.json \
             --base "${GITHUB_SHA}" \
             --json \
             --output "${RUNNER_TEMP}/dependency-audit.json"
+          set -e
+          python3 - "${RUNNER_TEMP}/dependency-audit.json" <<'PY'
+          import json
+          import sys
+
+          expected = {'dependency.audit.python', 'dependency.audit.node'}
+          with open(sys.argv[1], encoding='utf-8') as handle:
+              receipt = json.load(handle)
+          statuses = {
+              result['id']: result['status']
+              for result in receipt.get('results', [])
+              if result.get('id') in expected
+          }
+          bad = {
+              check_id: statuses.get(check_id, 'MISSING')
+              for check_id in expected
+              if statuses.get(check_id) != 'PASS'
+          }
+          if bad:
+              raise SystemExit(f'scheduled dependency audit did not pass: {bad}')
+          print(f'scheduled dependency audits passed: {statuses}')
+          PY
 
       - name: Upload dependency audit receipt
         if: always()

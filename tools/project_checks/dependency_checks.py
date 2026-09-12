@@ -7,10 +7,9 @@ body (same mechanism as ``dependency.lock.config``/``dependency.lock.delegate``,
 just pointed at the repository root) and is NOT duplicated here.
 
 The two ``dependency.audit.*`` checks transmit dependency metadata to an
-external feed (PyPI/OSV, the npm registry) -- an outstanding human decision
-(chunk C8, phase-3-5-decisions.md 3d). Their BODIES are built and registered
-here so the BLOCKED path is real and testable, but neither is wired into any
-profile; ``manifest check`` never runs them today.
+external feed (PyPI/OSV, the npm registry). Chunk C8 enables them only in the
+release profile and the scheduled audit workflow provisions their attested
+toolchain before execution.
 """
 
 from __future__ import annotations
@@ -53,11 +52,11 @@ class BlockedError(RuntimeError):
     """An offline tool, cache, feed, or source input is unavailable."""
 
 
-def _which(name: str) -> str:
-    executable = shutil.which(name)
-    if executable is None:
-        raise BlockedError(f"{name} is unavailable")
-    return executable
+def _stored_executable(store_ref: str, root: Path) -> tuple[str, dict[str, str]]:
+    try:
+        return toolchain_resolve.resolve_env(store_ref, root, dict(os.environ))
+    except toolchain_resolve.ToolchainBlocked as error:
+        raise BlockedError(str(error)) from error
 
 
 def _root(root_arg: Path) -> Path:
@@ -132,12 +131,7 @@ def _isolated_output(
 
 
 def _npm(root: Path) -> tuple[str, dict[str, str]]:
-    try:
-        return toolchain_resolve.resolve_env(
-            "store:node/bin/npm", root, dict(os.environ)
-        )
-    except toolchain_resolve.ToolchainBlocked as error:
-        raise BlockedError(str(error)) from error
+    return _stored_executable("store:node/bin/npm", root)
 
 
 def _lock_node(root: Path) -> int:
@@ -258,7 +252,7 @@ def _node_runtime(root: Path, output: Path) -> int:
 
 
 def _advisory_findings_python(root: Path, output: Path) -> list[debt.RawFinding]:
-    uv = _which("uv")
+    uv, uv_env = _stored_executable("store:uv/bin/uv", root)
     requirements = output / "requirements.txt"
     export = _run(
         [
@@ -272,13 +266,20 @@ def _advisory_findings_python(root: Path, output: Path) -> list[debt.RawFinding]
             str(requirements),
         ],
         root,
+        uv_env,
     )
     if export.returncode != 0:
         raise BlockedError(
             f"uv export prerequisites unavailable: {export.stderr[:300]}"
         )
-    pip_audit = _which("pip-audit")
-    result = _run([pip_audit, "-r", str(requirements), "--format", "json"], root)
+    pip_audit, pip_audit_env = _stored_executable(
+        "store:python-env/bin/pip-audit", root
+    )
+    result = _run(
+        [pip_audit, "-r", str(requirements), "--format", "json"],
+        root,
+        pip_audit_env,
+    )
     if result.returncode not in (0, 1):
         raise BlockedError(
             f"pip-audit feed unreachable or errored (exit {result.returncode}): "
@@ -323,8 +324,12 @@ def _installed_node_version(project: Path, name: str) -> str | None:
 
 def _advisory_findings_node(root: Path) -> list[debt.RawFinding]:
     project = _node_project(root)
-    npm = _which("npm")
-    result = _run([npm, "audit", "--omit=dev", "--audit-level=high", "--json"], project)
+    npm, npm_env = _npm(root)
+    result = _run(
+        [npm, "audit", "--omit=dev", "--audit-level=high", "--json"],
+        project,
+        npm_env,
+    )
     diagnostic = (result.stdout + result.stderr).lower()
     # npm audit legitimately exits 1 both for "vulnerabilities found" (a real
     # result) and for a network failure -- the exit code alone cannot tell
