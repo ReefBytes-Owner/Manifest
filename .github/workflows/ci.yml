@@ -300,6 +300,27 @@ jobs:
           pip install -e ./configs/claude/scripts/manifest_model_policy
           pip install -r tests/requirements-ci.txt -r tests/requirements-runtime.txt .
 
+      - name: Delegate a cgroup v2 subtree (containment tests, #740)
+        # Without this the escape tests SKIP on Linux and the job still reports
+        # green -- which is what #862 first shipped: containment code executed on
+        # no machine anywhere. /sys/fs/cgroup is root-owned, so an unprivileged
+        # runner needs a chowned subtree, the same shape a real deployment gets.
+        # Non-fatal: a runner image without cgroup v2 must not break every PR.
+        # test_linux_ci_actually_exercises_containment is what turns a missing
+        # subtree into a loud failure rather than a silent skip.
+        run: |
+          set -u
+          root=/sys/fs/cgroup
+          if [ -f "$root/cgroup.controllers" ]; then
+            sudo mkdir -p "$root/manifest-ci" || true
+            sudo chown -R "$(id -u):$(id -g)" "$root/manifest-ci" || true
+            # Delegate the controllers the child subtree needs.
+            echo "MANIFEST_CGROUP_ROOT=$root/manifest-ci" >> "$GITHUB_ENV"
+            echo "delegated $root/manifest-ci to $(id -un)"
+          else
+            echo "cgroup v2 not mounted on this runner"
+          fi
+
       - name: Run Python tests (if any exist)
         run: |
           if [ -d tests/python ] && find tests/python -name '*.py' | grep -q .; then

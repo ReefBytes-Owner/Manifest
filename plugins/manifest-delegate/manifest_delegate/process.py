@@ -10,7 +10,7 @@ import tempfile
 import threading
 from dataclasses import dataclass
 
-from . import backend, constants
+from . import backend, constants, containment
 from .process_capture import (
     DRAIN_GRACE_SECONDS,
     MAX_CAPTURED_OUTPUT_BYTES,
@@ -154,7 +154,11 @@ def _backend_preexec(job_dir):
     (async-signal-safe-ish), reports nothing (no stdio) and never raises out."""
     pgid_path = os.path.join(job_dir, BACKEND_PGID_FILENAME)
 
+    join_cgroup = containment.join_hook(job_dir)
+
     def _preexec():
+        if join_cgroup:  # before setsid: membership survives fork AND setsid
+            join_cgroup()
         os.setsid()
         fd = os.open(pgid_path, os.O_CREAT | os.O_WRONLY | os.O_TRUNC, 0o600)
         os.write(fd, str(os.getpgid(0)).encode("ascii"))
@@ -279,30 +283,6 @@ def _launch_backend(argv, transport, job_dir):
         return proc, proc.pid
 
 
-def _kill_stdout_holder(pgid, proc, job_dir):
-    """SIGKILL the descendant still holding stdout after the drain grace.
-
-    Without this, a write-capable orphan outlives its job with NO cancellation
-    path — the job becomes terminal `timeout`, which cancel/reap treat as a
-    no-op. This is the one place that can still reach it.
-
-    LIMITATION: reaches only descendants that stayed in the backend's process
-    group (the realistic runaway child). One that setsid()s into its own group
-    escapes killpg, like any daemon a subprocess can spawn; fully containing it
-    needs an OS-level lifetime boundary (Linux cgroup / PID namespace) — a
-    cross-platform design decision tracked separately, not expressible here.
-    """
-    try:
-        os.killpg(pgid, signal.SIGKILL)
-    except OSError as exc:
-        constants.err(
-            f"job dir {job_dir}: failed to kill stdout-holding descendant "
-            f"pgid {pgid}: {exc}"
-        )
-    else:
-        proc.wait()
-
-
 @dataclass
 class _Capture:
     head: _BoundedHead
@@ -364,7 +344,7 @@ def _collect_capture(entry, capture, proc, pgid, job_dir, stdout_path, timed_out
     capture.reader.join(DRAIN_GRACE_SECONDS)
     capture.stderr_reader.join(DRAIN_GRACE_SECONDS)
     if capture.reader.is_alive() or capture.stderr_reader.is_alive():
-        _kill_stdout_holder(pgid, proc, job_dir)
+        containment.kill_stdout_holder(pgid, proc, job_dir)
         timed_out = True
     head_bytes = capture.head.value()
     tail_bytes = capture.tail.value()
@@ -415,6 +395,7 @@ def _kill_pgid(store, job_id, pgid):
     """Best-effort SIGKILL of a backend process group. Shared by the cancel
     path, the reaper, and the worker's cancel-during-fork guard so there is one
     killpg call site with one error-reporting convention."""
+    containment.reap(store.job_dir(job_id))  # reaches setsid'd descendants
     try:
         os.killpg(pgid, signal.SIGKILL)
         return True
