@@ -16,8 +16,6 @@ jobs:
     name: Release dependency audits
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    env:
-      MANIFEST_TOOLCHAIN_STORE: ${{ runner.temp }}/manifest-toolchain
     steps:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
@@ -36,6 +34,8 @@ jobs:
           enable-cache: false
 
       - name: Provision attested Linux toolchain
+        env:
+          MANIFEST_TOOLCHAIN_STORE: ${{ runner.temp }}/manifest-toolchain
         run: |
           set -euo pipefail
           uv run manifest provision \
@@ -44,6 +44,8 @@ jobs:
             --json
 
       - name: Run release dependency audits
+        env:
+          MANIFEST_TOOLCHAIN_STORE: ${{ runner.temp }}/manifest-toolchain
         run: |
           set -euo pipefail
           set +e

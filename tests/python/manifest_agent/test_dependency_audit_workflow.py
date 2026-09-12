@@ -30,10 +30,16 @@ def test_dependency_audits_run_weekly_in_release_only() -> None:
     assert "'dependency.audit.python'" in run_text
     assert "'dependency.audit.node'" in run_text
     assert "scheduled dependency audit did not pass" in run_text
-    assert (
-        job["env"]["MANIFEST_TOOLCHAIN_STORE"]
-        == "${{ runner.temp }}/manifest-toolchain"
-    )
+    assert "MANIFEST_TOOLCHAIN_STORE" not in job.get("env", {})
+    store_envs = [
+        step.get("env", {}).get("MANIFEST_TOOLCHAIN_STORE")
+        for step in job["steps"]
+        if "manifest " in step.get("run", "")
+    ]
+    assert store_envs == [
+        "${{ runner.temp }}/manifest-toolchain",
+        "${{ runner.temp }}/manifest-toolchain",
+    ]
 
 
 def test_dependency_audit_receipt_is_always_uploaded() -> None:
