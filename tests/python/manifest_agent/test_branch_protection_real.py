@@ -75,6 +75,43 @@ def test_real_workflow_precondition_honestly_reflects_todays_state() -> None:
         assert aggregate_precondition.reason == ""
 
 
+def test_policy_codeowners_are_single_owner_without_placeholders() -> None:
+    """Every Phase 5 policy surface resolves to the confirmed owner."""
+    expected = {
+        "/config/",
+        "/schemas/",
+        "/src/manifest_agent/checks/",
+        "/src/manifest_agent/hooks/",
+        "/tools/project_checks/",
+        "/tools/*.py",
+        "/configs/claude/scripts/constitution/",
+        "/configs/claude/config/constitution_baseline.json",
+        "/tools/bundle_link_baseline.json",
+        "/.pre-commit-config.yaml",
+        "/.gitleaks.toml",
+        "/.gitleaksignore",
+        "/pyproject.toml",
+        "/uv.lock",
+        "/configs/claude/pyproject.toml",
+        "/configs/claude/uv.lock",
+        "/plugins/manifest-delegate/pyproject.toml",
+        "/plugins/manifest-delegate/uv.lock",
+        "/plugins/stitch-design/runtime/node/package.json",
+        "/plugins/stitch-design/runtime/node/package-lock.json",
+        "/.github/",
+        "/docs/superpowers/specs/",
+    }
+    entries = {}
+    for line in (REPO_ROOT_MARKER / ".github/CODEOWNERS").read_text().splitlines():
+        if line and not line.startswith("#"):
+            pattern, *owners = line.split()
+            entries[pattern] = owners
+
+    assert expected <= entries.keys()
+    assert all(entries[pattern] == ["@RB-chrismandich"] for pattern in expected)
+    assert all("TBD" not in owner for owners in entries.values() for owner in owners)
+
+
 def test_put_literal_confined_to_apply_protection() -> None:
     """The literal "PUT" appears in `protection.py` only inside
     `apply_protection`'s body -- the single function that may issue a write."""

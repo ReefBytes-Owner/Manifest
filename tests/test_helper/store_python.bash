@@ -21,7 +21,8 @@ store_project_env_python() {
     local index="$MANIFEST_TOOLCHAIN_STORE/manifest.json"
     [[ -f "$index" ]] || return 1
     local python_bin
-    python_bin="$(python3 - "$index" "$MANIFEST_TOOLCHAIN_STORE" << 'PY'
+    python_bin="$(
+        python3 - "$index" "$MANIFEST_TOOLCHAIN_STORE" << 'PY'
 import json
 import sys
 

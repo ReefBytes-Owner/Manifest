@@ -541,9 +541,10 @@ an AST scan of every `tools/project_checks/*.py` source file finds zero
 `shutil.which(...)` call sites outside an explicit, justified four-entry
 allow-list (`generated.py::_cursor_preflight` and
 `structure.py::_shell_syntax` — always-present `bash`/`python3`;
-`dependency_checks.py::_which` — used only by the disabled, unwired
-`dependency.audit.*` bodies (C8); `tool_versions.py::_resolved_executable` —
-the shared version-probe adapter, which never opens a second PATH because it
+`dependency_checks.py::_which` — used by the release-only
+`dependency.audit.*` bodies after the attested environment is provisioned;
+`tool_versions.py::_resolved_executable` — the shared version-probe adapter,
+which never opens a second PATH because it
 always runs inside whatever PATH the caller already restricted). A check
 body added later that imports `shutil` and calls `.which("some-new-engine")`
 fails test (2) immediately, by name, without needing any registry knowledge.
@@ -748,15 +749,14 @@ rejected by `aggregate_results`; an expired `security` receipt is rejected
 
 ## Types, source security, node runtime, dependency integrity (C5)
 
-Five new checks (`config/project-checks.json`). At the time this chunk
-landed, **none of them could PASS locally**: pyright, semgrep, and pip-audit
-were not installed, and the toolchain store was unprovisioned
-(`exe_sha256: null`, C7). `pyright` and `semgrep` are now attested for
-`darwin-arm64` via `node-env`/`python-env` (C7b) — `types.python` and
-`security.semgrep` can PASS on either supported platform once `manifest
-provision` has populated the store. `pip-audit`'s two audit checks remain
-outside the required `full` profile (C8). `hook.pyright` (PATH, unpinned) is
-removed the same change that adds `types.python`.
+Five new checks (`config/project-checks.json`). Pyright, semgrep, and
+pip-audit are pinned in the attested environment bundles. `types.python` and
+`security.semgrep` run in `full`/`release`; C8 enables the network-dependent
+`dependency.audit.python` and `dependency.audit.node` checks in `release`
+only. They remain outside `full` and `security`, and
+`.github/workflows/dependency-audit.yml` runs the release security group
+weekly after provisioning the reviewed `linux-x64` toolchain. `hook.pyright`
+(PATH, unpinned) was removed when `types.python` was added.
 
 | Rule | Tool / config | Scope | Trigger | Failure | Exception | Test |
 |---|---|---|---|---|---|---|
@@ -764,15 +764,15 @@ removed the same change that adds `types.python`.
 | Source security (Python + Bash) | `security.semgrep` → `store:python-env/bin/semgrep`, `config/semgrep/manifest.yml` (9 local rules, ≤15), `.semgrepignore` | Authored Python/Bash | `security`, `release` | ERROR-severity finding → FAIL; missing semgrep/store → BLOCKED | Reviewed, **expiring-only**, `config/debt-baseline.json` entry | `test_analysis_checks.py` (argv contains `--metrics=off`, no `p/...` config, `.semgrepignore` covers exactly the fixture dir); `tests/fixtures/semgrep/<rule-id>/{positive,negative}.*`, one hit each rule (real-semgrep-gated, skips honestly when semgrep is absent) |
 | Node runtime builds offline | `package.node-runtime` → copies the whole tracked `plugins/stitch-design` bundle into an isolated dir (never the tracked project dir), runs `npm ci --ignore-scripts --offline` and `node build.mjs --check` there — no `NODE_PATH` | `plugins/stitch-design/runtime/node` | `full`, `release` | `npm ci`/`node build.mjs --check` fails → FAIL; no offline npm cache → BLOCKED | none | `test_dependency_checks.py`: fake npm+node PASS/FAIL/BLOCKED, **plus real `npm`+`node` against a git-tracked fixture with a `file:`-only ESM dependency** (proves the isolated import resolves with zero `NODE_PATH`, and that the tracked project never gains a `node_modules`) |
 | Root/node lock integrity | `dependency.lock.root` (`uv lock --check` at repo root, reuses `packages.py::_lock`); `dependency.lock.node` (`npm ci --dry-run --ignore-scripts --offline`) | root `uv.lock`; `plugins/stitch-design/runtime/node/package-lock.json` | `full`, `release` | Lock/manifest mismatch → FAIL; no offline uv/npm cache → BLOCKED | none | `test_project_check_bodies.py::test_dependency_lock_root_check_passes_and_mismatch_fails_without_rewriting_lock` (fake `uv`, root reuses `dependency.lock.config`'s fixture pattern); `test_dependency_checks.py` |
-| Dependency advisories | `dependency.audit.python` (`uv export --frozen` → `pip-audit --format json`); `dependency.audit.node` (`npm audit --omit=dev --audit-level=high --json`) | root `uv.lock`; node project lock | **registered, not wired into any profile** (C8) | Known advisory with no valid baseline entry → FAIL `new debt`; feed unreachable → BLOCKED | Time-limited `config/debt-baseline.json` entry, `check: "advisory"`, identity from advisory ID + package + version | `test_dependency_checks.py` (stub `tests/fixtures/advisory/{pip-audit,npm-audit}-stub.json`, no network; BLOCKED-when-unreachable proven with a fake tool printing a network-error diagnostic) |
+| Dependency advisories | `dependency.audit.python` (`uv export --frozen` → `pip-audit --format json`); `dependency.audit.node` (`npm audit --omit=dev --audit-level=high --json`) | root `uv.lock`; node project lock | `release` only; weekly `.github/workflows/dependency-audit.yml` | Known advisory with no valid baseline entry → FAIL `new debt`; feed unreachable → BLOCKED | Time-limited `config/debt-baseline.json` entry, `check: "advisory"`, identity from advisory ID + package + version | `test_dependency_checks.py` (stub `tests/fixtures/advisory/{pip-audit,npm-audit}-stub.json`, no network; BLOCKED-when-unreachable proven with a fake tool printing a network-error diagnostic) |
 
-**Why `dependency.audit.*` stays out of every profile.** Both transmit
-dependency metadata (package names/versions) to an external feed — PyPI/OSV
-for `pip-audit`, the npm registry for `npm audit` — which is the parent
-spec's outstanding "dependency-metadata upload restrictions" decision (open
-question 1 in phase-3-5-decisions.md). The bodies and their BLOCKED path are
-built and tested here; enabling them in the `security` profile is chunk C8,
-gated on that decision plus network (C7-adjacent).
+**Why `dependency.audit.*` is release-only and scheduled.** Both transmit
+dependency metadata (package names/versions) to external feeds: PyPI/OSV for
+`pip-audit` and the npm registry for `npm audit`. The owner approved that
+network boundary for release auditing, not for every `full` or `security`
+run. The weekly job provisions the attested Linux environment first, runs
+`manifest check release --group security`, and uploads the receipt even when
+the audit fails.
 
 **Why `types.python`/`security.semgrep` cannot use the runner's automatic
 `store:` argv rewrite.** Both need custom JSON parsing and
@@ -805,19 +805,14 @@ this repo's own conformance fixtures, not a real finding. The repo root
 else under `tests/`; `test_semgrepignore_excludes_only_the_fixture_directory`
 pins the pattern list to that one entry.
 
-**Store divergence for `dependency.lock.node`/`package.node-runtime`/
-`dependency.audit.*` is disclosed debt, not silent drift.** Unlike
-`types.python`/`security.semgrep` above, `dependency_checks.py` resolves
-`npm`, `node`, `uv`, and `pip-audit` from ambient `PATH` via `shutil.which`
-— the same trust class `packages.py::_uv` already uses for
-`dependency.lock.config`/`dependency.lock.delegate`, not a new gap this
-chunk introduces. Concretely: `dependency.lock.node`'s PASS on a
-provisioned developer host is verification against that host's own `~/.npm`
-cache, not a hash-verified store entry the way `types.python`'s pyright
-resolution is. Bringing `npm`/`node`/`uv`/`pip-audit` into the store is
-tracked for a future chunk; until then this is a known, accepted
-inconsistency with the store-resolution table above, not something silently
-different from it.
+**PATH resolution for `dependency.lock.node`/`package.node-runtime`/
+`dependency.audit.*` is explicit.** `dependency_checks.py` resolves `npm`,
+`node`, `uv`, and `pip-audit` through `shutil.which`. In shared-check and
+scheduled-audit execution, the runner first resolves the configured
+environment bundle and restricts child `PATH` to the verified store bin
+directories, so these lookups cannot select an unrelated host installation.
+Tests may supply a fake PATH explicitly to exercise PASS/FAIL/BLOCKED
+behavior without network access.
 
 **No TypeScript compiler check — data-backed, not just asserted.** There is
 no TS project: `plugins/stitch-design/runtime/node` is `build.mjs`

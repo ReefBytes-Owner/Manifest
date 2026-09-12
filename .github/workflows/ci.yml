@@ -570,28 +570,16 @@ jobs:
           fi
           echo "Cursor rules, mcp.json, and agents are up-to-date"
 
-  # --- Shadow shared-check migration path (spec 2026-09-08, Task 9) ---
+  # --- Shared-check enforcement path (spec 2026-09-08) ---
   #
-  # Non-blocking mirror of the legacy lint/test/validate jobs above, run
-  # through the shared `manifest check` entry (config/project-checks.json)
-  # instead of each job's own inline steps. `continue-on-error: true` at
-  # JOB level (not just on the check/aggregate steps) keeps every shadow job
-  # green regardless of outcome -- a step-only continue-on-error still lets
-  # an unrelated step (checkout, uv install, context build, receipt
-  # download) redden the whole job and thus the workflow conclusion, and a
-  # shadow path that can turn the workflow red will be ignored or reverted
-  # before Phase 3 ever lands. It can never become a de-facto required
-  # status by accident; branch protection is untouched (Phase 5), and every
-  # legacy job above is retained verbatim.
-  #
-  # Every group here is still `coverage_pending` in config/project-checks.json
-  # (Phase 3 has not run) so `manifest check` reports BLOCKED, not PASS, for
-  # now -- that is expected and is exactly why this path is shadow-only.
+  # These jobs run each registry group through the shared `manifest check`
+  # entry. Producers always emit evidence when a check returns PASS, FAIL, or
+  # BLOCKED; the aggregate is blocking and rejects missing, stale, or failing
+  # evidence. The legacy jobs remain during the reviewed cutover.
   shadow-checks-structure:
     name: Shadow Checks (structure)
     timeout-minutes: 15
     runs-on: ubuntu-latest
-    continue-on-error: true
     permissions:
       contents: read
     outputs:
@@ -638,13 +626,18 @@ jobs:
           fi
           echo "sha=${base_sha}" >> "${GITHUB_OUTPUT}"
 
-      - name: Run shared checks (shadow, non-blocking)
+      - name: Run shared checks
         id: shadow
         env:
           BASE_SHA: ${{ steps.base.outputs.sha }}
         run: |
           set +e
-          uv run manifest check full --group structure --project-config config/project-checks.json --base "${BASE_SHA}" --json --output "${RUNNER_TEMP}/shadow-structure.json"
+          uv run manifest check full \
+            --group structure \
+            --project-config config/project-checks.json \
+            --base "${BASE_SHA}" \
+            --json \
+            --output "${RUNNER_TEMP}/shadow-structure.json"
           exit_code=$?
           set -e
           echo "exit_code=${exit_code}" >> "${GITHUB_OUTPUT}"
@@ -676,7 +669,6 @@ jobs:
     name: Shadow Checks (lint)
     timeout-minutes: 20
     runs-on: ubuntu-latest
-    continue-on-error: true
     permissions:
       contents: read
     outputs:
@@ -713,13 +705,18 @@ jobs:
           fi
           echo "sha=${base_sha}" >> "${GITHUB_OUTPUT}"
 
-      - name: Run shared checks (shadow, non-blocking)
+      - name: Run shared checks
         id: shadow
         env:
           BASE_SHA: ${{ steps.base.outputs.sha }}
         run: |
           set +e
-          uv run manifest check full --group lint --project-config config/project-checks.json --base "${BASE_SHA}" --json --output "${RUNNER_TEMP}/shadow-lint.json"
+          uv run manifest check full \
+            --group lint \
+            --project-config config/project-checks.json \
+            --base "${BASE_SHA}" \
+            --json \
+            --output "${RUNNER_TEMP}/shadow-lint.json"
           exit_code=$?
           set -e
           echo "exit_code=${exit_code}" >> "${GITHUB_OUTPUT}"
@@ -747,7 +744,6 @@ jobs:
     # changes.
     timeout-minutes: 37
     runs-on: ubuntu-latest
-    continue-on-error: true
     permissions:
       contents: read
     outputs:
@@ -785,13 +781,18 @@ jobs:
           fi
           echo "sha=${base_sha}" >> "${GITHUB_OUTPUT}"
 
-      - name: Run shared checks (shadow, non-blocking)
+      - name: Run shared checks
         id: shadow
         env:
           BASE_SHA: ${{ steps.base.outputs.sha }}
         run: |
           set +e
-          uv run manifest check full --group test --project-config config/project-checks.json --base "${BASE_SHA}" --json --output "${RUNNER_TEMP}/shadow-test.json"
+          uv run manifest check full \
+            --group test \
+            --project-config config/project-checks.json \
+            --base "${BASE_SHA}" \
+            --json \
+            --output "${RUNNER_TEMP}/shadow-test.json"
           exit_code=$?
           set -e
           echo "exit_code=${exit_code}" >> "${GITHUB_OUTPUT}"
@@ -816,7 +817,6 @@ jobs:
     name: Shadow Checks (security)
     timeout-minutes: 15
     runs-on: ubuntu-latest
-    continue-on-error: true
     permissions:
       contents: read
     outputs:
@@ -853,13 +853,18 @@ jobs:
           fi
           echo "sha=${base_sha}" >> "${GITHUB_OUTPUT}"
 
-      - name: Run shared checks (shadow, non-blocking)
+      - name: Run shared checks
         id: shadow
         env:
           BASE_SHA: ${{ steps.base.outputs.sha }}
         run: |
           set +e
-          uv run manifest check full --group security --project-config config/project-checks.json --base "${BASE_SHA}" --json --output "${RUNNER_TEMP}/shadow-security.json"
+          uv run manifest check full \
+            --group security \
+            --project-config config/project-checks.json \
+            --base "${BASE_SHA}" \
+            --json \
+            --output "${RUNNER_TEMP}/shadow-security.json"
           exit_code=$?
           set -e
           echo "exit_code=${exit_code}" >> "${GITHUB_OUTPUT}"
@@ -884,7 +889,6 @@ jobs:
     name: Shadow Checks (package)
     timeout-minutes: 15
     runs-on: ubuntu-latest
-    continue-on-error: true
     permissions:
       contents: read
     outputs:
@@ -921,13 +925,18 @@ jobs:
           fi
           echo "sha=${base_sha}" >> "${GITHUB_OUTPUT}"
 
-      - name: Run shared checks (shadow, non-blocking)
+      - name: Run shared checks
         id: shadow
         env:
           BASE_SHA: ${{ steps.base.outputs.sha }}
         run: |
           set +e
-          uv run manifest check full --group package --project-config config/project-checks.json --base "${BASE_SHA}" --json --output "${RUNNER_TEMP}/shadow-package.json"
+          uv run manifest check full \
+            --group package \
+            --project-config config/project-checks.json \
+            --base "${BASE_SHA}" \
+            --json \
+            --output "${RUNNER_TEMP}/shadow-package.json"
           exit_code=$?
           set -e
           echo "exit_code=${exit_code}" >> "${GITHUB_OUTPUT}"
@@ -950,11 +959,10 @@ jobs:
 
   checks-aggregate-full:
     # C6b (phase-3-5-decisions.md Correction 1): renamed from
-    # shadow-checks-aggregate. Still job-level `continue-on-error: true` and
-    # still not a required status -- the required-check name change is C12,
-    # not this chunk. There is exactly one aggregate job (profile `full`);
-    # `security` is a named registry subset with no aggregate of its own.
-    name: Checks Aggregate (full, non-blocking)
+    # shadow-checks-aggregate. There is exactly one aggregate job (profile
+    # `full`); `security` is a named registry subset with no aggregate of its
+    # own. Enforcement was activated only after a green linux-x64 run.
+    name: Checks Aggregate (full)
     timeout-minutes: 10
     needs:
       [
@@ -966,7 +974,6 @@ jobs:
       ]
     if: always()
     runs-on: ubuntu-latest
-    continue-on-error: true
     permissions:
       contents: read
       actions: read
@@ -982,10 +989,10 @@ jobs:
         #
         # NOTE: these read each producer's `steps.shadow.outputs.receipt_written`
         # job output, not `steps.shadow.outcome` and not `needs.<job>.result`.
-        # `needs.*.result` is unusable here: the producer jobs set job-level
-        # `continue-on-error: true`, which makes GitHub report even a failed
-        # producer as `result: success` in the `needs` context. `outcome` is
-        # unusable too, for a different reason -- `manifest check` exits 2
+        # `needs.*.result` cannot distinguish a completed check that reported
+        # FAIL/BLOCKED with a receipt from an infrastructure failure before a
+        # receipt was written. `outcome` is unusable for a different reason:
+        # `manifest check` exits 2
         # (FAIL) or 3 (BLOCKED) exactly when a group legitimately produced a
         # receipt, so `outcome` is "failure" both when the step crashed with
         # NO receipt and when it ran cleanly and reported FAIL/BLOCKED WITH
@@ -1040,9 +1047,8 @@ jobs:
               --dir "${RUNNER_TEMP}/shadow-results"
           done
 
-      - name: Aggregate shadow checks (informational only)
+      - name: Aggregate shared checks
         id: aggregate
-        continue-on-error: true
         run: |
           uv run manifest check-aggregate full \
             --project-config config/project-checks.json \
@@ -1065,9 +1071,13 @@ jobs:
         run: |
           set -euo pipefail
           {
-            echo "### Shadow shared-check aggregate (non-blocking, informational)"
+            echo "### Shared-check aggregate"
             if [ -s "${RUNNER_TEMP}/shadow-aggregate.json" ]; then
-              status="$(python3 -c "import json, sys; print(json.load(open(sys.argv[1])).get('status', 'UNKNOWN'))" "${RUNNER_TEMP}/shadow-aggregate.json")"
+              status="$(
+                python3 -c \
+                  "import json, sys; print(json.load(open(sys.argv[1])).get('status', 'UNKNOWN'))" \
+                  "${RUNNER_TEMP}/shadow-aggregate.json"
+              )"
               echo "Status: \`${status}\`"
             else
               echo "Status: \`UNKNOWN\` (no aggregate receipt was written)"

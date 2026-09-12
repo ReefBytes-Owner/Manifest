@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "model_labels_status": "unresolved -- owner input required for the Fable/Astra/Opus/Sol to client mapping",
+  "model_labels_status": "deferred -- vendor-documented event-emission mode required",
   "clients": {
     "claude_code": {
       "name": "claude_code",

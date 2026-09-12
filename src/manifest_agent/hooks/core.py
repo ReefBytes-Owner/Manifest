@@ -154,16 +154,23 @@ def _compute_verdict(request: EventRequest, root: Path, digest: str) -> dict:
     non-replayed outcome is produced."""
     run_start = time.monotonic()
     status, diagnostics = run_manifest_check(
-        profile=request.profile, project_config=request.project_config, base="HEAD",
-        cwd=root, timeout_seconds=request.timeout_seconds,
+        profile=request.profile,
+        project_config=request.project_config,
+        base="HEAD",
+        cwd=root,
+        timeout_seconds=request.timeout_seconds,
     )
     record_hook_telemetry(
         request.client, request.profile, root, status, time.monotonic() - run_start
     )
     receipt = build_receipt(
         ReceiptInput(
-            client=request.client, event=request.event, profile=request.profile,
-            status=status, digest=digest, diagnostics=diagnostics,
+            client=request.client,
+            event=request.event,
+            profile=request.profile,
+            status=status,
+            digest=digest,
+            diagnostics=diagnostics,
         )
     )
     write_receipt(request.state_dir, receipt)
@@ -174,27 +181,40 @@ def _compute_verdict(request: EventRequest, root: Path, digest: str) -> dict:
 def process_event(request: EventRequest) -> AdapterOutcome:
     """Everything after per-client parsing/validation has passed."""
     if request.profile is None:
-        return AdapterOutcome("unsupported", "UNSUPPORTED", "allow", "event not covered", None)
+        return AdapterOutcome(
+            "unsupported", "UNSUPPORTED", "allow", "event not covered", None
+        )
     if os.environ.get(RECURSION_ENV_VAR):
         return AdapterOutcome(
-            "supported", "SKIPPED_RECURSION", "allow",
-            "recursive hook invocation refused", None,
+            "supported",
+            "SKIPPED_RECURSION",
+            "allow",
+            "recursive hook invocation refused",
+            None,
         )
     cwd_raw = request.payload.get("cwd") or os.getcwd()
     reject_traversal(cwd_raw, "cwd")
     root = resolve_source_root(cwd_raw)
     if root is None:
-        return AdapterOutcome("supported", "BLOCKED", "block", "cwd is unavailable", None)
+        return AdapterOutcome(
+            "supported", "BLOCKED", "block", "cwd is unavailable", None
+        )
     try:
         digest = candidate_digest(root)
     except CandidateBlockedError as error:
-        return AdapterOutcome("supported", "BLOCKED", "block", redact_text(str(error)), None)
+        return AdapterOutcome(
+            "supported", "BLOCKED", "block", redact_text(str(error)), None
+        )
     dedup_key = DedupKey(
-        client=request.client, event=request.event, digest=digest,
+        client=request.client,
+        event=request.event,
+        digest=digest,
         is_stop=request.profile == FULL,
     )
     verdict = run_deduplicated(
         request.state_dir, dedup_key, lambda: _compute_verdict(request, root, digest)
     )
     outcome = verdict.outcome
-    return AdapterOutcome("supported", outcome["status"], outcome["action"], outcome["reason"], None)
+    return AdapterOutcome(
+        "supported", outcome["status"], outcome["action"], outcome["reason"], None
+    )

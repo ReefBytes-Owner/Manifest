@@ -6,9 +6,8 @@ ceiling: these ids have no legacy pre-commit/CI job in
 ``DEBT_IDS``/``DEBT_RELEASE_IDS`` in the test file itself), so they are
 additive to ``RETAINED_IDS`` rather than drawn from the frozen oracle.
 ``hook.pyright`` (PATH, unpinned) is removed the same change that adds
-``types.python`` (phase-3-5-decisions.md 3d). ``dependency.audit.python``/
-``.node`` are registered (BLOCKED-path bodies only) but deliberately NOT
-wired into any profile -- enabling them awaits chunk C8.
+``types.python`` (phase-3-5-decisions.md 3d). Chunk C8 enables
+``dependency.audit.python``/``.node`` only in the release profile.
 """
 
 from __future__ import annotations
@@ -22,7 +21,7 @@ C5_FULL_RELEASE_IDS = frozenset(
     }
 )
 C5_SECURITY_RELEASE_IDS = frozenset({"security.semgrep"})
-C5_DECLARED_ONLY_IDS = frozenset({"dependency.audit.python", "dependency.audit.node"})
+C8_RELEASE_IDS = frozenset({"dependency.audit.python", "dependency.audit.node"})
 # The `security` profile's four hook ids -- also folded into `full` as of
 # C6b (phase-3-5-decisions.md Correction 1). Moved here (not defined inline
 # in the test file) purely for the same file-size reason as the ids above.

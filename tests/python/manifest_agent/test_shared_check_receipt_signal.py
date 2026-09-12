@@ -221,3 +221,18 @@ class TestAggregateRejectionGate:
             "a producer whose check exited 2/3 but wrote a receipt "
             f"(receipt_written='true') must not be rejected: {result.stderr}"
         )
+
+
+def test_aggregate_artifacts_stay_outside_checkout() -> None:
+    job = _jobs()["checks-aggregate-full"]
+    run_text = "\n".join(step["run"] for step in job["steps"] if "run" in step)
+    assert '--output "${RUNNER_TEMP}/shadow-context.json"' in run_text
+    assert '--dir "${RUNNER_TEMP}/shadow-results"' in run_text
+    assert '--results-dir "${RUNNER_TEMP}/shadow-results"' in run_text
+    assert '--context "${RUNNER_TEMP}/shadow-context.json"' in run_text
+    assert '--output "${RUNNER_TEMP}/shadow-aggregate.json"' in run_text
+
+    (upload,) = [
+        step for step in job["steps"] if "upload-artifact" in str(step.get("uses", ""))
+    ]
+    assert upload["with"]["path"] == "${{ runner.temp }}/shadow-aggregate.json"

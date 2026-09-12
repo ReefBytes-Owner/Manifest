@@ -74,7 +74,9 @@ def test_burst_replays_a_block_verdict_not_a_bare_allow(hook_harness, tmp_path):
         results = list(
             pool.map(
                 lambda _: hook_harness.invoke(
-                    "claude-code", "PostToolUse", payload,
+                    "claude-code",
+                    "PostToolUse",
+                    payload,
                     MANIFEST_HOOK_PROJECT_CONFIG=str(failing_config),
                 ),
                 range(6),
@@ -84,7 +86,9 @@ def test_burst_replays_a_block_verdict_not_a_bare_allow(hook_harness, tmp_path):
     bodies = [json.loads(result.stdout.decode()) for result in results]
     for body in bodies:
         assert body["hookSpecificOutput"].get("hookEventName") == "PostToolUse"
-        assert body.get("decision") == "block", f"expected every reply to block, got {body}"
+        assert body.get("decision") == "block", (
+            f"expected every reply to block, got {body}"
+        )
     receipts = hook_harness.receipts()
     assert len(receipts) == 1
     assert receipts[0]["status"] in ("FAIL", "BLOCKED")
@@ -105,7 +109,13 @@ def test_concurrent_events_on_one_candidate_serialize_no_torn_write(hook_harness
     assert len(receipts) == 1
     # A torn concurrent write would fail to parse or be missing required keys.
     receipt = receipts[0]
-    assert set(receipt) >= {"schema_version", "client", "event", "status", "candidate_digest"}
+    assert set(receipt) >= {
+        "schema_version",
+        "client",
+        "event",
+        "status",
+        "candidate_digest",
+    }
 
 
 def test_stop_continuation_fires_at_most_once_per_unchanged_digest(hook_harness):

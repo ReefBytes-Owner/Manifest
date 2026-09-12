@@ -21,7 +21,12 @@ MODULES = {
     "cursor": cursor,
     "gemini": gemini,
 }
-CLI_NAMES = {"claude_code": "claude-code", "codex": "codex", "cursor": "cursor", "gemini": "gemini"}
+CLI_NAMES = {
+    "claude_code": "claude-code",
+    "codex": "codex",
+    "cursor": "cursor",
+    "gemini": "gemini",
+}
 
 
 def _fixture_events(client: str) -> list[str]:

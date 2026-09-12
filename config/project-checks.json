@@ -1616,7 +1616,7 @@
       "tool": "hook.trailing-whitespace",
       "version": "ok",
       "include_regex": "",
-      "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))|(?:^(\\.Jules/|docs/templates/|plugins/manifest-code-quality/skills/smoke-manage/vendor/(LICENSE\\.PyYAML|yaml/)|plugins/manifest-i-have-adhd/(skills/|guidance/|devin/|LICENSE\\.upstream))|\\.patch$)",
+      "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))|(?:^(\\.Jules/|docs/templates/|tests/fixtures/equivalence/|plugins/manifest-code-quality/skills/smoke-manage/vendor/(LICENSE\\.PyYAML|yaml/)|plugins/manifest-i-have-adhd/(skills/|guidance/|devin/|LICENSE\\.upstream))|\\.patch$)",
       "types": [
         "text"
       ],
@@ -1703,7 +1703,7 @@
       "tool": "hook.shfmt",
       "version": "command:shfmt=3.13.1",
       "include_regex": "",
-      "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))|(?:(^\\.Jules/|\\.bats$))",
+      "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))|(?:(^\\.Jules/|^tests/fixtures/equivalence/|\\.bats$))",
       "types": [
         "shell"
       ],
@@ -1981,7 +1981,7 @@
       "tool": "hook.check-shebang-scripts-are-executable",
       "version": "distribution:pre-commit-hooks=6.0.0",
       "include_regex": "",
-      "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))|(?:\\.(bats|tmpl)$)",
+      "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))|(?:(^tests/fixtures/equivalence/|\\.(bats|tmpl)$))",
       "types": [
         "text"
       ],
@@ -2083,7 +2083,7 @@
       "tool": "hook.shellcheck",
       "version": "command:shellcheck=0.11.0",
       "include_regex": "",
-      "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))|(?:(^\\.Jules/|\\.bats$))",
+      "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))|(?:(^\\.Jules/|^tests/fixtures/equivalence/|\\.bats$))",
       "types": [
         "shell"
       ],
@@ -2109,7 +2109,7 @@
       "tool": "hook.markdownlint-cli2",
       "version": "command:markdownlint-cli2=0.23.2",
       "include_regex": "",
-      "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))|(?:^(\\.Jules/|\\.jules/|specs/|docs/superpowers/|docs/templates/|docs/SHELL_ANALYSIS_REPORT\\.md|docs/VALIDATION_REPORT\\.md|\\.specify/|\\.claude/skills/speckit-[^/]+/|node_modules/|\\.apm/skills/|plugins/stitch-design/|plugins/manifest-i-have-adhd/(skills/|guidance/|devin/)))",
+      "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))|(?:^(\\.Jules/|\\.jules/|\\.superpowers/|specs/|docs/superpowers/|docs/templates/|docs/SHELL_ANALYSIS_REPORT\\.md|docs/VALIDATION_REPORT\\.md|\\.specify/|\\.claude/skills/speckit-[^/]+/|node_modules/|tests/fixtures/equivalence/|\\.apm/skills/|plugins/stitch-design/|plugins/manifest-i-have-adhd/(skills/|guidance/|devin/)))",
       "types": [
         "markdown"
       ],
@@ -2137,7 +2137,7 @@
       "tool": "hook.yamllint",
       "version": "distribution:yamllint=1.38.0",
       "include_regex": "",
-      "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))|(?:^(\\.Jules/))",
+      "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))|(?:^(\\.Jules/|tests/fixtures/equivalence/))",
       "types": [
         "yaml"
       ],
@@ -2162,7 +2162,7 @@
       "tool": "hook.ruff",
       "version": "distribution:ruff=0.15.20",
       "include_regex": "",
-      "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))|(?:^plugins/manifest-code-quality/skills/smoke-manage/vendor/yaml/)",
+      "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))|(?:^(plugins/manifest-code-quality/skills/smoke-manage/vendor/yaml/|tests/fixtures/semgrep/))",
       "types": [],
       "types_or": [
         "python",
@@ -2189,7 +2189,7 @@
       "tool": "hook.ruff-format",
       "version": "distribution:ruff=0.15.20",
       "include_regex": "",
-      "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))|(?:^plugins/manifest-code-quality/skills/smoke-manage/vendor/yaml/)",
+      "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))|(?:^(plugins/manifest-code-quality/skills/smoke-manage/vendor/yaml/|tests/fixtures/semgrep/))",
       "types": [],
       "types_or": [
         "python",
@@ -3171,6 +3171,8 @@
       "package.node-runtime",
       "dependency.lock.root",
       "dependency.lock.node",
+      "dependency.audit.python",
+      "dependency.audit.node",
       "security.semgrep"
     ]
   },

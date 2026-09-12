@@ -56,7 +56,7 @@ DEBT_RELEASE_IDS = frozenset({"debt.constitution.release", "debt.bundle-links.re
 # C5_* (types/security/dependency-integrity new checks): see _c5_ids.py.
 C5_FULL = _c5_ids.C5_FULL_RELEASE_IDS
 C5_SEC = _c5_ids.C5_SECURITY_RELEASE_IDS
-C5_DECLARED_ONLY_IDS = _c5_ids.C5_DECLARED_ONLY_IDS
+C8_RELEASE_IDS = _c5_ids.C8_RELEASE_IDS
 LIVE_RETAINED_IDS = RETAINED_IDS - SUPERSEDED
 EXPECTED_PROFILES = {
     "quick": QUICK_IDS,
@@ -68,7 +68,12 @@ EXPECTED_PROFILES = {
     | SECURITY_IDS
     | C5_SEC,
     "security": SECURITY_IDS | DEBT_IDS | C5_SEC,
-    "release": LIVE_RETAINED_IDS | DEBT_IDS | DEBT_RELEASE_IDS | C5_FULL | C5_SEC,
+    "release": LIVE_RETAINED_IDS
+    | DEBT_IDS
+    | DEBT_RELEASE_IDS
+    | C5_FULL
+    | C5_SEC
+    | C8_RELEASE_IDS,
 }
 GRAPH_CATEGORIES = frozenset(
     {"type", "dead-code", "test", "security", "generated", "dependency", "package"}
@@ -107,7 +112,7 @@ def _assert_retained_contract(preservation: dict, registry: dict) -> None:
     # migrated or new.
     assert len(declared) == len(set(declared))
     assert retained == RETAINED_IDS
-    c5_ids = C5_FULL | C5_SEC | C5_DECLARED_ONLY_IDS
+    c5_ids = C5_FULL | C5_SEC | C8_RELEASE_IDS
     assert set(declared) == LIVE_RETAINED_IDS | DEBT_IDS | DEBT_RELEASE_IDS | c5_ids
     assert all("pass_filenames" in check for check in checks)
     by_id = _check_by_id(registry)
@@ -130,7 +135,10 @@ def _assert_profile_contract(registry: dict) -> None:
         "full": 64 + sum(len(x) for x in (DEBT_IDS, C5_FULL, SECURITY_IDS, C5_SEC)),
         "security": 4 + len(DEBT_IDS) + len(C5_SEC),
         "release": 70
-        + sum(len(x) for x in (DEBT_IDS, DEBT_RELEASE_IDS, C5_FULL, C5_SEC)),
+        + sum(
+            len(x)
+            for x in (DEBT_IDS, DEBT_RELEASE_IDS, C5_FULL, C5_SEC, C8_RELEASE_IDS)
+        ),
     }
     assert all(
         by_id[check_id]["selection"] == "project"
@@ -251,7 +259,7 @@ def test_registry_schema_loads_and_exactly_closes_retained_profiles():
 
     _assert_retained_contract(preservation, raw_registry)
     _assert_profile_contract(raw_registry)
-    c5_ids = C5_FULL | C5_SEC | C5_DECLARED_ONLY_IDS
+    c5_ids = C5_FULL | C5_SEC | C8_RELEASE_IDS
     assert {check.id for check in registry["checks"]} == (
         LIVE_RETAINED_IDS | DEBT_IDS | DEBT_RELEASE_IDS | c5_ids
     )

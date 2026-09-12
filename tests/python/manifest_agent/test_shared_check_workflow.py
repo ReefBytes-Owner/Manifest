@@ -1,19 +1,10 @@
-"""Workflow assertions for the shadow shared-check migration path (Task 9).
+"""Workflow assertions for the shared-check enforcement path.
 
-These tests parse `.github/workflows/ci.yml` and assert structural properties
-of the *shadow* jobs added alongside the pre-existing `lint`/`test`/`validate`
-required jobs — the shadow path is informational only (never a required
-status), but its wiring must still be honest: it must invoke the shared
-`manifest check` entry exactly (no drifted inline duplicate of the check
-logic), carry a finite timeout, hold only read-scoped credentials, upload the
-*current* run-attempt's receipts, and its aggregate job must use
-`if: always()` while still rejecting a skipped/cancelled/failed upstream
-producer rather than silently treating it as success.
-
-Phase 3 is not done yet (`config/project-checks.json` still carries
-`coverage_pending` for every group), so the shadow path cannot be promoted to
-a required status — these tests only assert the shadow wiring itself, never
-that it is required.
+These tests parse `.github/workflows/ci.yml` and assert the five producer
+jobs and their aggregate invoke the shared `manifest check` entry exactly,
+carry finite timeouts, hold read-scoped credentials, upload the current
+run-attempt's receipts, and fail closed when evidence is absent. The legacy
+lint/test/validate jobs remain during the reviewed cutover.
 """
 
 from __future__ import annotations
@@ -39,9 +30,8 @@ SHADOW_GROUP_JOBS = {
     "shadow-checks-security": "security",
     "shadow-checks-package": "package",
 }
-# C6b: renamed from "shadow-checks-aggregate" (phase-3-5-decisions.md
-# Correction 1) -- still job-level `continue-on-error: true`, still never a
-# required status; only the job id/display name changed.
+# C6b renamed the aggregate from "shadow-checks-aggregate"; Phase 5 makes the
+# same aggregate blocking after the reviewed Linux run proved it green.
 SHADOW_AGGREGATE_JOB = "checks-aggregate-full"
 ZERO_SHA = "0000000000000000000000000000000000000000"
 
@@ -62,16 +52,16 @@ def _run_texts(job: dict[str, Any]) -> list[str]:
 
 
 def _manifest_check_lines(job: dict[str, Any]) -> list[str]:
-    # The shared-check invocation now lives inside a multi-line script (it
-    # also captures the exit code and writes a receipt-presence output), so
-    # it must be located line-by-line rather than assuming a step's whole
-    # `run:` block is nothing but the command.
-    return [
-        line.strip()
-        for run in _run_texts(job)
-        for line in run.splitlines()
-        if re.search(r"\bmanifest\s+check\b", line) and not line.strip().startswith("#")
-    ]
+    commands: list[str] = []
+    for run in _run_texts(job):
+        normalized = re.sub(r"\\\n\s*", " ", run)
+        commands.extend(
+            line.strip()
+            for line in normalized.splitlines()
+            if re.search(r"\bmanifest\s+check\b", line)
+            and not line.strip().startswith("#")
+        )
+    return commands
 
 
 def _step_with_run_matching(job: dict[str, Any], pattern: str) -> dict[str, Any]:
@@ -241,37 +231,14 @@ class TestShadowGroupJobShape:
                 f"{job_name!r} — the shadow path must never gate the merge"
             )
 
-    def test_job_level_continue_on_error(self, job_name: str, group: str) -> None:
-        # JOB-level, not just step-level: a step-only continue-on-error
-        # still lets an unrelated step (checkout, uv install, upload)
-        # redden the whole job and thus the workflow conclusion.
+    def test_job_is_blocking(self, job_name: str, group: str) -> None:
         job = _jobs()[job_name]
-        assert job.get("continue-on-error") is True, (
-            f"{job_name}: must set job-level `continue-on-error: true` so "
-            f"the shadow path can never turn the overall workflow red"
+        assert job.get("continue-on-error") is not True, (
+            f"{job_name}: must not suppress producer infrastructure failures"
         )
 
 
 class TestShadowAggregateJob:
-
-    def test_context_receipts_and_aggregate_stay_outside_checkout(self) -> None:
-        job = _jobs()[SHADOW_AGGREGATE_JOB]
-        run_text = "\n".join(_run_texts(job))
-        assert '--output "${RUNNER_TEMP}/shadow-context.json"' in run_text
-        assert '--dir "${RUNNER_TEMP}/shadow-results"' in run_text
-        assert '--results-dir "${RUNNER_TEMP}/shadow-results"' in run_text
-        assert '--context "${RUNNER_TEMP}/shadow-context.json"' in run_text
-        assert '--output "${RUNNER_TEMP}/shadow-aggregate.json"' in run_text
-
-        (upload,) = [
-            step
-            for step in job["steps"]
-            if "upload-artifact" in str(step.get("uses", ""))
-        ]
-        assert upload["with"]["path"] == (
-            "${{ runner.temp }}/shadow-aggregate.json"
-        )
-
     def test_runs_always(self) -> None:
         job = _jobs()[SHADOW_AGGREGATE_JOB]
         assert job.get("if") == "always()", (
@@ -316,13 +283,8 @@ class TestShadowAggregateJob:
             )
 
     def test_rejection_step_is_not_step_level_continue_on_error(self) -> None:
-        # The rejection text alone proves nothing if the step that runs it
-        # is itself `continue-on-error: true` at STEP level — a failing
-        # `sys.exit(1)` would then be swallowed before it can short-circuit
-        # the remaining steps (context build, receipt download, aggregate).
-        # Job-level continue-on-error (tested separately) is what keeps the
-        # overall workflow green; this step must still surface its own
-        # failure so later steps in the same job do not run on bad evidence.
+        # The rejection step must surface missing evidence and short-circuit
+        # the aggregate. Neither the step nor its job may suppress failure.
         job = _jobs()[SHADOW_AGGREGATE_JOB]
         reject_step = _step_with_run_matching(job, r'!=\s*["\']true["\']')
         assert reject_step.get("continue-on-error") is not True, (
@@ -351,11 +313,10 @@ class TestShadowAggregateJob:
                 f"access, got {level!r}"
             )
 
-    def test_job_level_continue_on_error(self) -> None:
+    def test_job_is_blocking(self) -> None:
         job = _jobs()[SHADOW_AGGREGATE_JOB]
-        assert job.get("continue-on-error") is True, (
-            "aggregate job must set job-level `continue-on-error: true` so "
-            "the shadow path can never turn the overall workflow red"
+        assert job.get("continue-on-error") is not True, (
+            "aggregate job must fail the workflow on a non-PASS verdict"
         )
 
     def test_not_in_legacy_needs(self) -> None:

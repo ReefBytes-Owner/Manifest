@@ -44,11 +44,11 @@ SHUTIL_WHICH_ALLOW_LIST = {
         "bash -- same always-present interpreter allow-list as above."
     ),
     ("dependency_checks.py", "_which"): (
-        "uv/pip-audit/npm, but ONLY as the shared helper behind "
-        "dependency.audit.python/dependency.audit.node -- both BLOCKED-by-"
-        "decision (chunk C8, an outstanding human call on sending package "
-        "metadata to PyPI/OSV/npm) and wired into no profile, so `manifest "
-        "check` can never reach this call site today."
+        "uv/pip-audit/npm, only as the shared helper behind "
+        "dependency.audit.python/dependency.audit.node. Chunk C8 enables "
+        "those checks only in the release profile; the scheduled release "
+        "audit job provisions the attested environment first, so the runner "
+        "restricts PATH to the verified store before this lookup runs."
     ),
     ("tool_versions.py", "_resolved_executable"): (
         "the shared version-probe adapter every check's version_argv runs "

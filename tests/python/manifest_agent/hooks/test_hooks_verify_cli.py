@@ -120,14 +120,14 @@ def test_committed_matrix_validates_against_its_schema():
     jsonschema.validate(instance, schema)
 
 
-def test_committed_matrix_has_no_client_verified_yet():
-    """The load-bearing honesty check: every real client in the shipped
-    matrix is unresolved -- no network, no installed clients here means no
-    real verification could have happened."""
+def test_committed_matrix_records_probe_deferral_without_claiming_verification():
+    """C10 remains unverified until vendors document event emission."""
     instance = json.loads(
         (REPO_ROOT_MARKER / "config" / "hook-clients.json").read_text(encoding="utf-8")
     )
-    assert instance["model_labels_status"].startswith("unresolved")
+    assert instance["model_labels_status"] == (
+        "deferred -- vendor-documented event-emission mode required"
+    )
     for key, entry in instance["clients"].items():
         assert entry["verified_version"] is None, key
         assert entry["verified_at"] is None, key

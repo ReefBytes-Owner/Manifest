@@ -52,7 +52,9 @@ def _reason_text(body: dict) -> str:
 
 @pytest.mark.parametrize("client", sorted(CLIENTS))
 def test_unknown_event_is_unsupported_never_emulated(hook_harness, client):
-    result = hook_harness.invoke(client, "TotallyUnknownEvent", {"cwd": str(hook_harness.root)})
+    result = hook_harness.invoke(
+        client, "TotallyUnknownEvent", {"cwd": str(hook_harness.root)}
+    )
     body = _stdout_json(result)
     assert body["coverage"] == "unsupported"
     assert not hook_harness.receipts()
@@ -84,7 +86,9 @@ def test_oversized_payload_blocks_never_truncated_parse(hook_harness, client):
     event = SUPPORTED_QUICK_EVENT[client] or "AnyEvent"
     from manifest_agent.hooks.core import STDIN_CAP
 
-    oversized = json.dumps({"cwd": str(hook_harness.root), "pad": "x" * (STDIN_CAP + 16)})
+    oversized = json.dumps(
+        {"cwd": str(hook_harness.root), "pad": "x" * (STDIN_CAP + 16)}
+    )
     assert len(oversized.encode()) > STDIN_CAP
     result = hook_harness.invoke(client, event, oversized)
     body = _stdout_json(result)
@@ -115,7 +119,9 @@ def test_path_traversal_in_file_path_is_blocked(hook_harness, client):
 @pytest.mark.parametrize("client", sorted(CLIENTS))
 def test_cwd_traversal_is_blocked(hook_harness, client):
     event = SUPPORTED_QUICK_EVENT[client] or "AnyEvent"
-    result = hook_harness.invoke(client, event, {"cwd": "../../../etc", "command": "ls"})
+    result = hook_harness.invoke(
+        client, event, {"cwd": "../../../etc", "command": "ls"}
+    )
     body = _stdout_json(result)
     reason = _reason_text(body).lower()
     # Must be rejected for the traversal itself, not fall through to the

@@ -2,10 +2,10 @@
 
 Author: sonnet (implementation role), acting on fable's Phase 3–5 decision document
 and the phases 3–5 ledger. Date: 2026-09-10. Branch `wip/enforcement-first-shared-checks`,
-HEAD `d9e24157`. This document proposes; it activates nothing. No branch-protection,
-CODEOWNERS, or ruleset change has been made to the live repository. Two read-only
-`gh api` GET calls were made to record the live repository's *current* settings for
-comparison (quoted below); no mutating call was made.
+HEAD `d9e24157`. The document began as a proposal. The CODEOWNERS extension is
+now included in draft PR #886; no live branch-protection or ruleset mutation
+has been made. Two read-only `gh api` GET calls recorded the repository's
+settings for comparison.
 
 Read alongside: `docs/superpowers/specs/2026-09-08-enforcement-first-workflow-design.md`
 ("Protection, baseline and guidance"), `/private/tmp/manifest-handoff/phase-3-5-decisions.md`
@@ -83,39 +83,41 @@ worktree, not against the decision document's abstract description.
 
 ## 3. CODEOWNERS extension
 
-Current file (`.github/CODEOWNERS`, verified by reading it) covers only
-`/.github/workflows/` and itself, owned by `@RB-chrismandich` — no second reviewer
-is named anywhere in the repository today. The decision document's `@OWNER
-@SECOND` pattern requires a second independent handle that does not yet exist (see
-open question in §8, item 2). The lines below use the one confirmed owner and leave
-the second column as `@SECOND-REVIEWER-TBD`, a placeholder that must be replaced
-with a real handle before this is merged — do not merge a CODEOWNERS line with a
-placeholder handle, since GitHub will not resolve it and the rule will silently
-fail to gate anything.
+The owner approved the policy-surface extension on 2026-09-12. No second
+maintainer is currently available, so every rule names the confirmed owner
+only. This is intentionally single-owner code-owner review, not a claim of
+independent review. A placeholder handle is prohibited because GitHub would
+silently ignore an unknown owner. Independent enforcement comes from
+`enforce_admins: true` and the required aggregate status.
 
-Append to `.github/CODEOWNERS` (exact lines to add, after the existing two rules):
+Append to `.github/CODEOWNERS`:
 
 ```text
-# Phase 5 extension: policy surfaces that define or enforce what "passing" means.
-# Each line pairs the confirmed owner with a second independent reviewer so that
-# review is possible even when @RB-chrismandich authors the change.
-/config/                                           @RB-chrismandich @SECOND-REVIEWER-TBD
-/schemas/                                          @RB-chrismandich @SECOND-REVIEWER-TBD
-/src/manifest_agent/checks/                        @RB-chrismandich @SECOND-REVIEWER-TBD
-/src/manifest_agent/hooks/                         @RB-chrismandich @SECOND-REVIEWER-TBD
-/tools/project_checks/                             @RB-chrismandich @SECOND-REVIEWER-TBD
-/tools/*.py                                        @RB-chrismandich @SECOND-REVIEWER-TBD
-/configs/claude/scripts/constitution/               @RB-chrismandich @SECOND-REVIEWER-TBD
-/configs/claude/config/constitution_baseline.json   @RB-chrismandich @SECOND-REVIEWER-TBD
-/tools/bundle_link_baseline.json                    @RB-chrismandich @SECOND-REVIEWER-TBD
-/.pre-commit-config.yaml                            @RB-chrismandich @SECOND-REVIEWER-TBD
-/.gitleaks.toml /.gitleaksignore                    @RB-chrismandich @SECOND-REVIEWER-TBD
-/pyproject.toml /uv.lock                            @RB-chrismandich @SECOND-REVIEWER-TBD
-/configs/claude/pyproject.toml /configs/claude/uv.lock @RB-chrismandich @SECOND-REVIEWER-TBD
-/plugins/manifest-delegate/pyproject.toml /plugins/manifest-delegate/uv.lock @RB-chrismandich @SECOND-REVIEWER-TBD
-/plugins/stitch-design/runtime/node/package*.json   @RB-chrismandich @SECOND-REVIEWER-TBD
-/.github/                                           @RB-chrismandich @SECOND-REVIEWER-TBD
-/docs/superpowers/specs/                            @RB-chrismandich @SECOND-REVIEWER-TBD
+# Phase 5 policy surfaces. A second maintainer is not currently available;
+# code-owner review is intentionally single-owner. `enforce_admins` and the
+# required aggregate remain the independent enforcement controls.
+/config/                                           @RB-chrismandich
+/schemas/                                          @RB-chrismandich
+/src/manifest_agent/checks/                        @RB-chrismandich
+/src/manifest_agent/hooks/                         @RB-chrismandich
+/tools/project_checks/                             @RB-chrismandich
+/tools/*.py                                        @RB-chrismandich
+/configs/claude/scripts/constitution/              @RB-chrismandich
+/configs/claude/config/constitution_baseline.json  @RB-chrismandich
+/tools/bundle_link_baseline.json                   @RB-chrismandich
+/.pre-commit-config.yaml                           @RB-chrismandich
+/.gitleaks.toml                                    @RB-chrismandich
+/.gitleaksignore                                   @RB-chrismandich
+/pyproject.toml                                    @RB-chrismandich
+/uv.lock                                           @RB-chrismandich
+/configs/claude/pyproject.toml                     @RB-chrismandich
+/configs/claude/uv.lock                            @RB-chrismandich
+/plugins/manifest-delegate/pyproject.toml          @RB-chrismandich
+/plugins/manifest-delegate/uv.lock                 @RB-chrismandich
+/plugins/stitch-design/runtime/node/package.json   @RB-chrismandich
+/plugins/stitch-design/runtime/node/package-lock.json @RB-chrismandich
+/.github/                                          @RB-chrismandich
+/docs/superpowers/specs/                           @RB-chrismandich
 ```
 
 Rationale for the set: `/config/` covers `project-checks.json` (the engineering
@@ -144,6 +146,9 @@ Verified live values via `gh api repos/RB-chrismandich/Manifest/branches/main/pr
 | Required approving review count | `1` | `1` (unchanged) | Matches the parent spec's "require independent review", not raised further here — a stricter count is a separate owner decision, not implied by this proposal |
 | Require review from Code Owners | `true` | `true` (unchanged), scope widened via §3 | Already correct as a setting; its effect widens only because CODEOWNERS itself is extended |
 | Require approval of the most recent reviewable push (`require_last_push_approval`) | `false` | `true` | Closes the gap where an approved PR is force-pushed with new changes and merged without a fresh approval — the parent spec's "require independent review of the latest changes" |
+
+**Owner decision (2026-09-12): approved as written.** Application remains
+sequenced behind reviewed Linux attestations and a green aggregate run.
 
 Also verified: no GitHub environment named anything resembling `manifest-plugin-live`
 exists. `gh api repos/RB-chrismandich/Manifest/environments` returns exactly two
@@ -229,9 +234,9 @@ worktree at `d9e24157`, not asserted from the ledger.
     gate environment) does not exist on the live repository (verified §4). Any
     release workflow step that assumes its protections exist is assuming
     something false today.
-12. **CODEOWNERS' second reviewer handle is undetermined** (§3, §8 item 2) — the
-    literal lines in §3 cannot be merged as written; `@SECOND-REVIEWER-TBD` must
-    be replaced with a real GitHub handle first.
+12. **CODEOWNERS reviewer resolved on 2026-09-12** — the owner accepted
+    single-owner review until a second maintainer exists; no placeholder
+    handle is permitted.
 
 ## 6. The promotion gate (5b) — owner-verifiable checklist
 
@@ -304,7 +309,7 @@ If activation goes wrong after the owner approves it:
   baseline entries approved while it was active, nor should it — those approvals
   stand on their own merits.
 
-## 8. What the owner must decide
+## 8. Decisions requested in the original proposal
 
 1. **Dependency-metadata upload**: may `pip-audit` and `npm audit` send package
    names and versions to PyPI/OSV and the npm registry from CI? — *Yes* enables
@@ -407,3 +412,21 @@ of the env bundles needs one CI provision run (§8), the `security` producers st
 folded into `full` (Correction 1), and the aggregate and its producers still carry
 `continue-on-error: true`, so `manifest branch-protection --apply` keeps refusing by
 construction until the owner removes it (§9).
+
+## 11. Owner decisions and activation sequence (2026-09-12)
+
+- `config/branch-protection.json` is approved as written.
+- Code-owner review is single-owner until a second maintainer exists; no
+  unresolved or placeholder GitHub handle appears in `.github/CODEOWNERS`.
+- Linux environment and npm-cache digests were produced by manually
+  dispatched run `34683542261` and committed through draft PR #886.
+- Post-attestation run `34683897330` completed all five Linux producers and
+  `Checks Aggregate (full)` successfully. The producer, aggregate-job, and
+  aggregate-step `continue-on-error` guards were then removed.
+- Dependency metadata may be sent to PyPI/OSV and npm from the release audit.
+  Both audit checks are release-only and run weekly; they remain outside
+  `full` and `security`.
+- Applying branch protection remains an explicit owner act.
+- C10 hook-client probe mappings are deferred until a vendor documents a real
+  event-emission mode; `model_labels` stay empty and `protocol_probe_argv`
+  stays `null`.

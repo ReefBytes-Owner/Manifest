@@ -415,22 +415,6 @@ def test_audit_node_reports_fail_for_unexcused_advisory(tmp_path):
     assert "GHSA-stub-0001" in result.stderr
 
 
-# --- structure: audit checks are registered but never wired into a profile -
-
-
-def test_dependency_audit_checks_are_not_in_any_profile():
-    from manifest_agent.checks.registry import load_registry
-
-    registry = load_registry(REPO_ROOT / "config/project-checks.json")
-    ids_in_profiles = {
-        check_id for ids in registry["profiles"].values() for check_id in ids
-    }
-    assert "dependency.audit.python" not in ids_in_profiles
-    assert "dependency.audit.node" not in ids_in_profiles
-    all_ids = {check.id for check in registry["checks"]}
-    assert {"dependency.audit.python", "dependency.audit.node"} <= all_ids
-
-
 # --- no TS project: the C5 scope-cut is data-backed, not just asserted -----
 
 

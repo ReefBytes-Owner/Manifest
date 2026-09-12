@@ -39,7 +39,13 @@ EVENT_PROFILE: dict[str, str | None] = {
     "SessionEnd": None,
 }
 
-_STRING_FIELDS = ("session_id", "transcript_path", "cwd", "permission_mode", "tool_name")
+_STRING_FIELDS = (
+    "session_id",
+    "transcript_path",
+    "cwd",
+    "permission_mode",
+    "tool_name",
+)
 _OBJECT_FIELDS = ("tool_input", "tool_response")
 
 

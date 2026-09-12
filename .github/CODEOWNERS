@@ -9,3 +9,29 @@
 
 # The ownership rules themselves must not change without owner review.
 /.github/CODEOWNERS   @RB-chrismandich
+
+# Phase 5 policy surfaces. A second maintainer is not currently available;
+# code-owner review is intentionally single-owner. `enforce_admins` and the
+# required aggregate remain the independent enforcement controls.
+/config/                                           @RB-chrismandich
+/schemas/                                          @RB-chrismandich
+/src/manifest_agent/checks/                        @RB-chrismandich
+/src/manifest_agent/hooks/                         @RB-chrismandich
+/tools/project_checks/                             @RB-chrismandich
+/tools/*.py                                        @RB-chrismandich
+/configs/claude/scripts/constitution/              @RB-chrismandich
+/configs/claude/config/constitution_baseline.json  @RB-chrismandich
+/tools/bundle_link_baseline.json                   @RB-chrismandich
+/.pre-commit-config.yaml                           @RB-chrismandich
+/.gitleaks.toml                                    @RB-chrismandich
+/.gitleaksignore                                   @RB-chrismandich
+/pyproject.toml                                    @RB-chrismandich
+/uv.lock                                           @RB-chrismandich
+/configs/claude/pyproject.toml                     @RB-chrismandich
+/configs/claude/uv.lock                            @RB-chrismandich
+/plugins/manifest-delegate/pyproject.toml          @RB-chrismandich
+/plugins/manifest-delegate/uv.lock                 @RB-chrismandich
+/plugins/stitch-design/runtime/node/package.json   @RB-chrismandich
+/plugins/stitch-design/runtime/node/package-lock.json @RB-chrismandich
+/.github/                                          @RB-chrismandich
+/docs/superpowers/specs/                           @RB-chrismandich
