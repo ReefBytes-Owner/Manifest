@@ -11,13 +11,16 @@ tests/python is on sys.path[0] under pytest's default import mode.
 
 import json
 import os
+import shutil
 import stat
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 
 import pytest
+from _delegate_runtime_env import in_tree_trusted_python, manifest_home
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT_PATH = REPO_ROOT / "plugins" / "manifest-delegate" / "scripts" / "delegate.py"
@@ -76,7 +79,23 @@ def env_factory(tmp_path):
         registry_path.write_text(json.dumps(_registry(entries or [_stub_entry()])))
         if control is not None:
             control_path.write_text(json.dumps(control))
-        env = dict(os.environ)
+        # `PYTHONPATH` dropped: `test.python`'s own honest env (Correction 9)
+        # points it at the CANDIDATE's raw manifest_model_policy source so
+        # in-process checks import the code under test; delegate.py, run as a
+        # subprocess here, resolves that package itself through the trusted,
+        # properly-installed venv `_run` already launches it with
+        # (`_trusted_python`) -- an inherited raw-source entry ahead of that
+        # venv's own site-packages only confuses its trust gate.
+        env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
+        # Own HOME (Correction 15 rule 1): delegate.py's trust gate re-execs
+        # `~/.claude/.venv/bin/python` when the launcher interpreter itself
+        # has no manifest-model-policy distribution (true for `_trusted_
+        # python()` below -- its throwaway venv has no PyYAML, so importing
+        # the policy package fails and the gate falls through to that
+        # re-exec). Pointing HOME at `manifest_home()` gives that re-exec a
+        # real, trusted target built from the toolchain store instead of the
+        # developer's own machine.
+        env["HOME"] = str(manifest_home())
         env["PATH"] = str(bin_dir) + os.pathsep + env.get("PATH", "")
         env["MANIFEST_DELEGATE_REGISTRY_PATH"] = str(registry_path)
         env["MANIFEST_DELEGATIONS_DIR"] = str(delegations_dir)
@@ -89,9 +108,37 @@ def env_factory(tmp_path):
     return _build
 
 
+_trusted_python_dir: str | None = None
+_trusted_python_path: Path | None = None
+
+
+def _trusted_python() -> Path:
+    """The interpreter delegate.py's own trust gate accepts for THIS checkout.
+
+    `project-env`'s shared `manifest-model-policy` editable install is pinned
+    at `manifest provision` time to whichever checkout provisioned it -- never
+    to a `test.python` candidate materialization, a different, disposable
+    checkout of the same tree. Every subprocess invocation of delegate.py in
+    this suite would fail its own trust gate against that shared interpreter
+    for that reason alone, unrelated to the job-lifecycle behavior these tests
+    actually exercise. Built once per test process (delegate.py's trust gate
+    only cares about the checkout, which does not change mid-run) and removed
+    at interpreter exit via `atexit`, not a fixture teardown, so every module
+    -- not only ones that opt into a fixture -- shares one build.
+    """
+    global _trusted_python_dir, _trusted_python_path
+    if _trusted_python_path is None:
+        _trusted_python_dir = tempfile.mkdtemp(prefix="manifest-delegate-trust-")
+        _trusted_python_path = in_tree_trusted_python(Path(_trusted_python_dir))
+        import atexit
+
+        atexit.register(lambda: shutil.rmtree(_trusted_python_dir, ignore_errors=True))
+    return _trusted_python_path
+
+
 def _run(env, *args, input_text=None):
     return subprocess.run(
-        [sys.executable, str(SCRIPT_PATH), *list(args)],
+        [str(_trusted_python()), str(SCRIPT_PATH), *list(args)],
         env=env,
         input=input_text,
         capture_output=True,

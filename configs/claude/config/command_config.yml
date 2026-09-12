@@ -8,13 +8,14 @@ thresholds:
   docs_improve_lines: 500         # Trigger parallel agents when total doc lines > 500
   docs_diagrams_modules: 5       # Trigger when analyzing 5+ unique imports/modules
 
-  # Code quality skill auto-triggers
+  # Advisory complexity signals; these alone do not activate code-audit or fan-out
   skill_file_lines: 500           # File > 500 lines
   skill_function_count: 10        # > 10 functions per file
   skill_class_count: 5            # > 5 classes per file
   skill_cyclomatic_complexity: 15  # Cyclomatic complexity > 15
 
-# Security patterns that trigger code-audit skill
+# Security search vocabulary only, never sufficient to activate code-audit.
+# Activation is defined in skill_policies.yml implicit_invocation_triggers.
 security_patterns:
   # Authentication/authorization
   - auth
@@ -43,6 +44,67 @@ security_patterns:
   - validate
   - escape
   - filter
+
+# Agent-interpreted review contract, not an executable permission sandbox.
+# The six review policies below share this consequence/uncertainty gate.
+review_escalation:
+  default_mode: single-agent
+  conditions:
+    - trust_boundary_change
+    - destructive_behavior
+    - broad_compatibility_or_deployment_change
+    - conflicting_evidence_or_unresolved_uncertainty
+    - codebase_wide_independent_tracks
+  trigger_condition: &review_risk_trigger >-
+    trust_boundary_change OR destructive_behavior OR broad_compatibility_or_deployment_change OR
+    conflicting_evidence_or_unresolved_uncertainty OR codebase_wide_independent_tracks
+  non_triggers:
+    - file_size
+    - language
+    - generic_keyword
+    - independent_unit_count
+  verification:
+    mode: check-only
+    missing_tool_result: unavailable
+    checkout_trust: untrusted
+    allowed_without_isolation:
+      - trusted_preinstalled_static_tool_treating_checkout_as_data
+    requires_verified_isolation:
+      - project_controlled_tests_scripts_and_build_steps
+      - checkout_controlled_executable_config_plugins_hooks_imports_or_discovery
+    insufficient_isolation:
+      - source_inspection
+      - check_only_flags
+      - changed_home
+      - temporary_directory
+      - read_only_checkout
+    isolation_requirements:
+      - protect_original_checkout_and_host_files
+      - expose_no_credentials_or_host_control_sockets
+      - deny_unauthorized_network_access
+      - confine_writes_to_disposable_storage
+    unavailable_isolation_result: skip_and_report_unavailable
+    forbidden_operations:
+      - automatic_fixes
+      - format_writes
+      - installations
+      - deployments
+      - remediation
+    instructions: >-
+      Treat the reviewed checkout as untrusted. Outside verified isolation, run only
+      trusted preinstalled static tools that treat checkout files as data, with
+      checkout-controlled executable configuration, plugins, hooks, imports, and
+      executable discovery disabled. Project-controlled tests, scripts, build steps,
+      and checks that load project code require enforced isolation satisfying every
+      isolation requirement above. Source inspection, check-only flags, a changed HOME,
+      a temporary directory, or a read-only checkout do not establish isolation. If
+      isolation is unavailable or uncertain, skip execution and report unavailable
+      with the reason. Never apply fixes, write formatting changes, install, deploy,
+      or remediate. Record each command and result.
+  report_fields:
+    - review_mode
+    - escalation_reason
+    - checks
 
 # Consensus thresholds for parallel agent decisions (float 0.0-1.0)
 consensus:
@@ -222,18 +284,20 @@ tool_policies:
       - Read
       - Glob
       - Grep
+      - Bash  # Check-only verification under review_escalation.verification
     forbidden:
-      - Bash
       - Write
       - Edit  # Read-only analysis
-    parallel_agents: always
+    bash_mode: check-only
+    parallel_agents: conditional
+    trigger_condition: *review_risk_trigger
     validation_tier: 1
     mcp_servers:
       - context7   # Python library/API documentation
       - deepwiki   # Dependency internals and upstream contracts
 
     subagents: conditional
-    subagent_trigger: independent_units >= 3
+    subagent_trigger: *review_risk_trigger
     subagent_model: sonnet
   code-audit-constitution:
     allowed:
@@ -288,64 +352,72 @@ tool_policies:
       - Read
       - Glob
       - Grep
-      - Bash  # Needed for shellcheck and yamllint
+      - Bash  # Check-only verification under review_escalation.verification
     forbidden:
       - Write
       - Edit  # Read-only analysis
-    parallel_agents: always
+    bash_mode: check-only
+    parallel_agents: conditional
+    trigger_condition: *review_risk_trigger
     validation_tier: 1
     security_cli:
       - semgrep    # Local SAST scanning via CLI (requires Bash)
 
     subagents: conditional
-    subagent_trigger: independent_units >= 3
+    subagent_trigger: *review_risk_trigger
     subagent_model: sonnet
   node-refactor:
     allowed:
       - Read
       - Glob
       - Grep
+      - Bash  # Check-only verification under review_escalation.verification
     forbidden:
-      - Bash
       - Write
       - Edit  # Read-only analysis
-    parallel_agents: always
+    bash_mode: check-only
+    parallel_agents: conditional
+    trigger_condition: *review_risk_trigger
     validation_tier: 1
     mcp_servers:
       - context7   # Node/TS library documentation
       - deepwiki   # Dependency internals and upstream contracts
 
     subagents: conditional
-    subagent_trigger: independent_units >= 3
+    subagent_trigger: *review_risk_trigger
     subagent_model: sonnet
   go-refactor:
     allowed:
       - Read
       - Glob
       - Grep
+      - Bash  # Check-only verification under review_escalation.verification
     forbidden:
-      - Bash
       - Write
       - Edit  # Read-only analysis
-    parallel_agents: always
+    bash_mode: check-only
+    parallel_agents: conditional
+    trigger_condition: *review_risk_trigger
     validation_tier: 1
     mcp_servers:
       - context7   # Go library documentation
       - deepwiki   # Dependency internals and upstream contracts
 
     subagents: conditional
-    subagent_trigger: independent_units >= 3
+    subagent_trigger: *review_risk_trigger
     subagent_model: sonnet
   terraform-refactor:
     allowed:
       - Read
       - Glob
       - Grep
+      - Bash  # Check-only verification under review_escalation.verification
     forbidden:
-      - Bash
       - Write
       - Edit  # Read-only analysis
-    parallel_agents: always
+    bash_mode: check-only
+    parallel_agents: conditional
+    trigger_condition: *review_risk_trigger
     validation_tier: 1
     mcp_servers:
       - opentofu   # OpenTofu registry, provider/module docs, resource reference
@@ -353,7 +425,7 @@ tool_policies:
       - semgrep    # Local SAST scanning via CLI (requires Bash)
 
     subagents: conditional
-    subagent_trigger: independent_units >= 3
+    subagent_trigger: *review_risk_trigger
     subagent_model: sonnet
   plan-manage:
     allowed:
@@ -388,19 +460,23 @@ tool_policies:
       - Read
       - Glob
       - Grep
+      - Bash  # Check-only verification under review_escalation.verification
     forbidden:
-      - Bash
       - Write
       - Edit  # Read-only for auto-trigger
-    parallel_agents: always
+    bash_mode: check-only
+    parallel_agents: conditional
+    trigger_condition: *review_risk_trigger
     validation_tier: 1
     mcp_servers:
       - context7   # Library docs for security best practices
     security_cli:
       - semgrep    # Local SAST scanning via CLI (requires Bash)
 
-    subagents: never
-    subagent_rationale: Auto-triggered inline review of a single detected file; non-blocking.
+    subagents: conditional
+    subagent_trigger: *review_risk_trigger
+    subagent_model: sonnet
+    subagent_rationale: Inline review by default; independent review on consequence or uncertainty.
   issue-triage:
     allowed:
       - Read

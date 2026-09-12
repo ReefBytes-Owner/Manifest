@@ -1,0 +1,116 @@
+# Frozen shadow-CI migration component table (config/check-preservation.json
+# oracle). Moved out of check_preservation_oracle.py's source (C2, C-DATA):
+# each row describes one observed CI step, in source order. A list denotes a
+# command-level decomposition; ':' marks setup and '!' publication. Literal
+# line boundaries retain every byte (including comments and shell guards)
+# without pretending conditional shell fragments run independently.
+components:
+  lint:
+    - :checkout
+    - :skill-mirror
+    - - :shellcheck-install
+      - :shellcheck-version
+    - lint.shell.scripts
+    - - lint.shell.bootstrap
+      - lint.shell.bootstrap
+    - lint.shell.arrays
+    - lint.bats.assertions
+    - package.self-contained
+    - :yamllint-install
+    - lint.yaml.config
+    - lint.markdown.keydocs
+    - :python-setup
+    - - :pyyaml-install
+      - syntax.yaml.config
+    - generated.commands-doc
+    - :uv-install
+    - structure.bundle-references
+    - - :shell-options
+      - generated.plugin-views
+      - generated.vendor
+      - structure.runtime-paths
+      - structure.agent-frontmatter
+      - generated.capability-inventory
+      - generated.capability-matrix
+    - - :build-output-cleanup
+      - package.coordinator
+      - package.coordinator
+    - dependency.lock.config
+    - package.config
+    - dependency.lock.delegate
+    - :pre-commit-cache
+    - :pre-commit-install
+    - '@hooks'
+  test:
+    - :checkout
+    - :skill-mirror
+    - :bats-cache
+    - :bats-install
+    - :uv-install
+    - :runtime-sync
+    - - :gitleaks-download
+      - :gitleaks-checksum
+      - :gitleaks-extract
+      - :gitleaks-install
+      - :gitleaks-cleanup
+      - :gitleaks-version
+    - test.bats
+    - :python-setup
+    - - :model-policy-install
+      - :test-dependencies
+    - test.python
+    - test.hooks
+    - test.smoke.lite
+  validate:
+    - :checkout
+    - :skill-mirror
+    - :python-setup
+    - :pyyaml-install
+    - structure.symlinks
+    - structure.case-collision
+    - syntax.shell.project
+    - structure.inventory
+    - structure.skill-paths
+    - test.bundle-partition
+    - structure.skill-references
+    - generated.cursor
+  release:
+    - :checkout
+    - :python-setup
+    - :uv-setup
+    - :skill-mirror
+    - - package.coordinator
+      - package.release-archive
+    - package.release-manifest
+    - '!release.inspect-existing'
+    - '!release.ensure-tag'
+    - '!release.create-draft'
+    - '!release.upload-assets'
+    - '!release.publish'
+boundaries:
+  lint:2:
+    - 1
+  lint:4:
+    - 1
+  lint:12:
+    - 1
+  lint:16:
+    - 1
+    - 2
+    - 3
+    - 4
+    - 9
+    - 10
+  lint:17:
+    - 2
+    - 3
+  test:6:
+    - 6
+    - 7
+    - 8
+    - 9
+    - 10
+  test:9:
+    - 1
+  release:4:
+    - 2

@@ -45,10 +45,19 @@ def _isolated_home(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Path]:
     # Record the decision so a test can assert the sharing contract without
     # having to reconstruct the pre-patch HOME, which it can no longer see.
     patch.setenv("MANIFEST_TEST_CACHES_SHARED", "1" if shared_caches else "0")
+    # `UV_PYTHON_INSTALL_DIR` (uv's own downloaded-interpreter cache, under
+    # `.local/share`, not `.cache`) needs the same shared-by-design pin: a
+    # nested `uv sync`/`uv python` call that only sees this scratch HOME has
+    # no cached interpreter to reuse, so it downloads a fresh, unpinned
+    # default build (network-dependent, and not the exact interpreter
+    # `manifest provision`'s committed lock hash expects) even when this
+    # very host already has the right one cached under the real HOME.
+    share_root = real_home / ".local/share" if shared_caches else home / ".local/share"
     cache_defaults = {
         "XDG_CACHE_HOME": cache_root,
         "UV_CACHE_DIR": cache_root / "uv",
         "PIP_CACHE_DIR": cache_root / "pip",
+        "UV_PYTHON_INSTALL_DIR": share_root / "uv" / "python",
     }
     for name, default in cache_defaults.items():
         patch.setenv(name, os.environ.get(name) or str(default))

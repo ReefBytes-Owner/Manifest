@@ -528,7 +528,7 @@
     {
       "bundle": "manifest-workspace",
       "category": "productivity",
-      "description": "Run deterministic repository-local regression gates and report a structured PASS, WARN, or FAIL without bootstrap, deployed-home probes, or live provider calls.",
+      "description": "Run deterministic repository-local regression gates and report a structured PASS, FAIL, or BLOCKED without bootstrap, deployed-home probes, or live provider calls.",
       "name": "pr-smoke",
       "qualified_name": "manifest-workspace:pr-smoke"
     },
@@ -640,7 +640,7 @@
     {
       "bundle": "manifest-security",
       "category": "security",
-      "description": "Auto-trigger on security-sensitive code (auth, crypto, secrets, input validation), large files (>500 lines), or complex files (>10 functions/>5 classes). Gives code-audit and security feedback without blocking user flow.",
+      "description": "Auto-trigger when changed behavior crosses a security boundary, or run on an explicit security review request. Gives focused security feedback without blocking user flow.",
       "name": "code-audit",
       "qualified_name": "manifest-security:code-audit"
     },

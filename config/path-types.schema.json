@@ -1,0 +1,29 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Manifest repository path-type tags",
+  "description": "Backs src/manifest_agent/checks/path_filters.py's VALID_PATH_TYPES and suffix-to-tag table (moved out of source per the CON-004/C-DATA data-table rule).",
+  "type": "object",
+  "required": ["schema_version", "valid_types", "suffix_tags"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {"type": "string"},
+    "_comment": {"type": "string"},
+    "schema_version": {"const": 1},
+    "valid_types": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "suffix_tags": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "array",
+        "items": {"type": "string", "minLength": 1},
+        "minItems": 1,
+        "uniqueItems": true
+      }
+    }
+  }
+}

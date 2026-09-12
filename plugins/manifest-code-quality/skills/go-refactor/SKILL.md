@@ -8,16 +8,11 @@ description: Security, architecture, and quality analysis for Go codebases with 
 Analyze a Go codebase against best practices, security principles, and idiomatic Go
 standards. Generate a comprehensive refactoring report with prioritized recommendations.
 
-## Parallel Agent Integration
+## Review and Verification
 
-This command ALWAYS uses parallel agents (security-critical).
-Executes: `manifest-workspace:parallel-agent --json --full-output --validate --analyze`
-
-Consensus scoring:
-
-- >=80%: Auto-proceed with unified recommendation
-- 50-79%: Highlight disagreements to user
-- <50%: Escalate for human review
+Follow the shared [review escalation contract](../refactor/references/review-escalation.md).
+Use one reviewing agent by default, run applicable check-only verification, and
+add independent review only when that contract's risk conditions require it.
 
 ## Task
 
@@ -296,13 +291,12 @@ After completing the analysis, capture the most significant findings:
 
 ## Sub-agent dispatch
 
-Follow the bundled `sub-agent-dispatch.md` selection rules. Dispatches use the
-pinned `sonnet` model.
-
-When ≥3 independent packages or analysis dimensions exist, dispatch one sub-agent per package to analyze it,
-then merge findings; below that, analyze inline. Use native Task sub-agents on Claude, or
-`manifest-workspace:parallel-agent` / inline on other assistants. Dispatched sub-agents execute their task directly and
-do not re-dispatch.
-
-Dispatch on **Sonnet** (`subagent_model: sonnet`) — pass the model
-explicitly; inheriting the session's model bills premium rates for fan-out work.
+The [review escalation contract](../refactor/references/review-escalation.md) is the
+sole authority for whether to dispatch. Dispatch only when at least one of that
+contract's five risk conditions is present; each condition is independently
+sufficient. When available, use `sub-agent-dispatch.md` only for mechanism,
+configured model selection, and no-recursion guidance. This contract overrides
+any count or size threshold in that reference. Use native Task sub-agents on
+Claude or the `manifest-workspace:parallel-agent` fallback elsewhere. Explicitly
+select the configured **Sonnet** tier (`subagent_model: sonnet`). Dispatched
+agents perform their assigned review and do not re-dispatch.

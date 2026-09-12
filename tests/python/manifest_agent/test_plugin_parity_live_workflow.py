@@ -6,6 +6,7 @@ import copy
 import hashlib
 import io
 import json
+import shutil
 import subprocess
 import sys
 import tarfile
@@ -47,21 +48,37 @@ def _run_verifier(verifier: str, archive: Path, metadata: Path, commit: str) -> 
         sys.argv = previous_argv
 
 
-def _release_artifact(repo_root: Path, tmp_path: Path) -> tuple[Path, Path, str]:
-    source = tmp_path / "release-source"
-    subprocess.run(
-        ("git", "clone", "--quiet", str(repo_root), str(source)),
+def _git(repo: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ("git", "-C", str(repo), *arguments),
         check=True,
         capture_output=True,
         text=True,
     )
+
+
+def _release_artifact(repo_root: Path, tmp_path: Path) -> tuple[Path, Path, str]:
+    # `git clone` (or any other `git ... <repo_root>` invocation) of the
+    # running tree fails when this test itself runs inside a materialized
+    # candidate: the candidate has a synthetic `.git`, not a real, clonable
+    # repo. Build the fixture entirely under tmp_path by copying the tree
+    # from the filesystem -- never invoking git against repo_root -- then
+    # give the fixture its own real, fresh git history (same rule as
+    # test_check_runner_preparation_groups.py's tmp_path fixture repos).
+    source = tmp_path / "release-source"
+    shutil.copytree(
+        repo_root,
+        source,
+        symlinks=True,
+        ignore=shutil.ignore_patterns(".git"),
+    )
+    _git(source, "init", "--quiet")
+    _git(source, "config", "user.email", "manifest@example.invalid")
+    _git(source, "config", "user.name", "Manifest Test")
+    _git(source, "add", ".")
+    _git(source, "commit", "--quiet", "-m", "release fixture")
     release = build_release(source, tmp_path / "release", _ARCHIVE_BASE_URL)
-    commit = subprocess.run(
-        ("git", "-C", str(source), "rev-parse", "HEAD"),
-        check=True,
-        capture_output=True,
-        text=True,
-    ).stdout.strip()
+    commit = _git(source, "rev-parse", "HEAD").stdout.strip()
     return release.archive, release.metadata, commit
 
 

@@ -18,7 +18,7 @@ thresholds:
   docs_improve_lines: 500         # Trigger parallel agents when total doc lines > 500
   docs_diagrams_modules: 5        # Trigger when analyzing 5+ unique imports/modules
 
-  # Code quality skill auto-triggers
+  # Advisory complexity signals (never activation triggers by themselves)
   skill_file_lines: 500           # File > 500 lines
   skill_function_count: 10        # > 10 functions per file
   skill_class_count: 5            # > 5 classes per file
@@ -52,7 +52,8 @@ tool_policies:
       - Bash
       - Write
       - Edit  # Read-only analysis
-    parallel_agents: always
+    parallel_agents: conditional
+    trigger_condition: review_risk_condition
     validation_tier: 1
 
   docs-generate-diagrams:
@@ -69,7 +70,7 @@ tool_policies:
 
 **Parallel agent modes:**
 
-- `always`: Always run parallel agents
+- `always`: Always run parallel agents (reserved for explicit high-assurance workflows)
 - `never`: Never run parallel agents (single-agent mode)
 - `conditional`: Run based on trigger_condition
 

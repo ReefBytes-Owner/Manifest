@@ -353,16 +353,34 @@ STUB
 }
 
 @test "default reviewer is agy when SPEC_REVIEW_CLI is unset" {
-    # Put a stub named 'agy' on PATH; do NOT set SPEC_REVIEW_CLI.
+    # Put a stub named 'agy' on PATH; do NOT set SPEC_REVIEW_CLI. HOME is
+    # pinned to an empty sandbox directory so this can never resolve a real
+    # ~/.claude config or invoke a real agy CLI, even outside the runner
+    # (Correction 14 / C7o rule 1).
     _fake_reviewer                      # creates $SANDBOX/agy
-    mkdir -p "$SANDBOX/specs/001"
+    mkdir -p "$SANDBOX/specs/001" "$SANDBOX/home"
     printf 's\n' > "$SANDBOX/specs/001/spec.md"
     printf 'p\n' > "$SANDBOX/specs/001/plan.md"
-    PATH="$SANDBOX:$PATH" \
+    PATH="$SANDBOX:$PATH" HOME="$SANDBOX/home" \
         SPEC_REVIEW_TEMPLATE="$REPO_ROOT/configs/claude/prompts/spec_review.md" \
         run bash "$SCRIPT" "$SANDBOX"
     assert_success
     assert_output --partial "CLARIFICATION REQUIRED: Migration"
+}
+
+@test "on-demand review is BLOCKED (never a clean verdict) when no reviewer CLI exists on PATH" {
+    # No 'agy' anywhere: PATH is pinned to a minimal set with no $SANDBOX entry,
+    # and SPEC_REVIEW_CLI is left unset (defaults to 'agy'). An absent reviewer
+    # must be an explicit error, never "No inconsistencies found" (false green).
+    mkdir -p "$SANDBOX/specs/001"
+    printf 's\n' > "$SANDBOX/specs/001/spec.md"
+    printf 'p\n' > "$SANDBOX/specs/001/plan.md"
+    PATH="/usr/bin:/bin" HOME="$SANDBOX/no-home" \
+        SPEC_REVIEW_TEMPLATE="$REPO_ROOT/configs/claude/prompts/spec_review.md" \
+        run bash "$SCRIPT" "$SANDBOX"
+    assert_failure
+    refute_output --partial "No inconsistencies found"
+    assert_output --partial "reviewer CLI not found"
 }
 
 # ---------------------------------------------------------------------------

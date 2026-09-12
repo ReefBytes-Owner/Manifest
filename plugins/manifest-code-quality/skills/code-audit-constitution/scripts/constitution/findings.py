@@ -35,6 +35,9 @@ class Finding:
     line: int
     message: str
     remedy: str
+    anchor: str = ""
+    """Innermost enclosing symbol (debt-ratchet identity input, C3); "" if file-level
+    or unknown. Never a line number -- see ``manifest_agent.checks.debt``."""
 
     def __post_init__(self) -> None:
         if self.severity not in SEVERITIES:

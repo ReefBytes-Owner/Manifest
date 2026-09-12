@@ -24,6 +24,10 @@ REQUIREMENTS_FILES: dict[Path, set[str] | None] = {
 
 ROOT_PYPROJECT = REPO_ROOT / "pyproject.toml"
 CI_WORKFLOW = REPO_ROOT / ".github/workflows/ci.yml"
+CI_REQUIREMENTS = REPO_ROOT / "tests/requirements-ci.txt"
+MODEL_POLICY_PYPROJECT = (
+    REPO_ROOT / "configs/claude/scripts/manifest_model_policy/pyproject.toml"
+)
 
 
 def _load_uv_lock() -> tuple[dict[str, str], dict[str, set[str]]]:
@@ -54,6 +58,20 @@ def _parse_requirements(path: Path) -> list[Requirement]:
             continue
         requirements.append(Requirement(stripped))
     return requirements
+
+
+def test_ci_requirements_include_model_policy_editable_build_backend() -> None:
+    """Offline editable fixtures need their declared backend in the test process."""
+    policy = tomllib.loads(MODEL_POLICY_PYPROJECT.read_text(encoding="utf-8"))
+    required = {
+        _normalize_name(Requirement(spec).name)
+        for spec in policy["build-system"]["requires"]
+    }
+    installed = {
+        _normalize_name(requirement.name)
+        for requirement in _parse_requirements(CI_REQUIREMENTS)
+    }
+    assert required <= installed
 
 
 def _normalize_name(name: str) -> str:

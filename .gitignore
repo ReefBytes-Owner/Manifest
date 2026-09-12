@@ -38,6 +38,8 @@ Thumbs.db
 # Node (bats test runner installed via npm in CI / locally)
 node_modules/
 package-lock.json
+# The toolchain store's node-env source is a reviewed lockfile, not a build artifact (C7g).
+!config/toolchain/package-lock.json
 
 # local tool side-effect, origin unknown (not SkillClaw — see specs/003 research R10)
 records/

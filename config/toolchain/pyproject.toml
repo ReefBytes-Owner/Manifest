@@ -1,0 +1,39 @@
+# The `python-env` toolchain-store bundle (phase-3-5-decisions.md Correction 3,
+# chunk C7b). This project's only purpose is to pin the exact console-script
+# tools `manifest provision` materializes into the store -- it ships no code
+# of its own and is never installed as a dependency of the Manifest package.
+#
+# Every version below is an exact pin, matching config/project-checks.json's
+# `expected_version` fields and docs/SHARED_CHECKS.md. `uv sync --locked`
+# refuses to proceed if `uv.lock` drifts from this file, and `manifest
+# provision` refuses to proceed if the resulting distribution set's digest
+# does not match the lock's committed `exe_sha256` -- so bumping a pin here
+# requires regenerating `uv.lock` AND re-attesting `config/toolchain.lock.json`
+# in the same reviewed change.
+#
+# `semgrep==1.176.1` and `pip-audit==2.10.1` are owner-confirmed policy
+# pins. Changing either requires the reviewed relock and re-attestation
+# described above; automated latest-version updates are not authoritative.
+[project]
+name = "manifest-toolchain-python-env"
+version = "0.0.0"
+description = "Pinned console-script tools materialized into the python-env toolchain store"
+requires-python = ">=3.11"
+dependencies = [
+    "ruff==0.15.20",
+    "pytest==8.3.4",
+    "pre-commit-hooks==6.0.0",
+    "yamllint==1.38.0",
+    "pyyaml==6.0.2",
+    # Owner-confirmed policy pins (2026-09-12).
+    "semgrep==1.176.1",
+    "pip-audit==2.10.1",
+    # C7f: package.coordinator/config runs a real build of the root project
+    # under this interpreter (build-backend = "hatchling.build" in the root
+    # pyproject.toml); without hatchling importable here that check BLOCKs
+    # "build backend unavailable". Matches the root project's own pin.
+    "hatchling>=1.27,<2",
+]
+
+[tool.uv]
+package = false

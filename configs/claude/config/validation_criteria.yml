@@ -211,24 +211,13 @@ command_overrides:
       medium: show_disagreements  # 50-74%: Highlight to user
       low: block_and_escalate     # <50%: Human review required
 
-  code-audit:  # Skill (auto-triggered)
+  code-audit:  # Validation only; activation lives in skill_policies.yml
     tier1_required: true
     tier1_checks:
       - security
       - error_handling
     tier2_required: true
     tier2_threshold: 0.60
-    auto_trigger: true
-    trigger_patterns:
-      security:
-        - auth|login|session|jwt
-        - crypto|encrypt|hash|secret
-        - api_key|password|token|credential
-        - sanitize|validate|escape
-      complexity:
-        file_lines: 500
-        function_count: 10
-        class_count: 5
 
   # PR-OPEN gate (#360): consensus is ADVISORY — cross_verification is deliberately OMITTED so
   # a <80%-consensus change still surfaces (real-vs-draft PR); the gate annotates, never blocks.

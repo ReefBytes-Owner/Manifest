@@ -1,0 +1,260 @@
+{
+  "schema_version": 1,
+  "tools": {
+    "gitleaks": {
+      "kind": "binary",
+      "version": "8.30.1",
+      "platforms": {
+        "linux-x64": {
+          "url": "https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz",
+          "sha256": "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb",
+          "exe_sha256": "88f91962aa2f93ac6ab281d553b9e125f5197bbbce38f9f2437f7299c32e5509",
+          "path_in_archive": "gitleaks"
+        },
+        "darwin-arm64": {
+          "url": "https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_darwin_arm64.tar.gz",
+          "sha256": "b40ab0ae55c505963e365f271a8d3846efbc170aa17f2607f13df610a9aeb6a5",
+          "exe_sha256": "ba52fb1bfabbcde42f032afad3d6e0b19dff8ed105229a16e7caa338bbc0e84f",
+          "path_in_archive": "gitleaks"
+        }
+      }
+    },
+    "shfmt": {
+      "kind": "binary",
+      "version": "3.13.1",
+      "platforms": {
+        "linux-x64": {
+          "url": "https://github.com/mvdan/sh/releases/download/v3.13.1/shfmt_v3.13.1_linux_amd64",
+          "sha256": "fb096c5d1ac6beabbdbaa2874d025badb03ee07929f0c9ff67563ce8c75398b1",
+          "exe_sha256": "fb096c5d1ac6beabbdbaa2874d025badb03ee07929f0c9ff67563ce8c75398b1",
+          "path_in_archive": "shfmt_v3.13.1_linux_amd64"
+        },
+        "darwin-arm64": {
+          "url": "https://github.com/mvdan/sh/releases/download/v3.13.1/shfmt_v3.13.1_darwin_arm64",
+          "sha256": "9680526be4a66ea1ffe988ed08af58e1400fe1e4f4aef5bd88b20bb9b3da33f8",
+          "exe_sha256": "9680526be4a66ea1ffe988ed08af58e1400fe1e4f4aef5bd88b20bb9b3da33f8",
+          "path_in_archive": "shfmt_v3.13.1_darwin_arm64"
+        }
+      }
+    },
+    "shellcheck": {
+      "kind": "binary",
+      "version": "0.11.0",
+      "platforms": {
+        "linux-x64": {
+          "url": "https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.linux.x86_64.tar.xz",
+          "sha256": "8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198",
+          "exe_sha256": "4da528ddb3a4d1b7b24a59d4e16eb2f5fd960f4bd9a3708a15baddbdf1d5a55b",
+          "path_in_archive": "shellcheck-v0.11.0/shellcheck"
+        },
+        "darwin-arm64": {
+          "url": "https://github.com/koalaman/shellcheck/releases/download/v0.11.0/shellcheck-v0.11.0.darwin.aarch64.tar.xz",
+          "sha256": "56affdd8de5527894dca6dc3d7e0a99a873b0f004d7aabc30ae407d3f48b0a79",
+          "exe_sha256": "61c17246d69f012cd458ae82f244c46023dac75d1b69733ca1cc7d28fb270fd7",
+          "path_in_archive": "shellcheck-v0.11.0/shellcheck"
+        }
+      }
+    },
+    "python-env": {
+      "kind": "python-env",
+      "version": "config/toolchain/pyproject.toml",
+      "platforms": {
+        "linux-x64": {
+          "url": "file://config/toolchain/uv.lock",
+          "sha256": "42d573143665e273fe24fbfc65ac6495ec9a6139619d0bc211005484e0bbbc6d",
+          "exe_sha256": "0c7082594284d9eb5a79c6b6d221204ff672e04c8e2ee552beba07b87a2e65fc",
+          "path_in_archive": ".",
+          "console_scripts": [
+            "bin/python",
+            "bin/ruff",
+            "bin/yamllint",
+            "bin/pip-audit",
+            "bin/pytest",
+            "bin/semgrep",
+            "bin/check-yaml",
+            "bin/check-json",
+            "bin/check-added-large-files",
+            "bin/check-case-conflict",
+            "bin/check-merge-conflict",
+            "bin/check-executables-have-shebangs",
+            "bin/check-shebang-scripts-are-executable",
+            "bin/detect-private-key",
+            "bin/check-ast",
+            "bin/debug-statement-hook",
+            "bin/trailing-whitespace-fixer",
+            "bin/end-of-file-fixer",
+            "bin/mixed-line-ending"
+          ]
+        },
+        "darwin-arm64": {
+          "url": "file://config/toolchain/uv.lock",
+          "sha256": "42d573143665e273fe24fbfc65ac6495ec9a6139619d0bc211005484e0bbbc6d",
+          "exe_sha256": "707ce0248b2b40f40df98199918e2960bb16bfb0db503f510b7072cef73b25e8",
+          "path_in_archive": ".",
+          "console_scripts": [
+            "bin/python",
+            "bin/ruff",
+            "bin/yamllint",
+            "bin/pip-audit",
+            "bin/pytest",
+            "bin/semgrep",
+            "bin/check-yaml",
+            "bin/check-json",
+            "bin/check-added-large-files",
+            "bin/check-case-conflict",
+            "bin/check-merge-conflict",
+            "bin/check-executables-have-shebangs",
+            "bin/check-shebang-scripts-are-executable",
+            "bin/detect-private-key",
+            "bin/check-ast",
+            "bin/debug-statement-hook",
+            "bin/trailing-whitespace-fixer",
+            "bin/end-of-file-fixer",
+            "bin/mixed-line-ending"
+          ]
+        }
+      }
+    },
+    "uv": {
+      "kind": "binary",
+      "version": "0.12.6",
+      "platforms": {
+        "linux-x64": {
+          "url": "https://github.com/astral-sh/uv/releases/download/0.12.6/uv-x86_64-unknown-linux-gnu.tar.gz",
+          "sha256": "8681d8921e7d520fb368991dcf5f9c1905b80f5bf2a265a0ed085c8d8e342477",
+          "exe_sha256": "d381f11517c66523211b0876552ff7dea5c1b4b0f13800571b35225761302fba",
+          "path_in_archive": "uv-x86_64-unknown-linux-gnu/uv"
+        },
+        "darwin-arm64": {
+          "url": "https://github.com/astral-sh/uv/releases/download/0.12.6/uv-aarch64-apple-darwin.tar.gz",
+          "sha256": "14b459d51ea2e71eeba28c45a268c922bdf8607fc6455e3f40b4e082895d160d",
+          "exe_sha256": "e8929237934c8679686428f5a7736c7ae7a5fe7a33b0504d1b03446cdbc43c94",
+          "path_in_archive": "uv-aarch64-apple-darwin/uv"
+        }
+      }
+    },
+    "node": {
+      "kind": "binary",
+      "version": "24.9.0",
+      "platforms": {
+        "linux-x64": {
+          "url": "https://nodejs.org/dist/v24.9.0/node-v24.9.0-linux-x64.tar.xz",
+          "sha256": "f52ec50e959d72d5c680d9731420b2661cd2a8070e94c7369b6ddfcd8b7278be",
+          "exe_sha256": "3dc61cdcc38781a678b31903d2f69ed16094206e2258df53a4eb2c0fe4f0a793",
+          "path_in_archive": "node-v24.9.0-linux-x64/bin/node",
+          "extra_executables": {
+            "npm": {
+              "path_in_archive": "node-v24.9.0-linux-x64/lib/node_modules/npm",
+              "executable_relative": "bin/npm-cli.js",
+              "exe_sha256": "8e5f6f3429f8cdbe693cdc29904e9d5a7b127a494bd15c804bd54c7403bfcbe7"
+            }
+          }
+        },
+        "darwin-arm64": {
+          "url": "https://nodejs.org/dist/v24.9.0/node-v24.9.0-darwin-arm64.tar.gz",
+          "sha256": "961024296c2a8e60daed0784f8b61e0fab5c51d197502a92eff052c72b53209b",
+          "exe_sha256": "ac1b8926054c59ba572f0a3dd2e520413f88201058848917946446151182c18d",
+          "path_in_archive": "node-v24.9.0-darwin-arm64/bin/node",
+          "extra_executables": {
+            "npm": {
+              "path_in_archive": "node-v24.9.0-darwin-arm64/lib/node_modules/npm",
+              "executable_relative": "bin/npm-cli.js",
+              "exe_sha256": "8e5f6f3429f8cdbe693cdc29904e9d5a7b127a494bd15c804bd54c7403bfcbe7"
+            }
+          }
+        }
+      }
+    },
+    "node-env": {
+      "kind": "node-env",
+      "version": "config/toolchain/package.json",
+      "platforms": {
+        "linux-x64": {
+          "url": "file://config/toolchain/package-lock.json",
+          "sha256": "36aa4e1f7e2768d9c8fc12e2130325ac1f23e3995437f4c5364fd8d7668a5758",
+          "exe_sha256": "8a490c680895d93c7a3535333d20c071512a6e8812b572f61f55c10201656dc6",
+          "path_in_archive": ".",
+          "console_scripts": [
+            "bin/markdownlint-cli2",
+            "bin/bats",
+            "bin/eslint",
+            "bin/pyright"
+          ]
+        },
+        "darwin-arm64": {
+          "url": "file://config/toolchain/package-lock.json",
+          "sha256": "36aa4e1f7e2768d9c8fc12e2130325ac1f23e3995437f4c5364fd8d7668a5758",
+          "exe_sha256": "de335591df3e2653c708f5443839fecb625c53fbc5771a020c58fa7228fa6972",
+          "path_in_archive": ".",
+          "console_scripts": [
+            "bin/markdownlint-cli2",
+            "bin/bats",
+            "bin/eslint",
+            "bin/pyright"
+          ]
+        }
+      }
+    },
+    "project-env": {
+      "kind": "python-env",
+      "version": "pyproject.toml",
+      "platforms": {
+        "linux-x64": {
+          "url": "file://uv.lock",
+          "sha256": "32c5ad8f97f3d295091044f23e84209d0ddf9ac2bfbbd618786185c301a6b717",
+          "exe_sha256": "ac2b0dbb6f0eb5f8da50f3df82b1d88e0d35124a38b685a2a98353f93fe2fbf2",
+          "path_in_archive": ".",
+          "console_scripts": [
+            "bin/python"
+          ]
+        },
+        "darwin-arm64": {
+          "url": "file://uv.lock",
+          "sha256": "32c5ad8f97f3d295091044f23e84209d0ddf9ac2bfbbd618786185c301a6b717",
+          "exe_sha256": "6631586c11f005b0a78894641eaa2ae4fb8b00432501635f9cb11890c9c75e86",
+          "path_in_archive": ".",
+          "console_scripts": [
+            "bin/python"
+          ]
+        }
+      }
+    },
+    "config-env": {
+      "kind": "python-env",
+      "version": "configs/claude/pyproject.toml",
+      "platforms": {
+        "linux-x64": {
+          "url": "file://configs/claude/uv.lock",
+          "sha256": "11b3b09e1670ab758e18fec8619d6413374b6a2b8e207d646a8a9a7e9d3c4056",
+          "exe_sha256": "71f7af16b78e3f28e00818f9f603ef52a6c512626d3bd1fff6386bf611ac0af4",
+          "path_in_archive": ".",
+          "console_scripts": [
+            "bin/manifest"
+          ]
+        },
+        "darwin-arm64": {
+          "url": "file://configs/claude/uv.lock",
+          "sha256": "11b3b09e1670ab758e18fec8619d6413374b6a2b8e207d646a8a9a7e9d3c4056",
+          "exe_sha256": "1d29b8099e3054ece8a960f9797e627740a36de5e43c30e7d4156cb60cc5e7ec",
+          "path_in_archive": ".",
+          "console_scripts": [
+            "bin/manifest"
+          ]
+        }
+      }
+    }
+  },
+  "caches": {
+    "node-cache": {
+      "source_sha256": "ede85f4e101605b98a85fd5f32dc6e35556ff68988987d5b1a26b2e1f4db272a",
+      "platforms": {
+        "darwin-arm64": {
+          "digest": "9d09c49ca5838f02d1e137d6e0e89bcb5a86c7454ef27182be88a5bff00f808c"
+        },
+        "linux-x64": {
+          "digest": "0432891a96e8aff9f4072f506911747c4b3c2e1346a6a70fcfbf4ffce12f2e8d"
+        }
+      }
+    }
+  }
+}

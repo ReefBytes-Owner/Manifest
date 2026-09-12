@@ -1,0 +1,21 @@
+{
+  "$schema": "https://raw.githubusercontent.com/microsoft/pyright/main/packages/vscode-pyright/schemas/pyrightconfig.schema.json",
+  "_comment": "types.python (Phase 3 chunk C5, phase-3-5-decisions.md 3d): include covers the full root set the decision names -- src, tools, configs/claude/scripts, configs/claude/scripts/manifest_model_policy, plugins/manifest-delegate, tests/python. typeCheckingMode is basic and reportMissingImports stays ON: suppressing it is what the spec called non-evidence.",
+  "include": [
+    "src",
+    "tools",
+    "configs/claude/scripts",
+    "configs/claude/scripts/manifest_model_policy",
+    "plugins/manifest-delegate",
+    "tests/python"
+  ],
+  "exclude": [
+    "**/node_modules",
+    "**/__pycache__",
+    "**/.venv",
+    "**/.git"
+  ],
+  "typeCheckingMode": "basic",
+  "reportMissingImports": true,
+  "pythonVersion": "3.11"
+}

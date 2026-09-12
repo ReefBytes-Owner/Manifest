@@ -20,6 +20,8 @@ setup() {
     GEN="$SANDBOX/configs/claude/scripts/generate_cursor_rules.sh"
     mkdir -p "$SKILLS_DIR" "$RULES_DIR" "$SANDBOX/configs/claude/scripts" "$SANDBOX/configs/claude/config"
     cp "$REPO_ROOT/configs/claude/scripts/generate_cursor_rules.sh" "$GEN"
+    cp "$REPO_ROOT/configs/claude/scripts/cursor_rules_model_guidance.py" \
+        "$SANDBOX/configs/claude/scripts/cursor_rules_model_guidance.py"
     cp -R "$REPO_ROOT/configs/claude/scripts/manifest_model_policy" "$SANDBOX/configs/claude/scripts/manifest_model_policy"
     chmod +x "$GEN"
     # generate_cursor_rules.sh also regenerates configs/cursor/mcp.json (spec

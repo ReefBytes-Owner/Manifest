@@ -1,0 +1,114 @@
+# security.semgrep (Phase 3 chunk C5, phase-3-5-decisions.md 3d).
+#
+# One local ruleset, <= 15 rules, no `p/...` registry config and no upload
+# (argv: `semgrep scan --config config/semgrep/manifest.yml --metrics=off
+# --no-git-ignore --json --error --severity ERROR .` -- see
+# tools/project_checks/analysis_checks.py::_semgrep_argv). Each rule below
+# has one positive and one negative fixture under
+# tests/fixtures/semgrep/<rule-id>/ (see test_analysis_checks.py). Every
+# "positive" fixture that trips this repo's own CON-013 (the same danger
+# pattern a rule here also catches: eval/exec/pickle.loads/shell=True/
+# yaml.load/curl|sh) is extensionless with a shebang instead of `.py`/`.sh`
+# -- semgrep sniffs the shebang for language detection, but an extensionless
+# file falls outside hook.constitution-check's `\.(py|...|sh|bash|...)$`
+# selection, so the deliberately-vulnerable fixture never trips this repo's
+# OWN constitution gate. This is a file-type-selection fact, not a change to
+# that check's frozen exclude_regex oracle -- see docs/SHARED_CHECKS.md.
+rules:
+  - id: manifest-python-subprocess-shell-true
+    languages: [python]
+    severity: ERROR
+    message: >-
+      subprocess call with shell=True executes a shell string -- pass an
+      argv list instead so no shell ever interprets untrusted input.
+    patterns:
+      - pattern-either:
+          - pattern: subprocess.run(..., shell=True, ...)
+          - pattern: subprocess.Popen(..., shell=True, ...)
+          - pattern: subprocess.call(..., shell=True, ...)
+          - pattern: subprocess.check_call(..., shell=True, ...)
+          - pattern: subprocess.check_output(..., shell=True, ...)
+
+  - id: manifest-python-yaml-load-without-loader
+    languages: [python]
+    severity: ERROR
+    message: >-
+      yaml.load() without an explicit safe Loader can execute arbitrary
+      Python objects; use yaml.safe_load() or pass Loader=yaml.SafeLoader.
+    patterns:
+      - pattern-either:
+          - pattern: yaml.load($X)
+          - pattern: yaml.load($X, Loader=yaml.Loader)
+          - pattern: yaml.load($X, Loader=yaml.UnsafeLoader)
+          - pattern: yaml.load($X, Loader=yaml.FullLoader)
+
+  - id: manifest-python-eval
+    languages: [python]
+    severity: ERROR
+    message: "eval() executes arbitrary code from its argument string."
+    pattern: eval(...)
+
+  - id: manifest-python-exec
+    languages: [python]
+    severity: ERROR
+    message: "exec() executes arbitrary code from its argument string."
+    pattern: exec(...)
+
+  - id: manifest-python-tempfile-mktemp
+    languages: [python]
+    severity: ERROR
+    message: >-
+      tempfile.mktemp() returns a name with no guarantee it stays unused
+      (TOCTOU); use tempfile.mkstemp()/NamedTemporaryFile() instead.
+    pattern: tempfile.mktemp(...)
+
+  - id: manifest-python-pickle-loads-external
+    languages: [python]
+    severity: ERROR
+    message: >-
+      pickle.loads() on data that may originate outside this process can
+      execute arbitrary code during deserialization.
+    pattern: pickle.loads(...)
+
+  - id: manifest-python-requests-without-timeout
+    languages: [python]
+    severity: ERROR
+    message: >-
+      requests call has no timeout= -- a hung remote can block the process
+      indefinitely.
+    patterns:
+      - pattern-either:
+          - pattern: requests.get(...)
+          - pattern: requests.post(...)
+          - pattern: requests.put(...)
+          - pattern: requests.delete(...)
+      - pattern-not: requests.get(..., timeout=$T, ...)
+      - pattern-not: requests.post(..., timeout=$T, ...)
+      - pattern-not: requests.put(..., timeout=$T, ...)
+      - pattern-not: requests.delete(..., timeout=$T, ...)
+
+  - id: manifest-bash-eval
+    languages: [bash]
+    severity: ERROR
+    message: "eval executes its argument(s) as shell code -- see shell-audit-* skills."
+    # `...` (not a single `$X`) so a multi-argument invocation
+    # (`eval "$a" "$b"`) -- which the shell concatenates and evaluates just
+    # like a single string -- still matches.
+    pattern: eval ...
+
+  - id: manifest-bash-curl-pipe-sh
+    languages: [bash]
+    severity: ERROR
+    message: >-
+      piping a download directly into a shell executes unreviewed remote
+      content; download, verify, then execute as a separate step.
+    patterns:
+      - pattern-either:
+          - pattern: curl ... | sh
+          - pattern: curl ... | bash
+          - pattern: curl ... | sudo sh
+          - pattern: curl ... | sudo bash
+          - pattern: wget ... | sh
+          - pattern: wget ... | bash
+          - pattern: wget ... | sudo sh
+          - pattern: wget ... | sudo bash

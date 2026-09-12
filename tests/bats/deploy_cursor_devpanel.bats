@@ -31,6 +31,15 @@ setup() {
     # steps are no-ops rather than errors.
     printf '{"version":1,"hooks":{}}' > "$SCRIPT_DIR/configs/cursor/hooks.json"
     printf '{"mcpServers":{}}' > "$SCRIPT_DIR/configs/cursor/mcp.json"
+    # merge_mcp_defaults() resolves its Python helper as
+    # $SCRIPT_DIR/configs/claude/scripts/merge_mcp_defaults.py — mirror the
+    # real one into this fake SCRIPT_DIR so the mcp.json merge step actually
+    # runs instead of silently no-opping (deploy_cursor_configs' earlier
+    # steps must be *real*, not stubbed away, for these assertions to mean
+    # anything).
+    mkdir -p "$SCRIPT_DIR/configs/claude/scripts"
+    cp "$REPO_ROOT/configs/claude/scripts/merge_mcp_defaults.py" \
+        "$SCRIPT_DIR/configs/claude/scripts/merge_mcp_defaults.py"
 
     # Seed the ONE shared output dir with BOTH role sets together — the real
     # shape generate_cursor_agents.py produces (11 files, disjoint names, one

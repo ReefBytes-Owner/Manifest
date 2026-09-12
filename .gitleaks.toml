@@ -2,6 +2,17 @@
 
 title = "Manifest Gitleaks Config"
 
+# Before this line existed, gitleaks' documented behavior is that a config
+# file supplying its own [[rules]] REPLACES the built-in default ruleset
+# rather than adding to it -- verified locally (gitleaks 8.30.1): the
+# default `generic-api-key` rule does not fire against this config without
+# `useDefault`, only the five custom rules below do. That silently narrowed
+# secret detection to five hand-picked patterns. `useDefault = true` makes
+# the rules below additive to gitleaks' ~150 built-in detectors instead
+# (config/check-preservation.json "equivalence" entry: hook.gitleaks).
+[extend]
+useDefault = true
+
 [[rules]]
 id = "anthropic-api-key"
 description = "Anthropic API Key"
@@ -40,6 +51,10 @@ paths = [
   '''templates/patterns/''',
   '''docs/SHELL_ANALYSIS_REPORT\.md''',
   '''docs/VALIDATION_REPORT\.md''',
+  # Deliberately secret-shaped equivalence fixtures (config/check-preservation.json
+  # "equivalence" entries); their "invalid" half must trip gitleaks under direct
+  # invocation, not be reported as a real finding on this repo's own scan.
+  '''tests/fixtures/equivalence/gitleaks/''',
 ]
 regexes = [
   '''sk-ant-example-[a-zA-Z0-9\-_]{95}''',

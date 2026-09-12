@@ -22,6 +22,9 @@ def test_runner_rejects_string_commands():
 def test_runner_merges_environment_without_mutating_the_parent(monkeypatch):
     monkeypatch.setenv("MANIFEST_PARENT_VALUE", "parent")
 
+    # subprocess-env: exempt -- CommandRunner.run() merges this on top of
+    # os.environ.copy() internally (src/manifest_agent/process.py), so the
+    # child always inherits the parent's PYTHONDONTWRITEBYTECODE.
     result = CommandRunner().run(
         (
             "python3",

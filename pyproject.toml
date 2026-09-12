@@ -28,6 +28,7 @@ build-backend = "hatchling.build"
 # [tool.hatch.build.targets.wheel.force-include] below.
 [tool.hatch.build.targets.sdist.force-include]
 "configs/claude/config/parallel_agent.yml" = "configs/claude/config/parallel_agent.yml"
+"schemas/project-checks.schema.json" = "schemas/project-checks.schema.json"
 
 [tool.hatch.build.targets.sdist]
 include = [
@@ -50,6 +51,7 @@ packages = ["src/manifest_agent"]
 
 [tool.hatch.build.targets.wheel.force-include]
 "schemas/manifest-capabilities.schema.json" = "manifest_agent/data/manifest-capabilities.schema.json"
+"schemas/project-checks.schema.json" = "manifest_agent/data/project-checks.schema.json"
 "configs/claude/config/parallel_agent.yml" = "manifest_agent/data/parallel_agent.yml"
 "configs/claude/scripts/manifest_model_policy/__init__.py" = "manifest_agent/_model_policy/__init__.py"
 "configs/claude/scripts/manifest_model_policy/controller.py" = "manifest_agent/_model_policy/controller.py"
@@ -76,6 +78,15 @@ dev = [
     "manifest-model-policy==0.1.0",
     "pytest>=9.1,<10",
     "pytest-asyncio>=1.4,<2",
+    # C7f: package.coordinator/config (tools/project_checks/packages.py
+    # `_backend()`) runs `importlib.util.find_spec("hatchling.build")` under
+    # `sys.executable` -- the interpreter already running `manifest check`
+    # (Correction 4: every literal "python3" check argv rewrites to it, never
+    # a PATH/store lookup). That is THIS project's own dev venv, not the
+    # toolchain store's separate python-env bundle, so hatchling has to be
+    # importable here for that check to ever leave BLOCKED "preprovisioned
+    # build backend unavailable". Matches [build-system] requires above.
+    "hatchling>=1.27,<2",
 ]
 
 [tool.ruff]
@@ -116,7 +127,10 @@ indent-style = "space"
 addopts = "--strict-markers --strict-config --import-mode=importlib"
 testpaths = ["tests/python"]
 pythonpath = [".", "src", "tests/python"]
-markers = ["native: isolated-home smoke tests requiring a native harness CLI"]
+markers = [
+    "native: isolated-home smoke tests requiring a native harness CLI",
+    "network: needs ambient network/checkout state (e.g. populated git submodules) a materialized test.python candidate cannot provide -- deselected when running inside a candidate (phase-3-5-decisions.md Correction 11)",
+]
 # pytest-asyncio's future default, pinned explicitly (unset emits PytestDeprecationWarning).
 asyncio_default_fixture_loop_scope = "function"
 

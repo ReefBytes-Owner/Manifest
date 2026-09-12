@@ -1,12 +1,12 @@
 ---
-description: "Run deterministic repository-local regression gates and report a structured PASS, WARN, or FAIL without bootstrap, deployed-home probes, or live provider calls."
+description: "Run deterministic repository-local regression gates and report a structured PASS, FAIL, or BLOCKED without bootstrap, deployed-home probes, or live provider calls."
 globs: ".claude/skills/pr-smoke/**"
 alwaysApply: false
 ---
 
 # pr-smoke
 
-Run deterministic repository-local regression gates and report a structured PASS, WARN, or FAIL without bootstrap, deployed-home probes, or live provider calls.
+Run deterministic repository-local regression gates and report a structured PASS, FAIL, or BLOCKED without bootstrap, deployed-home probes, or live provider calls.
 
 <!-- Auto-generated from .claude/skills/pr-smoke/SKILL.md -->
 <!-- Regenerate with: .claude/scripts/generate_cursor_rules.sh -->

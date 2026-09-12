@@ -245,6 +245,10 @@ EOF
     mkdir -p "$SKILLS_DIR" "$RULES_DIR"
     RULES_GEN="$SCRIPTS_DIR/generate_cursor_rules.sh"
     cp "$REPO_ROOT/configs/claude/scripts/generate_cursor_rules.sh" "$RULES_GEN"
+    cp "$REPO_ROOT/configs/claude/scripts/cursor_rules_model_guidance.py" \
+        "$SCRIPTS_DIR/cursor_rules_model_guidance.py"
+    cp -R "$REPO_ROOT/configs/claude/scripts/manifest_model_policy" \
+        "$SCRIPTS_DIR/manifest_model_policy"
     chmod +x "$RULES_GEN"
     make_registry alpha beta
 

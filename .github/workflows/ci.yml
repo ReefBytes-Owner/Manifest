@@ -6,6 +6,7 @@ on:
   # No base-branch filter: stacked story-PRs (e.g. 003-us4 -> 003-us3) must
   # run CI too, not only PRs that target main.
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -212,7 +213,11 @@ jobs:
 
   test:
     name: Test
-    timeout-minutes: 30
+    # 35: the test group's registry timeout_seconds now sum to 1920s (32min)
+    # -- evidence-derived budgets per check (config/project-checks.json
+    # budget_evidence, C7j) exceed the prior 30min ceiling; bumped with
+    # headroom on the same evidence, not widened blind.
+    timeout-minutes: 35
     needs: lint
     runs-on: ubuntu-latest
     steps:
@@ -220,6 +225,9 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
         with:
           # bats-support / bats-assert under tests/test_helper are git submodules
+          # Preservation tests read reviewed control blobs from an immutable
+          # historical revision; a depth-1 clone cannot contain that evidence.
+          fetch-depth: 0
           submodules: true
 
       # .apm/skills is GENERATED from plugins/*/skills/* (T3.3, spec 674) and is
@@ -564,3 +572,562 @@ jobs:
             exit 1
           fi
           echo "Cursor rules, mcp.json, and agents are up-to-date"
+
+  # --- Shared-check migration path (spec 2026-09-08) ---
+  #
+  # These jobs run each registry group through the shared `manifest check`
+  # entry and preserve current-run evidence. The path remains non-blocking:
+  # run 34684916099 proved the aggregate is still BLOCKED by declared
+  # coverage obligations, so activation's green-aggregate prerequisite is
+  # not met.
+  shadow-checks-structure:
+    name: Shadow Checks (structure)
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    permissions:
+      contents: read
+    outputs:
+      artifact_id: ${{ steps.upload.outputs.artifact-id }}
+      shadow_receipt_written: ${{ steps.shadow.outputs.receipt_written }}
+      shadow_exit_code: ${{ steps.shadow.outputs.exit_code }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
+        with:
+          fetch-depth: 0
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Resolve base revision
+        id: base
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_BEFORE: ${{ github.event.before }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          zero_sha="0000000000000000000000000000000000000000"
+          empty_tree_sha="4b825dc642cb6eb9a060e54bf8d69288fbee4904"
+          if [ "${EVENT_NAME}" = "pull_request" ]; then
+            base_sha="${PR_BASE_SHA}"
+          elif [ -n "${EVENT_BEFORE:-}" ] && [ "${EVENT_BEFORE}" != "${zero_sha}" ]; then
+            # push: diff against the ref's state before this push landed.
+            # origin/<default> already equals HEAD once the push has landed,
+            # so a merge-base against it is degenerate (base == HEAD, zero
+            # changed paths -- every path-filtered check reads NOT_APPLICABLE).
+            base_sha="${EVENT_BEFORE}"
+          elif git rev-parse HEAD~1 > /dev/null 2>&1; then
+            # New/force-pushed ref: GitHub sends the all-zeros SHA for
+            # `before`. Fall back to the immediate parent commit -- the same
+            # fallback the "Run pre-commit on changed files" step above uses.
+            base_sha="$(git rev-parse HEAD~1)"
+          else
+            # First commit in the repository's history: nothing to diff
+            # against. The empty-tree object hash makes every tracked path
+            # read as changed, same intent as `--all-files` above.
+            base_sha="${empty_tree_sha}"
+          fi
+          echo "sha=${base_sha}" >> "${GITHUB_OUTPUT}"
+
+      - name: Run shared checks
+        id: shadow
+        env:
+          BASE_SHA: ${{ steps.base.outputs.sha }}
+        run: |
+          set +e
+          uv run manifest check full \
+            --group structure \
+            --project-config config/project-checks.json \
+            --base "${BASE_SHA}" \
+            --json \
+            --output "${RUNNER_TEMP}/shadow-structure.json"
+          exit_code=$?
+          set -e
+          echo "exit_code=${exit_code}" >> "${GITHUB_OUTPUT}"
+          # `manifest check` exits 2 (FAIL) or 3 (BLOCKED) exactly when a
+          # group legitimately produced a receipt, so the step's own
+          # success/failure cannot tell "ran and returned FAIL/BLOCKED" apart
+          # from "crashed before writing anything". A written receipt file is
+          # the signal the aggregate's producer-rejection gate trusts
+          # instead. This step always exits 0 -- the shadow path must never
+          # turn the job (or the workflow) red.
+          if [ -s "${RUNNER_TEMP}/shadow-structure.json" ]; then
+            echo "receipt_written=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "receipt_written=false" >> "${GITHUB_OUTPUT}"
+          fi
+          exit 0
+
+      - name: Upload shadow receipt (current attempt)
+        if: always()
+        id: upload
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: shadow-receipt-structure-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/shadow-structure.json
+          retention-days: 7
+          if-no-files-found: warn
+
+  shadow-checks-lint:
+    name: Shadow Checks (lint)
+    timeout-minutes: 20
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    permissions:
+      contents: read
+    outputs:
+      artifact_id: ${{ steps.upload.outputs.artifact-id }}
+      shadow_receipt_written: ${{ steps.shadow.outputs.receipt_written }}
+      shadow_exit_code: ${{ steps.shadow.outputs.exit_code }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
+        with:
+          fetch-depth: 0
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Resolve base revision
+        id: base
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_BEFORE: ${{ github.event.before }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          zero_sha="0000000000000000000000000000000000000000"
+          empty_tree_sha="4b825dc642cb6eb9a060e54bf8d69288fbee4904"
+          if [ "${EVENT_NAME}" = "pull_request" ]; then
+            base_sha="${PR_BASE_SHA}"
+          elif [ -n "${EVENT_BEFORE:-}" ] && [ "${EVENT_BEFORE}" != "${zero_sha}" ]; then
+            base_sha="${EVENT_BEFORE}"
+          elif git rev-parse HEAD~1 > /dev/null 2>&1; then
+            base_sha="$(git rev-parse HEAD~1)"
+          else
+            base_sha="${empty_tree_sha}"
+          fi
+          echo "sha=${base_sha}" >> "${GITHUB_OUTPUT}"
+
+      - name: Run shared checks
+        id: shadow
+        env:
+          BASE_SHA: ${{ steps.base.outputs.sha }}
+        run: |
+          set +e
+          uv run manifest check full \
+            --group lint \
+            --project-config config/project-checks.json \
+            --base "${BASE_SHA}" \
+            --json \
+            --output "${RUNNER_TEMP}/shadow-lint.json"
+          exit_code=$?
+          set -e
+          echo "exit_code=${exit_code}" >> "${GITHUB_OUTPUT}"
+          if [ -s "${RUNNER_TEMP}/shadow-lint.json" ]; then
+            echo "receipt_written=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "receipt_written=false" >> "${GITHUB_OUTPUT}"
+          fi
+          exit 0
+
+      - name: Upload shadow receipt (current attempt)
+        if: always()
+        id: upload
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: shadow-receipt-lint-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/shadow-lint.json
+          retention-days: 7
+          if-no-files-found: warn
+
+  shadow-checks-test:
+    name: Shadow Checks (test)
+    # 37 = ceil(sum(test group timeout_seconds)/60) + 5 = ceil(1920/60) + 5
+    # (Correction 8 rule 3, C7j) -- re-derive if any test.* budget_evidence
+    # changes.
+    timeout-minutes: 37
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    permissions:
+      contents: read
+    outputs:
+      artifact_id: ${{ steps.upload.outputs.artifact-id }}
+      shadow_receipt_written: ${{ steps.shadow.outputs.receipt_written }}
+      shadow_exit_code: ${{ steps.shadow.outputs.exit_code }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
+        with:
+          fetch-depth: 0
+          submodules: true
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Resolve base revision
+        id: base
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_BEFORE: ${{ github.event.before }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          zero_sha="0000000000000000000000000000000000000000"
+          empty_tree_sha="4b825dc642cb6eb9a060e54bf8d69288fbee4904"
+          if [ "${EVENT_NAME}" = "pull_request" ]; then
+            base_sha="${PR_BASE_SHA}"
+          elif [ -n "${EVENT_BEFORE:-}" ] && [ "${EVENT_BEFORE}" != "${zero_sha}" ]; then
+            base_sha="${EVENT_BEFORE}"
+          elif git rev-parse HEAD~1 > /dev/null 2>&1; then
+            base_sha="$(git rev-parse HEAD~1)"
+          else
+            base_sha="${empty_tree_sha}"
+          fi
+          echo "sha=${base_sha}" >> "${GITHUB_OUTPUT}"
+
+      - name: Run shared checks
+        id: shadow
+        env:
+          BASE_SHA: ${{ steps.base.outputs.sha }}
+        run: |
+          set +e
+          uv run manifest check full \
+            --group test \
+            --project-config config/project-checks.json \
+            --base "${BASE_SHA}" \
+            --json \
+            --output "${RUNNER_TEMP}/shadow-test.json"
+          exit_code=$?
+          set -e
+          echo "exit_code=${exit_code}" >> "${GITHUB_OUTPUT}"
+          if [ -s "${RUNNER_TEMP}/shadow-test.json" ]; then
+            echo "receipt_written=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "receipt_written=false" >> "${GITHUB_OUTPUT}"
+          fi
+          exit 0
+
+      - name: Upload shadow receipt (current attempt)
+        if: always()
+        id: upload
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: shadow-receipt-test-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/shadow-test.json
+          retention-days: 7
+          if-no-files-found: warn
+
+  shadow-checks-security:
+    name: Shadow Checks (security)
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    permissions:
+      contents: read
+    outputs:
+      artifact_id: ${{ steps.upload.outputs.artifact-id }}
+      shadow_receipt_written: ${{ steps.shadow.outputs.receipt_written }}
+      shadow_exit_code: ${{ steps.shadow.outputs.exit_code }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
+        with:
+          fetch-depth: 0
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Resolve base revision
+        id: base
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_BEFORE: ${{ github.event.before }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          zero_sha="0000000000000000000000000000000000000000"
+          empty_tree_sha="4b825dc642cb6eb9a060e54bf8d69288fbee4904"
+          if [ "${EVENT_NAME}" = "pull_request" ]; then
+            base_sha="${PR_BASE_SHA}"
+          elif [ -n "${EVENT_BEFORE:-}" ] && [ "${EVENT_BEFORE}" != "${zero_sha}" ]; then
+            base_sha="${EVENT_BEFORE}"
+          elif git rev-parse HEAD~1 > /dev/null 2>&1; then
+            base_sha="$(git rev-parse HEAD~1)"
+          else
+            base_sha="${empty_tree_sha}"
+          fi
+          echo "sha=${base_sha}" >> "${GITHUB_OUTPUT}"
+
+      - name: Run shared checks
+        id: shadow
+        env:
+          BASE_SHA: ${{ steps.base.outputs.sha }}
+        run: |
+          set +e
+          uv run manifest check full \
+            --group security \
+            --project-config config/project-checks.json \
+            --base "${BASE_SHA}" \
+            --json \
+            --output "${RUNNER_TEMP}/shadow-security.json"
+          exit_code=$?
+          set -e
+          echo "exit_code=${exit_code}" >> "${GITHUB_OUTPUT}"
+          if [ -s "${RUNNER_TEMP}/shadow-security.json" ]; then
+            echo "receipt_written=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "receipt_written=false" >> "${GITHUB_OUTPUT}"
+          fi
+          exit 0
+
+      - name: Upload shadow receipt (current attempt)
+        if: always()
+        id: upload
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: shadow-receipt-security-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/shadow-security.json
+          retention-days: 7
+          if-no-files-found: warn
+
+  shadow-checks-package:
+    name: Shadow Checks (package)
+    timeout-minutes: 15
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    permissions:
+      contents: read
+    outputs:
+      artifact_id: ${{ steps.upload.outputs.artifact-id }}
+      shadow_receipt_written: ${{ steps.shadow.outputs.receipt_written }}
+      shadow_exit_code: ${{ steps.shadow.outputs.exit_code }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
+        with:
+          fetch-depth: 0
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Resolve base revision
+        id: base
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_BEFORE: ${{ github.event.before }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          zero_sha="0000000000000000000000000000000000000000"
+          empty_tree_sha="4b825dc642cb6eb9a060e54bf8d69288fbee4904"
+          if [ "${EVENT_NAME}" = "pull_request" ]; then
+            base_sha="${PR_BASE_SHA}"
+          elif [ -n "${EVENT_BEFORE:-}" ] && [ "${EVENT_BEFORE}" != "${zero_sha}" ]; then
+            base_sha="${EVENT_BEFORE}"
+          elif git rev-parse HEAD~1 > /dev/null 2>&1; then
+            base_sha="$(git rev-parse HEAD~1)"
+          else
+            base_sha="${empty_tree_sha}"
+          fi
+          echo "sha=${base_sha}" >> "${GITHUB_OUTPUT}"
+
+      - name: Run shared checks
+        id: shadow
+        env:
+          BASE_SHA: ${{ steps.base.outputs.sha }}
+        run: |
+          set +e
+          uv run manifest check full \
+            --group package \
+            --project-config config/project-checks.json \
+            --base "${BASE_SHA}" \
+            --json \
+            --output "${RUNNER_TEMP}/shadow-package.json"
+          exit_code=$?
+          set -e
+          echo "exit_code=${exit_code}" >> "${GITHUB_OUTPUT}"
+          if [ -s "${RUNNER_TEMP}/shadow-package.json" ]; then
+            echo "receipt_written=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "receipt_written=false" >> "${GITHUB_OUTPUT}"
+          fi
+          exit 0
+
+      - name: Upload shadow receipt (current attempt)
+        if: always()
+        id: upload
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: shadow-receipt-package-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/shadow-package.json
+          retention-days: 7
+          if-no-files-found: warn
+
+  checks-aggregate-full:
+    # C6b renamed this from shadow-checks-aggregate. There is exactly one
+    # aggregate job (profile `full`); `security` is a named registry subset.
+    # Keep it non-blocking until the underlying aggregate verdict is green.
+    name: Checks Aggregate (full, non-blocking)
+    timeout-minutes: 10
+    needs:
+      [
+        shadow-checks-structure,
+        shadow-checks-lint,
+        shadow-checks-test,
+        shadow-checks-security,
+        shadow-checks-package,
+      ]
+    if: always()
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
+
+      - name: Reject shadow producers with no receipt evidence
+        # An allow-list check (`!= "true"`) so a skipped, cancelled, or
+        # never-run producer is rejected the same as an explicit crash -- a
+        # deny-list of specific bad values would silently treat any
+        # unanticipated state as a pass.
+        #
+        # NOTE: these read each producer's `steps.shadow.outputs.receipt_written`
+        # job output, not `steps.shadow.outcome` and not `needs.<job>.result`.
+        # `needs.*.result` cannot distinguish a completed check that reported
+        # FAIL/BLOCKED with a receipt from an infrastructure failure before a
+        # receipt was written. `outcome` is unusable for a different reason:
+        # `manifest check` exits 2
+        # (FAIL) or 3 (BLOCKED) exactly when a group legitimately produced a
+        # receipt, so `outcome` is "failure" both when the step crashed with
+        # NO receipt and when it ran cleanly and reported FAIL/BLOCKED WITH
+        # one. Gating on `outcome` therefore rejected every real run once the
+        # profile had any BLOCKED/FAIL group -- which, pre-Phase-3, is every
+        # group. `receipt_written` is set by the shadow step itself from
+        # whether the output file it declared actually exists, so it tells
+        # the two cases apart: a producer that ran and returned FAIL/BLOCKED
+        # with a receipt passes this gate; a producer that crashed before
+        # writing anything (or never ran at all) does not.
+        env:
+          RECEIPT_STRUCTURE: ${{ needs.shadow-checks-structure.outputs.shadow_receipt_written }}
+          RECEIPT_LINT: ${{ needs.shadow-checks-lint.outputs.shadow_receipt_written }}
+          RECEIPT_TEST: ${{ needs.shadow-checks-test.outputs.shadow_receipt_written }}
+          RECEIPT_SECURITY: ${{ needs.shadow-checks-security.outputs.shadow_receipt_written }}
+          RECEIPT_PACKAGE: ${{ needs.shadow-checks-package.outputs.shadow_receipt_written }}
+        run: |
+          python3 -c "
+          import os, sys
+          results = {
+              'structure': os.environ['RECEIPT_STRUCTURE'],
+              'lint': os.environ['RECEIPT_LINT'],
+              'test': os.environ['RECEIPT_TEST'],
+              'security': os.environ['RECEIPT_SECURITY'],
+              'package': os.environ['RECEIPT_PACKAGE'],
+          }
+          bad = {group: result for group, result in results.items() if result != 'true'}
+          if bad:
+              print(f'shadow producer(s) wrote no receipt evidence: {bad}', file=sys.stderr)
+              sys.exit(1)
+          print('all shadow producers wrote receipt evidence:', results)
+          "
+
+      - name: Install uv
+        run: pip install uv
+
+      - name: Build current-run context (read-only)
+        id: context
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: uv run python tools/project_checks/ci_context_cli.py --output "${RUNNER_TEMP}/shadow-context.json"
+
+      - name: Download shadow receipts (current attempt)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p "${RUNNER_TEMP}/shadow-results"
+          for group in structure lint test security package; do
+            gh run download "${GITHUB_RUN_ID}" \
+              --name "shadow-receipt-${group}-${GITHUB_RUN_ATTEMPT}" \
+              --dir "${RUNNER_TEMP}/shadow-results"
+          done
+
+      - name: Aggregate shared checks
+        id: aggregate
+        continue-on-error: true
+        run: |
+          uv run manifest check-aggregate full \
+            --project-config config/project-checks.json \
+            --results-dir "${RUNNER_TEMP}/shadow-results" \
+            --context "${RUNNER_TEMP}/shadow-context.json" \
+            --json \
+            --output "${RUNNER_TEMP}/shadow-aggregate.json"
+
+      - name: Upload shadow aggregate receipt (current attempt)
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: shadow-receipt-aggregate-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/shadow-aggregate.json
+          retention-days: 7
+          if-no-files-found: warn
+
+      - name: Publish aggregate verdict to job summary
+        if: always()
+        run: |
+          set -euo pipefail
+          {
+            echo "### Shared-check aggregate"
+            if [ -s "${RUNNER_TEMP}/shadow-aggregate.json" ]; then
+              status="$(
+                python3 -c \
+                  "import json, sys; print(json.load(open(sys.argv[1])).get('status', 'UNKNOWN'))" \
+                  "${RUNNER_TEMP}/shadow-aggregate.json"
+              )"
+              echo "Status: \`${status}\`"
+            else
+              echo "Status: \`UNKNOWN\` (no aggregate receipt was written)"
+            fi
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+  attest-linux-x64:
+    if: github.event_name == 'workflow_dispatch'
+    name: Attest Toolchain (linux-x64)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7
+        with:
+          python-version: "3.14"
+
+      - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d  # v10.0.1
+        with:
+          version: "0.12.6"
+          enable-cache: false
+
+      - name: Materialize and report linux-x64 digests
+        env:
+          MANIFEST_TOOLCHAIN_STORE: ${{ runner.temp }}/manifest-toolchain
+        run: |
+          set -euo pipefail
+          uv run manifest provision \
+            --lock config/toolchain.lock.json \
+            --platform linux-x64 \
+            --json | tee linux-x64-attestations.json
+
+      - name: Upload reviewed attestation input
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: linux-x64-toolchain-attestations-${{ github.run_id }}
+          path: linux-x64-attestations.json
+          if-no-files-found: error
+          retention-days: 30

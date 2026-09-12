@@ -1,0 +1,47 @@
+#!__PYTHON__
+"""Fake `gh` for `test_branch_protection.py`: logs every call, answers from a
+canned response directory keyed by HTTP method and per-method call sequence
+number, so a test can script "first GET returns X, PUT succeeds, second GET
+returns Y" without any real network or GitHub credentials."""
+import json
+import os
+import sys
+from pathlib import Path
+
+log_path = os.environ.get("FAKE_GH_LOG")
+responses_dir_value = os.environ.get("FAKE_GH_RESPONSES")
+
+args = sys.argv[1:]
+try:
+    stdin_data = sys.stdin.read()
+except Exception:
+    stdin_data = ""
+
+if log_path:
+    with open(log_path, "a", encoding="utf-8") as handle:
+        handle.write(json.dumps({"argv": args, "stdin": stdin_data}) + "\n")
+
+method = "GET"
+if "-X" in args:
+    method = args[args.index("-X") + 1]
+
+if not responses_dir_value:
+    sys.stderr.write("fake-gh: FAKE_GH_RESPONSES not set\n")
+    sys.exit(1)
+
+responses_dir = Path(responses_dir_value)
+state_path = responses_dir / ".call_state.json"
+state = json.loads(state_path.read_text(encoding="utf-8")) if state_path.exists() else {}
+count = state.get(method, 0) + 1
+state[method] = count
+state_path.write_text(json.dumps(state), encoding="utf-8")
+
+response_file = responses_dir / f"{method.lower()}-{count}.json"
+if not response_file.exists():
+    sys.stderr.write(f"fake-gh: no response configured for {method} call {count}\n")
+    sys.exit(1)
+
+response = json.loads(response_file.read_text(encoding="utf-8"))
+sys.stdout.write(response.get("stdout", ""))
+sys.stderr.write(response.get("stderr", ""))
+sys.exit(response.get("returncode", 0))

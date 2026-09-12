@@ -35,27 +35,13 @@
       "tier2_threshold": 0.6
     },
     "code-audit": {
-      "auto_trigger": true,
       "tier1_checks": [
         "security",
         "error_handling"
       ],
       "tier1_required": true,
       "tier2_required": true,
-      "tier2_threshold": 0.6,
-      "trigger_patterns": {
-        "complexity": {
-          "class_count": 5,
-          "file_lines": 500,
-          "function_count": 10
-        },
-        "security": [
-          "auth|login|session|jwt",
-          "crypto|encrypt|hash|secret",
-          "api_key|password|token|credential",
-          "sanitize|validate|escape"
-        ]
-      }
+      "tier2_threshold": 0.6
     },
     "docs-all": {
       "parallel_agents": false,

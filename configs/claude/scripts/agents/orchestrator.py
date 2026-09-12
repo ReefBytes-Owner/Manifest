@@ -13,71 +13,92 @@ import time
 from collections import Counter
 from datetime import datetime
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-try:
+# `rich` is an optional terminal-rendering dependency: real classes are used
+# when it is installed, and a same-named runtime fallback below covers the
+# subset of the API this module actually calls when it is not. `TYPE_CHECKING`
+# is always False at runtime, so the fallback's control flow (the `else`
+# branch's `try`/`except ImportError`) is unchanged; it only gives the type
+# checker a single declared type per name (rich's own) instead of two
+# structurally mismatched ones, which is what made `reportAssignmentType`
+# fire at every one of these names before.
+if TYPE_CHECKING:
     from rich.console import Console
     from rich.live import Live
     from rich.panel import Panel
     from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
     from rich.table import Table
-except ImportError:
-    # CLI orchestration remains usable without optional terminal rendering.
-    class Console:
-        def print(self, value=""):
-            print(value)
+else:
+    try:
+        from rich.console import Console
+        from rich.live import Live
+        from rich.panel import Panel
+        from rich.progress import (
+            Progress,
+            SpinnerColumn,
+            TextColumn,
+            TimeElapsedColumn,
+        )
+        from rich.table import Table
+    except ImportError:
+        # CLI orchestration remains usable without optional terminal rendering.
+        class Console:
+            def print(self, value=""):
+                print(value)
 
-    class Panel:
-        def __init__(self, value, **_kwargs):
-            self.value = value
+        class Panel:
+            def __init__(self, value, **_kwargs):
+                self.value = value
 
-        def __str__(self):
-            return str(self.value)
+            def __str__(self):
+                return str(self.value)
 
-    class Table:
-        def __init__(self, title=None):
-            self.title, self.rows = title, []
+        class Table:
+            def __init__(self, title=None):
+                self.title, self.rows = title, []
 
-        def add_column(self, *_args, **_kwargs):
-            return None
+            def add_column(self, *_args, **_kwargs):
+                return None
 
-        def add_row(self, *values, **_kwargs):
-            self.rows.append(values)
+            def add_row(self, *values, **_kwargs):
+                self.rows.append(values)
 
-        def __str__(self):
-            return "\n".join(
-                ([self.title] if self.title else [])
-                + [" | ".join(map(str, row)) for row in self.rows]
-            )
+            def __str__(self):
+                return "\n".join(
+                    ([self.title] if self.title else [])
+                    + [" | ".join(map(str, row)) for row in self.rows]
+                )
 
-    class Progress:
-        def __init__(self, *_args, **_kwargs):
+        class Progress:
+            def __init__(self, *_args, **_kwargs):
+                pass
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return False
+
+            def add_task(self, *_args, **_kwargs):
+                return 0
+
+            def update(self, *_args, **_kwargs):
+                return None
+
+        class Live(Progress):
+            def update(self, *_args, **_kwargs):
+                return None
+
+        class SpinnerColumn:
             pass
 
-        def __enter__(self):
-            return self
+        class TextColumn:
+            def __init__(self, *_args, **_kwargs):
+                pass
 
-        def __exit__(self, *_args):
-            return False
-
-        def add_task(self, *_args, **_kwargs):
-            return 0
-
-        def update(self, *_args, **_kwargs):
-            return None
-
-    class Live(Progress):
-        def update(self, *_args, **_kwargs):
-            return None
-
-    class SpinnerColumn:
-        pass
-
-    class TextColumn:
-        def __init__(self, *_args, **_kwargs):
+        class TimeElapsedColumn:
             pass
-
-    class TimeElapsedColumn:
-        pass
 
 
 import contextlib
@@ -98,7 +119,7 @@ if HAS_ANTHROPIC:
     from anthropic import AsyncAnthropic
 
 
-async def _bounded_probe_output(proc, timeout: int, provider: str):
+async def _bounded_probe_output(proc, timeout: float, provider: str):
     """Wait for a provider probe while draining both streams within fixed caps."""
     stdout_task = asyncio.create_task(_read_bounded_stream(proc.stdout))
     stderr_task = asyncio.create_task(_read_bounded_stream(proc.stderr))
@@ -642,6 +663,12 @@ async def check_credits(
 
     # Gemini credit check
     if HAS_GENAI:
+        # `genai` is `ModuleType | None` at the import site (config.py picks
+        # one of _genai_new/_genai_legacy/None at import time); `HAS_GENAI`
+        # is the runtime guarantee that it is not None, but pyright can't
+        # follow that correlation across the module boundary, so it narrows
+        # here explicitly instead of a `# type: ignore`.
+        assert genai is not None
         try:
             api_key = os.environ.get("GOOGLE_API_KEY")
             gemini_flash = config.get(

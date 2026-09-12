@@ -1,0 +1,6 @@
+#!/usr/bin/env python3
+import pickle
+
+
+def deserialize(data: bytes):
+    return pickle.loads(data)

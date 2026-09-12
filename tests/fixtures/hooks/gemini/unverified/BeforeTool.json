@@ -1,0 +1,7 @@
+{
+  "hook_name": "BeforeTool",
+  "tool_name": "write_file",
+  "tool_input": {"file_path": "a.txt", "content": "hi"},
+  "session_id": "fixture-session",
+  "cwd": "__REPO_ROOT__"
+}

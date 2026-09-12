@@ -138,7 +138,8 @@ assert_mirrored() {
 # Smoke execution is coordinator-owned (`manifest smoke`) and forbidden from
 # plugin runtimes; CI runs this Verify gate after installing the coordinator.
 
-@test "bash -n shell-syntax validation is mirrored" {
-    assert_mirrored "bash -n syntax check" \
-        "bash -n"
+@test "selected-interpreter shell-syntax validation is mirrored" {
+    assert_mirrored "selected-interpreter shell syntax" \
+        "bash -n" \
+        "check_shell_syntax|PR_SMOKE_BASH"
 }

@@ -3,6 +3,7 @@
 
 load '../test_helper/bats-support/load'
 load '../test_helper/bats-assert/load'
+load '../test_helper/git_identity.bash'
 
 REPO_ROOT="$BATS_TEST_DIRNAME/../.."
 SCRIPT="$REPO_ROOT/configs/claude/scripts/branch_clean.sh"
@@ -11,7 +12,7 @@ setup() {
     export BATS_TMPDIR="${BATS_TMPDIR:-/tmp}"
     SANDBOX=$(mktemp -d "$BATS_TMPDIR/branch_clean.XXXXXX")
     export BRANCH_CLEAN_CONFIG="$REPO_ROOT/configs/claude/config/command_config.yml"
-    export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t
+    git_identity_begin "$SANDBOX"
     REMOTE=$(mktemp -d "$BATS_TMPDIR/branch_clean_remote.XXXXXX")
     git init -q --bare "$REMOTE/origin.git"
     cd "$SANDBOX"
@@ -36,6 +37,7 @@ teardown() {
     cd /
     [[ -n "$SANDBOX" && -d "$SANDBOX" ]] && rm -rf "$SANDBOX"
     [[ -n "$REMOTE" && -d "$REMOTE" ]] && rm -rf "$REMOTE"
+    git_identity_end
 }
 
 @test "merged branch is listed as a delete candidate" {

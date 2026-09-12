@@ -1,0 +1,13 @@
+#!__PYTHON__
+import json
+import sys
+
+_SHAPE_JSON = __SHAPE_LITERAL__
+
+if len(sys.argv) > 1 and sys.argv[1] == "--version":
+    print("FakeClient __VERSION__")
+    sys.exit(0)
+if len(sys.argv) > 1 and sys.argv[1] == "--emit-event":
+    print(json.dumps(json.loads(_SHAPE_JSON)))
+    sys.exit(0)
+sys.exit(1)

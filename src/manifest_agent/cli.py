@@ -16,6 +16,32 @@ from manifest_agent.service import HARNESS_ORDER, ManifestService, ServiceReport
 from manifest_agent.skill_run import SkillRunExecutionError, execute_skill_command
 
 
+class _LazyChecksCommand(click.Command):
+    """A `checks.cli` command whose module loads only once selected.
+
+    `manifest_agent.checks` pulls in the project-check subsystem, which
+    lifecycle commands (install/migrate/...) never touch; deferring the
+    import keeps their startup path free of it (see
+    test_lifecycle_startup_does_not_import_project_check_subsystem).
+    """
+
+    def __init__(self, name: str, attribute: str, help: str) -> None:
+        super().__init__(name, help=help)
+        self._attribute = attribute
+
+    def make_context(
+        self,
+        info_name: str | None,
+        args: list[str],
+        parent: click.Context | None = None,
+        **extra: Any,
+    ) -> click.Context:
+        import manifest_agent.checks.cli as checks_cli
+
+        command = getattr(checks_cli, self._attribute)
+        return command.make_context(info_name, args, parent=parent, **extra)
+
+
 @click.group()
 def cli() -> None:
     """Install and manage Manifest plugin bundles."""
@@ -228,3 +254,99 @@ def skill_run(
 def main() -> None:
     """Run the console entry point."""
     cli()
+
+
+cli.add_command(
+    _LazyChecksCommand(
+        "check",
+        "check",
+        help="Run or list one explicitly configured project-check PROFILE.",
+    )
+)
+cli.add_command(
+    _LazyChecksCommand(
+        "check-aggregate",
+        "check_aggregate",
+        help="Validate per-group CI producer receipts and emit one aggregate verdict.",
+    )
+)
+
+
+class _LazyProvisionCommand(click.Command):
+    """`toolchain_cli.provision`, imported only once selected (same reasoning
+    as `_LazyChecksCommand`: keep lifecycle commands free of the check
+    subsystem's import weight)."""
+
+    def make_context(
+        self,
+        info_name: str | None,
+        args: list[str],
+        parent: click.Context | None = None,
+        **extra: Any,
+    ) -> click.Context:
+        import manifest_agent.checks.toolchain_cli as toolchain_cli
+
+        return toolchain_cli.provision.make_context(
+            info_name, args, parent=parent, **extra
+        )
+
+
+cli.add_command(
+    _LazyProvisionCommand(
+        "provision",
+        help="Populate the content-addressed toolchain store from a reviewed lock.",
+    )
+)
+
+
+class _LazyHookCommand(click.Command):
+    """`hooks.cli.hook`, imported only once selected (same reasoning as
+    `_LazyChecksCommand`: keep lifecycle commands free of the check
+    subsystem the hook adapters call into)."""
+
+    def make_context(
+        self,
+        info_name: str | None,
+        args: list[str],
+        parent: click.Context | None = None,
+        **extra: Any,
+    ) -> click.Context:
+        import manifest_agent.hooks.cli as hooks_cli
+
+        return hooks_cli.hook.make_context(info_name, args, parent=parent, **extra)
+
+
+cli.add_command(
+    _LazyHookCommand(
+        "hook",
+        help="Run a native hook adapter (manifest hook <client> <event>) or verify one (manifest hook verify <client>).",
+    )
+)
+
+
+class _LazyBranchProtectionCommand(click.Command):
+    """`protection_cli.branch_protection`, imported only once selected (same
+    reasoning as `_LazyChecksCommand`: keep lifecycle commands free of the
+    check subsystem and `gh` invocation this command pulls in)."""
+
+    def make_context(
+        self,
+        info_name: str | None,
+        args: list[str],
+        parent: click.Context | None = None,
+        **extra: Any,
+    ) -> click.Context:
+        import manifest_agent.protection_cli as protection_cli
+
+        return protection_cli.branch_protection.make_context(
+            info_name, args, parent=parent, **extra
+        )
+
+
+cli.add_command(
+    _LazyBranchProtectionCommand(
+        "branch-protection",
+        help="Reconcile GitHub branch protection to config/branch-protection.json. "
+        "Dry-run by default -- activation (--apply) is the repository owner's act.",
+    )
+)

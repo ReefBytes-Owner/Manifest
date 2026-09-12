@@ -14,10 +14,20 @@ from pathlib import Path
 
 import pytest
 
+from tests.python.manifest_agent._subprocess_env import isolated_env
+
 HOOK = (
     Path(__file__).resolve().parents[2]
     / "plugins/manifest-i-have-adhd/hooks/always_on.py"
 )
+
+
+def _hook_env(tmp_path: Path) -> dict[str, str]:
+    return isolated_env(
+        PATH="/usr/bin:/bin",
+        HOME=str(tmp_path),
+        MANIFEST_STATE_ROOT=str(tmp_path / "state"),
+    )
 
 
 def _run(payload: bytes, tmp_path: Path, timeout: int = 30):
@@ -26,11 +36,7 @@ def _run(payload: bytes, tmp_path: Path, timeout: int = 30):
         input=payload,
         capture_output=True,
         timeout=timeout,
-        env={
-            "PATH": "/usr/bin:/bin",
-            "HOME": str(tmp_path),
-            "MANIFEST_STATE_ROOT": str(tmp_path / "state"),
-        },
+        env=_hook_env(tmp_path),
     )
 
 
@@ -69,11 +75,7 @@ def test_hook_does_not_hang_when_stdin_is_never_closed(tmp_path):
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
-        env={
-            "PATH": "/usr/bin:/bin",
-            "HOME": str(tmp_path),
-            "MANIFEST_STATE_ROOT": str(tmp_path / "state"),
-        },
+        env=_hook_env(tmp_path),
     )
     try:
         # Write nothing and never close stdin: the read would block forever.

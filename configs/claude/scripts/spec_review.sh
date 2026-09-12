@@ -243,9 +243,15 @@ PY
 
 # run_reviewer PROMPT -> raw reviewer output. stdin carries the prompt body; the -p
 # instruction is short. Model comes from resolve_review_model (may be empty).
-# Errors propagate (caller decides fail-open vs surface).
+# Errors propagate (caller decides fail-open vs surface). An absent reviewer
+# CLI is checked explicitly and reported before invocation — never left to a
+# bare "command not found" that could be swallowed downstream (false green).
 run_reviewer() {
     local prompt="$1" model
+    if ! command -v "$SPEC_REVIEW_CLI" > /dev/null 2>&1; then
+        err "reviewer CLI not found: $SPEC_REVIEW_CLI (set SPEC_REVIEW_CLI or install it)"
+        return 2
+    fi
     model="$(resolve_review_model)"
     local cli_args=()
     [[ -n "$model" ]] && cli_args+=(--model "$model")
@@ -295,6 +301,10 @@ PY
 # seam. Errors propagate so run_panel can fall back to a labeled concat.
 run_synthesizer() {
     local reviews prompt model
+    if ! command -v "$SPEC_REVIEW_SYNTH_CLI" > /dev/null 2>&1; then
+        err "synthesizer CLI not found: $SPEC_REVIEW_SYNTH_CLI"
+        return 2
+    fi
     reviews="$(cat)"
     prompt="$(assemble_merge_prompt "$SPEC_REVIEW_MERGE_TEMPLATE" "$reviews")"
     model="$(resolve_review_model)"
@@ -351,10 +361,13 @@ run_panel() {
 }
 
 # format_findings RAW FORMAT [COUNT] -> formatted output. NO_ISSUES -> clean
-# message (with the artifact count when COUNT is supplied).
+# message (with the artifact count when COUNT is supplied). Empty RAW is NOT
+# treated as clean here — callers (review/run_silent) must reject an empty or
+# failed reviewer result before calling this, so an absent/broken reviewer CLI
+# can never be reported as "no inconsistencies found" (false green).
 format_findings() {
     local raw="$1" fmt="${2:-tree}" count="${3:-}"
-    if [[ -z "${raw//[[:space:]]/}" || "$raw" == *NO_ISSUES* ]]; then
+    if [[ "$raw" == *NO_ISSUES* ]]; then
         if [[ "$fmt" == "json" ]]; then
             echo "[]"
         elif [[ -n "$count" ]]; then
@@ -428,7 +441,17 @@ review() {
     echo "[spec-review] Cross-referencing project artifacts with the parallel agent panel…"
     local prompt raw
     prompt="$(assemble_prompt "$SPEC_REVIEW_TEMPLATE" "${arts[@]+"${arts[@]}"}")"
-    raw="$(run_panel "$prompt")"
+    # An absent/failed reviewer is BLOCKED, never formatted as a clean verdict:
+    # both a non-zero run_panel and an empty result (e.g. a reviewer that ran
+    # but produced nothing) are explicit errors here, not "no inconsistencies".
+    if ! raw="$(run_panel "$prompt")"; then
+        err "reviewer unavailable ($SPEC_REVIEW_CLI); no verdict produced"
+        return 2
+    fi
+    if [[ -z "${raw//[[:space:]]/}" ]]; then
+        err "reviewer produced no output ($SPEC_REVIEW_CLI); no verdict produced"
+        return 2
+    fi
     format_findings "$raw" "$fmt" "${#arts[@]}"
 }
 

@@ -9,6 +9,12 @@ setup() {
     export BATS_TMPDIR="${BATS_TMPDIR:-/tmp}"
     SANDBOX=$(mktemp -d "$BATS_TMPDIR/context7_auth.XXXXXX")
     export HOME="$SANDBOX/home"
+    # Correction 16 rule 2: configure_context7_auth.py's credential_path()
+    # honors $XDG_CONFIG_HOME over $HOME/.config when set. Pin it into this
+    # test's own sandbox explicitly -- never rely on it being unset -- so a
+    # stray ambient XDG_CONFIG_HOME can never point credential reads at the
+    # developer's real ~/.config/context7/credentials.json.
+    export XDG_CONFIG_HOME="$HOME/.config"
     export SCRIPT_DIR="$REPO_ROOT"
     export MCP_STUB_LOG="$SANDBOX/mcp.log"
     mkdir -p "$HOME/.config/context7" "$SANDBOX/bin"

@@ -1,0 +1,244 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://manifest.local/schemas/project-checks.schema.json",
+  "title": "Manifest project check registry",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "tools",
+    "checks",
+    "candidate_preparations",
+    "profiles",
+    "coverage_pending"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "toolchain_lock": { "$ref": "#/$defs/nonEmptyString" },
+    "tools": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "patternProperties": {
+        "^[A-Za-z0-9][A-Za-z0-9._-]*$": { "$ref": "#/$defs/tool" }
+      }
+    },
+    "checks": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/check" }
+    },
+    "candidate_preparations": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/preparation" }
+    },
+    "profiles": { "$ref": "#/$defs/profiles" },
+    "coverage_pending": { "$ref": "#/$defs/coveragePending" }
+  },
+  "$defs": {
+    "nonEmptyString": {
+      "type": "string",
+      "minLength": 1
+    },
+    "storeExecutable": {
+      "type": "string",
+      "pattern": "^store:[A-Za-z0-9][A-Za-z0-9._-]*/\\S+$"
+    },
+    "argv": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/nonEmptyString" }
+    },
+    "paths": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/nonEmptyString" }
+    },
+    "groups": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "enum": ["lint", "test", "structure", "security", "package"]
+      }
+    },
+    "tool": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "executable",
+        "version_argv",
+        "expected_version",
+        "required_modules"
+      ],
+      "properties": {
+        "executable": { "$ref": "#/$defs/nonEmptyString" },
+        "version_argv": { "$ref": "#/$defs/argv" },
+        "expected_version": { "$ref": "#/$defs/nonEmptyString" },
+        "required_modules": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/nonEmptyString" }
+        },
+        "path_prepend": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/storeExecutable" }
+        }
+      }
+    },
+    "check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "category",
+        "group",
+        "argv",
+        "cwd",
+        "inputs",
+        "dependencies",
+        "timeout_seconds",
+        "selection",
+        "tool",
+        "version"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/nonEmptyString" },
+        "category": {
+          "enum": [
+            "format",
+            "lint",
+            "syntax",
+            "type",
+            "dead-code",
+            "test",
+            "security",
+            "build",
+            "structure",
+            "generated",
+            "dependency",
+            "package"
+          ]
+        },
+        "group": {
+          "enum": ["lint", "test", "structure", "security", "package"]
+        },
+        "argv": { "$ref": "#/$defs/argv" },
+        "cwd": { "$ref": "#/$defs/nonEmptyString" },
+        "inputs": { "$ref": "#/$defs/paths" },
+        "dependencies": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/nonEmptyString" }
+        },
+        "timeout_seconds": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "budget_evidence": { "type": "string", "minLength": 1 },
+        "selection": { "enum": ["changed", "project"] },
+        "pass_filenames": { "type": "boolean" },
+        "honors_status_contract": { "type": "boolean" },
+        "scratch_home": { "type": "boolean" },
+        "failure_line_regex": { "type": "string" },
+        "include_regex": { "type": "string" },
+        "exclude_regex": { "type": "string" },
+        "types": { "$ref": "#/$defs/pathTypes" },
+        "types_or": { "$ref": "#/$defs/pathTypes" },
+        "tool": { "$ref": "#/$defs/nonEmptyString" },
+        "version": { "$ref": "#/$defs/nonEmptyString" }
+      }
+    },
+    "preparation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "argv",
+        "cwd",
+        "inputs",
+        "outputs",
+        "groups",
+        "timeout_seconds",
+        "tool",
+        "version",
+        "network",
+        "installs_dependencies"
+      ],
+      "properties": {
+        "id": { "$ref": "#/$defs/nonEmptyString" },
+        "argv": { "$ref": "#/$defs/argv" },
+        "cwd": { "$ref": "#/$defs/nonEmptyString" },
+        "inputs": { "$ref": "#/$defs/paths" },
+        "outputs": { "$ref": "#/$defs/paths" },
+        "groups": { "$ref": "#/$defs/groups" },
+        "timeout_seconds": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "tool": { "$ref": "#/$defs/nonEmptyString" },
+        "version": { "$ref": "#/$defs/nonEmptyString" },
+        "network": { "const": false },
+        "installs_dependencies": { "const": false }
+      }
+    },
+    "profiles": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["quick", "full", "security", "release"],
+      "properties": {
+        "quick": { "$ref": "#/$defs/profileChecks" },
+        "full": { "$ref": "#/$defs/profileChecks" },
+        "security": { "$ref": "#/$defs/profileChecks" },
+        "release": { "$ref": "#/$defs/profileChecks" }
+      }
+    },
+    "profileChecks": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/nonEmptyString" }
+    },
+    "pathTypes": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "executable",
+          "go",
+          "javascript",
+          "json",
+          "jsx",
+          "markdown",
+          "pyi",
+          "python",
+          "rust",
+          "shell",
+          "terraform",
+          "text",
+          "ts",
+          "tsx",
+          "yaml"
+        ]
+      }
+    },
+    "coveragePending": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["quick", "full", "security", "release"],
+      "properties": {
+        "quick": { "$ref": "#/$defs/obligations" },
+        "full": { "$ref": "#/$defs/obligations" },
+        "security": { "$ref": "#/$defs/obligations" },
+        "release": { "$ref": "#/$defs/obligations" }
+      }
+    },
+    "obligations": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/nonEmptyString" }
+    }
+  }
+}

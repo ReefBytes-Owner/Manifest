@@ -48,4 +48,10 @@ packages = [
 "scripts/manifest_cli" = "manifest_cli"
 
 [tool.uv.sources]
-manifest-model-policy = { path = "scripts/manifest_model_policy", editable = true }
+# Non-editable: `config-env` is a provisioned toolchain-store bundle, not a
+# dev-iteration checkout, so its manifest-model-policy must be a real,
+# hash-recorded distribution built into site-packages (RECORD-verifiable) --
+# an editable install's direct_url.json points at the provisioning checkout
+# it happened to run from, which a candidate materialized to a different
+# path can never satisfy (phase-3-5-decisions.md Correction 9 rule 4).
+manifest-model-policy = { path = "scripts/manifest_model_policy" }

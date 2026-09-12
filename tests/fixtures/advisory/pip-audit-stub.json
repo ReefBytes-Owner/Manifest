@@ -1,0 +1,20 @@
+{
+  "dependencies": [
+    {
+      "name": "example-pkg",
+      "version": "1.2.3",
+      "vulns": [
+        {
+          "id": "PYSEC-2024-0001",
+          "fix_versions": ["1.2.4"],
+          "description": "Fixture advisory record for dependency.audit.python tests."
+        }
+      ]
+    },
+    {
+      "name": "clean-pkg",
+      "version": "9.9.9",
+      "vulns": []
+    }
+  ]
+}

@@ -30,6 +30,7 @@
 | [PLUGIN_CAPABILITY_MATRIX.md](PLUGIN_CAPABILITY_MATRIX.md) | Bundle capabilities |
 | [APM_PINNING.md](APM_PINNING.md) | Pinning the apm skill package |
 | [PRE_COMMIT.md](PRE_COMMIT.md) | Hook configuration |
+| [SHARED_CHECKS.md](SHARED_CHECKS.md) | `manifest check` commands, profiles, status vocabulary, coverage limits |
 | [SKILLCLAW.md](SKILLCLAW.md) | Optional session capture and evolve |
 | [EMDASH.md](EMDASH.md) | Working in emdash worktrees |
 | [METRICS.md](METRICS.md) | Agent result metrics |

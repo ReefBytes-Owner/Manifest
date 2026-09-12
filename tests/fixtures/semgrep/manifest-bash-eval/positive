@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+set -euo pipefail
+user_input="$1"
+eval "$user_input"
