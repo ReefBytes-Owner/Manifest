@@ -63,22 +63,18 @@ class TestRealLockAttestation:
             assert entry["sha256"] is not None, (bundle, platform)
             assert entry["exe_sha256"] is not None, (bundle, platform)
 
-    def test_env_kinds_source_attested_but_linux_exe_stays_unattested(self):
-        """C7b: `python-env`/`node-env` `sha256` is the committed lockfile's
-        own digest (attestable offline -- it is just a file in the repo).
-        `exe_sha256` is the distribution-set digest, which requires a real
-        materialization; darwin-arm64 was attested in this session (network
-        available), linux-x64 stays `null` until a CI run attests it --
-        recording a hash for it here would be a claim nothing verified."""
+    def test_environment_and_cache_entries_are_attested_on_both_platforms(self):
+        """Environment and npm-cache digests come from reviewed native runs."""
         lock = _load_real_lock()
         for bundle in ENV_TOOLS:
             platforms = lock["tools"][bundle]["platforms"]
             for platform, platform_entry in platforms.items():
-                assert platform_entry["sha256"] is not None, bundle
-                if platform == "linux-x64":
-                    assert platform_entry["exe_sha256"] is None, bundle
-                else:
-                    assert platform_entry["exe_sha256"] is not None, bundle
+                assert platform_entry["sha256"] is not None, (bundle, platform)
+                assert platform_entry["exe_sha256"] is not None, (bundle, platform)
+
+        cache_platforms = lock["caches"]["node-cache"]["platforms"]
+        for platform, platform_entry in cache_platforms.items():
+            assert platform_entry["digest"] is not None, ("node-cache", platform)
 
     def test_hashes_are_lowercase_sha256_hex(self):
         for bundle, platform, entry in _platform_entries():

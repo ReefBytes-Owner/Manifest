@@ -62,7 +62,7 @@
         "linux-x64": {
           "url": "file://config/toolchain/uv.lock",
           "sha256": "42d573143665e273fe24fbfc65ac6495ec9a6139619d0bc211005484e0bbbc6d",
-          "exe_sha256": null,
+          "exe_sha256": "0c7082594284d9eb5a79c6b6d221204ff672e04c8e2ee552beba07b87a2e65fc",
           "path_in_archive": ".",
           "console_scripts": [
             "bin/python",
@@ -172,7 +172,7 @@
         "linux-x64": {
           "url": "file://config/toolchain/package-lock.json",
           "sha256": "36aa4e1f7e2768d9c8fc12e2130325ac1f23e3995437f4c5364fd8d7668a5758",
-          "exe_sha256": null,
+          "exe_sha256": "8a490c680895d93c7a3535333d20c071512a6e8812b572f61f55c10201656dc6",
           "path_in_archive": ".",
           "console_scripts": [
             "bin/markdownlint-cli2",
@@ -202,7 +202,7 @@
         "linux-x64": {
           "url": "file://uv.lock",
           "sha256": "32c5ad8f97f3d295091044f23e84209d0ddf9ac2bfbbd618786185c301a6b717",
-          "exe_sha256": null,
+          "exe_sha256": "ac2b0dbb6f0eb5f8da50f3df82b1d88e0d35124a38b685a2a98353f93fe2fbf2",
           "path_in_archive": ".",
           "console_scripts": [
             "bin/python"
@@ -226,7 +226,7 @@
         "linux-x64": {
           "url": "file://configs/claude/uv.lock",
           "sha256": "11b3b09e1670ab758e18fec8619d6413374b6a2b8e207d646a8a9a7e9d3c4056",
-          "exe_sha256": null,
+          "exe_sha256": "71f7af16b78e3f28e00818f9f603ef52a6c512626d3bd1fff6386bf611ac0af4",
           "path_in_archive": ".",
           "console_scripts": [
             "bin/manifest"
@@ -252,7 +252,7 @@
           "digest": "9d09c49ca5838f02d1e137d6e0e89bcb5a86c7454ef27182be88a5bff00f808c"
         },
         "linux-x64": {
-          "digest": null
+          "digest": "0432891a96e8aff9f4072f506911747c4b3c2e1346a6a70fcfbf4ffce12f2e8d"
         }
       }
     }
