@@ -35,11 +35,10 @@ Usage: constitution_check.py [options] [FILE ...]
   --only CHECK      run one check only (repeatable), e.g. --only C-DATA
   --format FORMAT   text (default) or json
   --strict          treat advisory findings as blocking too
+  --show-info       include non-blocking info findings in text output
   --no-baseline     report every violation, not only those above the ratchet
   --list            print the article and check registry, then exit
-
-  --update-baseline is retired (C3 identity ratchet). Propose instead:
-      manifest check debt.constitution --propose-baseline --output PATH
+  --update-baseline is retired; use manifest check debt.constitution --propose-baseline
 
 Exit: 0 clean, 1 blocking findings, 2 usage or registry error.
 """
@@ -70,10 +69,11 @@ def main(argv: list[str] | None = None) -> int:
     root = _repo_root(paths[0])
 
     reported, suppressed = _apply_baseline(findings, root, registry, args.no_baseline)
-    if reported:
-        output = (
-            render_json(reported) if args.format == "json" else render_text(reported)
-        )
+    visible = reported
+    if args.format == "text" and not (args.show_info or args.strict):
+        visible = [finding for finding in reported if finding.severity != "info"]
+    if visible:
+        output = render_json(visible) if args.format == "json" else render_text(visible)
         print(output, file=sys.stderr if args.format == "text" else sys.stdout)
     if suppressed and args.format == "text":
         print(
@@ -213,6 +213,7 @@ def _parse(argv: list[str]):
     parser.add_argument("--only", action="append", default=None)
     parser.add_argument("--format", choices=("text", "json"), default="text")
     parser.add_argument("--strict", action="store_true")
+    parser.add_argument("--show-info", action="store_true")
     parser.add_argument("--no-baseline", action="store_true")
     parser.add_argument("--list", action="store_true")
     return parser.parse_args(argv)

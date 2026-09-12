@@ -12,7 +12,7 @@ RUNNER = (
 )
 
 
-class RegressionContract(unittest.TestCase):
+class RegressionFixture:
     def setUp(self):
         self.scratch = tempfile.TemporaryDirectory(prefix="manifest-check-contract-")
         self.addCleanup(self.scratch.cleanup)
@@ -129,6 +129,8 @@ class RegressionContract(unittest.TestCase):
             timeout=15,
         )
 
+
+class QuickAndPythonContract(RegressionFixture, unittest.TestCase):
     def test_valid_full_subset_passes(self):
         result = self.run_runner()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
@@ -174,6 +176,8 @@ class RegressionContract(unittest.TestCase):
         self.assertEqual(result.returncode, 3, result.stdout + result.stderr)
         self.assertIn("python tests | BLOCKED", result.stdout)
 
+
+class ToolAvailabilityContract(RegressionFixture, unittest.TestCase):
     def test_python_suite_invocation_and_cwd_are_exact(self):
         result = self.run_runner()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
@@ -219,6 +223,8 @@ class RegressionContract(unittest.TestCase):
         self.assertIn("command guide drift | PASS", result.stdout)
         self.assertIn("shell syntax | PASS", result.stdout)
 
+
+class ShellScopeContract(RegressionFixture, unittest.TestCase):
     def test_explicit_syntax_interpreter_gets_per_file_n_invocations(self):
         self.stub("selected-bash")
         self.fixture_file("scripts/z-second.sh", "#!/bin/sh\nexit 0\n", executable=True)
@@ -275,6 +281,8 @@ class RegressionContract(unittest.TestCase):
         for expected in ("AGENTS.md", "CLAUDE.md", "README.md", "docs/check.md"):
             self.assertIn(expected, markdown[0])
 
+
+class FailureReportingContract(RegressionFixture, unittest.TestCase):
     def test_missing_required_script_is_blocked(self):
         (self.repo / "tests/lint/check_array_expansion.sh").unlink()
         result = self.run_runner()

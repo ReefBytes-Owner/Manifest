@@ -57,6 +57,28 @@ setup() {
     assert_output ""
 }
 
+@test "info findings stay hidden by default" {
+    printf 'def undocumented(value):\n    return value\n' > "$SANDBOX/info.py"
+    run --separate-stderr python3 "$CLI" "$SANDBOX/info.py"
+    assert_success
+    assert_output ""
+    assert_stderr ""
+}
+
+@test "--show-info exposes advisory info findings" {
+    printf 'def undocumented(value):\n    return value\n' > "$SANDBOX/info.py"
+    run --separate-stderr python3 "$CLI" --show-info "$SANDBOX/info.py"
+    assert_success
+    assert_stderr --partial "info: [C-DOC/CON-010]"
+}
+
+@test "--strict retains info findings for deliberate audits" {
+    printf 'def undocumented(value):\n    return value\n' > "$SANDBOX/info.py"
+    run --separate-stderr python3 "$CLI" --strict "$SANDBOX/info.py"
+    assert_success
+    assert_stderr --partial "info: [C-DOC/CON-010]"
+}
+
 @test "a new literal data table exits 1 and cites C-DATA" {
     # 90 lines of pure literal dict: over the 15-line container ceiling and over
     # the 80-line error tier, so it must block rather than warn.

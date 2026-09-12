@@ -55,11 +55,12 @@ for the universal articles, plus five annexes:
 [constitution_baseline.json](../configs/claude/config/constitution_baseline.json)
 records each file's violation count per check, and only a *rise* blocks. Fixing a
 violation lowers the entry permanently; raising one needs the reason in the commit
-message. Regenerate a file's entries with `--update-baseline`.
+message. Baseline changes use `manifest check debt.constitution --propose-baseline`.
 
 ```bash
-configs/claude/scripts/constitution_check.py FILE              # vs the ratchet
-configs/claude/scripts/constitution_check.py --no-baseline FILE  # every violation
+configs/claude/scripts/constitution_check.py FILE               # gate output
+configs/claude/scripts/constitution_check.py --show-info FILE   # include info
+configs/claude/scripts/constitution_check.py --no-baseline FILE # every violation
 ```
 
 Exit codes: `0` clean, `1` blocking findings, `2` usage or registry error.
