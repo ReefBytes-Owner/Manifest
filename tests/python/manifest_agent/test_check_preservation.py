@@ -15,6 +15,7 @@ import copy
 import json
 
 import pytest
+import yaml
 
 from manifest_agent.checks.registry import load_registry
 from tests.python.manifest_agent.check_preservation_oracle import (
@@ -33,6 +34,17 @@ from tests.python.manifest_agent.check_preservation_oracle import (
 
 preservation = preservation_fixture
 REGISTRY_PATH = ROOT / "config/project-checks.json"
+
+
+def test_ci_test_checkout_contains_the_immutable_preservation_revision() -> None:
+    """The preservation oracle's reviewed blobs must exist in the CI clone."""
+    workflow = yaml.safe_load((ROOT / CI).read_text(encoding="utf-8"))
+    checkout = next(
+        step
+        for step in workflow["jobs"]["test"]["steps"]
+        if step.get("name") == "Checkout code"
+    )
+    assert checkout["with"].get("fetch-depth") == 0
 
 
 def test_inventory_matches_immutable_observed_sources(preservation):

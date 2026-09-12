@@ -42,6 +42,8 @@ def _record_run_worker(state_home: str, lineage: str) -> None:
 def state_env(tmp_path, monkeypatch):
     state_home = tmp_path / "xdg-state"
     monkeypatch.setenv("XDG_STATE_HOME", str(state_home))
+    for name in ("GITHUB_REF", "GITHUB_REF_NAME", "GITHUB_HEAD_REF"):
+        monkeypatch.delenv(name, raising=False)
     return {"XDG_STATE_HOME": str(state_home)}
 
 

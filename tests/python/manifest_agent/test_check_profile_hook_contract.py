@@ -1,12 +1,8 @@
-"""Frozen-oracle contract: `hook.*` selectors exactly match `.pre-commit-config.yaml`.
+"""Frozen commands and live selectors for migrated pre-commit hooks.
 
-Split out of test_check_profile_parity.py (C7f) to keep that file under its
-500-line ceiling and to give this responsibility -- one hook's `files`/
-`types`/`types_or`/`exclude` must match the check that mirrors it -- its own
-module. Reuses `test_hook_selector_parity.UPSTREAM_DEFAULT_TYPES` for the
-hooks whose `.pre-commit-config.yaml` entry declares no `types`/`types_or` at
-all (the type restriction then comes only from the hook's own upstream
-manifest, which this repository's YAML never states).
+Commands retain the independent immutable oracle. Selectors come from the live
+pre-commit configuration through `test_hook_selector_parity.py`, so reviewed
+post-migration path changes remain guarded without being rejected as drift.
 """
 
 from __future__ import annotations
@@ -18,7 +14,8 @@ from tests.python.manifest_agent._check_profile_oracle import (
     _raw_documents,
 )
 from tests.python.manifest_agent.test_hook_selector_parity import (
-    UPSTREAM_DEFAULT_TYPES,
+    _expected_selector,
+    _pre_commit_hooks,
 )
 
 
@@ -33,42 +30,25 @@ def _hook_sources(preservation: dict) -> dict[str, dict]:
     return sources
 
 
-def _expected_exclude(source: dict) -> str:
-    patterns = []
-    for boundary in (source["global"]["exclude"], source["hook"]["exclude"]):
-        if boundary["present"]:
-            patterns.append(boundary["value"])
-    if not patterns:
-        return r"$^"
-    return "|".join(f"(?:{pattern})" for pattern in patterns)
-
-
-def _expected_types(check_id: str, hook: dict) -> list[str]:
-    if hook["types"]["present"]:
-        return hook["types"]["value"]
-    return list(UPSTREAM_DEFAULT_TYPES.get(check_id.removeprefix("hook."), ()))
-
-
 def _assert_hook_contract(preservation: dict, registry: dict) -> None:
     by_id = _check_by_id(registry)
-    for check_id, source in _hook_sources(preservation).items():
+    hooks, global_exclude = _pre_commit_hooks()
+    for check_id in _hook_sources(preservation):
         if check_id in SUPERSEDED:  # hook.pyright: oracle-only, see _c5_ids.py
             continue
-        hook = source["hook"]
         check = by_id[check_id]
-        expected_files = hook["files"]["value"] if hook["files"]["present"] else ""
-        expected_types_or = (
-            hook["types_or"]["value"] if hook["types_or"]["present"] else []
+        expected = _expected_selector(
+            hooks[check_id.removeprefix("hook.")], global_exclude
         )
         assert check["inputs"] == ["."]
-        assert check.get("include_regex", "") == expected_files
-        assert check.get("exclude_regex", r"$^") == _expected_exclude(source)
-        assert check.get("types", []) == _expected_types(check_id, hook)
-        assert check.get("types_or", []) == expected_types_or
+        assert check.get("include_regex", "") == expected["include_regex"]
+        assert tuple(check.get("types", ())) == expected["types"]
+        assert tuple(check.get("types_or", ())) == expected["types_or"]
+        assert check.get("exclude_regex", r"$^") == expected["exclude_regex"]
         assert tuple(check["argv"]) == tuple(DISPOSITIONS[check_id][0])
 
 
-def test_hook_args_and_path_filters_exactly_match_frozen_oracle():
+def test_hook_contract_matches_frozen_commands_and_live_selectors():
     preservation, registry = _raw_documents()
 
     _assert_hook_contract(preservation, registry)

@@ -225,6 +225,9 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7
         with:
           # bats-support / bats-assert under tests/test_helper are git submodules
+          # Preservation tests read reviewed control blobs from an immutable
+          # historical revision; a depth-1 clone cannot contain that evidence.
+          fetch-depth: 0
           submodules: true
 
       # .apm/skills is GENERATED from plugins/*/skills/* (T3.3, spec 674) and is
