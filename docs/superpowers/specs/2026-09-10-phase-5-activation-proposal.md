@@ -420,9 +420,12 @@ construction until the owner removes it (§9).
   unresolved or placeholder GitHub handle appears in `.github/CODEOWNERS`.
 - Linux environment and npm-cache digests were produced by manually
   dispatched run `34683542261` and committed through draft PR #886.
-- Post-attestation run `34683897330` completed all five Linux producers and
-  `Checks Aggregate (full)` successfully. The producer, aggregate-job, and
-  aggregate-step `continue-on-error` guards were then removed.
+- Run `34683897330` made the aggregate **job** green only because the
+  aggregate step still suppressed exit 3. Removing the guards exposed the
+  underlying result in run `34684916099`: the aggregate receipt was BLOCKED
+  by invalid producer evidence and declared coverage obligations. The guards
+  were restored. They may be removed only after the aggregate step itself
+  exits 0 with a PASS receipt.
 - Dependency metadata may be sent to PyPI/OSV and npm from the release audit.
   Both audit checks are release-only and run weekly; they remain outside
   `full` and `security`.

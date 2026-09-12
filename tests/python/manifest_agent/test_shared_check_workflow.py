@@ -1,10 +1,10 @@
-"""Workflow assertions for the shared-check enforcement path.
+"""Workflow assertions for the non-blocking shared-check migration path.
 
 These tests parse `.github/workflows/ci.yml` and assert the five producer
 jobs and their aggregate invoke the shared `manifest check` entry exactly,
 carry finite timeouts, hold read-scoped credentials, upload the current
-run-attempt's receipts, and fail closed when evidence is absent. The legacy
-lint/test/validate jobs remain during the reviewed cutover.
+run-attempt's receipts, and preserve failures without blocking before the
+aggregate reaches PASS.
 """
 
 from __future__ import annotations
@@ -30,8 +30,8 @@ SHADOW_GROUP_JOBS = {
     "shadow-checks-security": "security",
     "shadow-checks-package": "package",
 }
-# C6b renamed the aggregate from "shadow-checks-aggregate"; Phase 5 makes the
-# same aggregate blocking after the reviewed Linux run proved it green.
+# C6b renamed the aggregate from "shadow-checks-aggregate"; it remains
+# non-blocking until the owner-visible aggregate verdict reaches PASS.
 SHADOW_AGGREGATE_JOB = "checks-aggregate-full"
 ZERO_SHA = "0000000000000000000000000000000000000000"
 
@@ -231,10 +231,10 @@ class TestShadowGroupJobShape:
                 f"{job_name!r} — the shadow path must never gate the merge"
             )
 
-    def test_job_is_blocking(self, job_name: str, group: str) -> None:
+    def test_job_level_continue_on_error(self, job_name: str, group: str) -> None:
         job = _jobs()[job_name]
-        assert job.get("continue-on-error") is not True, (
-            f"{job_name}: must not suppress producer infrastructure failures"
+        assert job.get("continue-on-error") is True, (
+            f"{job_name}: must remain non-blocking before aggregate promotion"
         )
 
 
@@ -313,11 +313,13 @@ class TestShadowAggregateJob:
                 f"access, got {level!r}"
             )
 
-    def test_job_is_blocking(self) -> None:
+    def test_job_level_continue_on_error(self) -> None:
         job = _jobs()[SHADOW_AGGREGATE_JOB]
-        assert job.get("continue-on-error") is not True, (
-            "aggregate job must fail the workflow on a non-PASS verdict"
+        assert job.get("continue-on-error") is True, (
+            "aggregate must remain non-blocking until its verdict reaches PASS"
         )
+        aggregate_step = _step_with_run_matching(job, r"\bcheck-aggregate\b")
+        assert aggregate_step.get("continue-on-error") is True
 
     def test_not_in_legacy_needs(self) -> None:
         jobs = _jobs()
