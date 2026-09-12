@@ -3,16 +3,17 @@ from pathlib import Path
 import yaml
 
 ROOT = Path(__file__).resolve().parents[3]
-WORKFLOW = ROOT / ".github/workflows/toolchain-attest-linux.yml"
+WORKFLOW = ROOT / ".github/workflows/ci.yml"
 
 
 def test_linux_attestation_is_manual_read_only_and_exports_digests():
     document = yaml.load(WORKFLOW.read_text(encoding="utf-8"), Loader=yaml.BaseLoader)
 
-    assert document["on"] == {"workflow_dispatch": ""}
+    assert "workflow_dispatch" in document["on"]
     assert document["permissions"] == {"contents": "read"}
 
     job = document["jobs"]["attest-linux-x64"]
+    assert job["if"] == "github.event_name == 'workflow_dispatch'"
     assert job["runs-on"] == "ubuntu-latest"
     scripts = "\n".join(step.get("run", "") for step in job["steps"])
     assert "manifest provision" in scripts

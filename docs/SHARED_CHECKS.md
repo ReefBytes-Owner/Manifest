@@ -226,8 +226,8 @@ manifest provision --lock config/toolchain.lock.json --import gitleaks=/usr/loca
   against the store's `manifest.json` and re-hashes each executable; exits
   `0` only if every attested tool for the target platform resolves cleanly,
   else `3`. It never contacts the network.
-- **First-time environment attestation**: an explicit
-  `.github/workflows/toolchain-attest-linux.yml` dispatch materializes the
+- **First-time environment attestation**: an explicit `Manifest CI`
+  `workflow_dispatch` job materializes the
   four environment bundles and npm cache on `linux-x64`. Its JSON outcomes
   include each computed `digest`, even while the corresponding lock field is
   `null`; checks remain BLOCKED until a maintainer reviews the artifact and
