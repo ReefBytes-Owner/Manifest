@@ -644,7 +644,7 @@ jobs:
           BASE_SHA: ${{ steps.base.outputs.sha }}
         run: |
           set +e
-          uv run manifest check full --group structure --project-config config/project-checks.json --base "${BASE_SHA}" --json --output shadow-structure.json
+          uv run manifest check full --group structure --project-config config/project-checks.json --base "${BASE_SHA}" --json --output "${RUNNER_TEMP}/shadow-structure.json"
           exit_code=$?
           set -e
           echo "exit_code=${exit_code}" >> "${GITHUB_OUTPUT}"
@@ -655,7 +655,7 @@ jobs:
           # the signal the aggregate's producer-rejection gate trusts
           # instead. This step always exits 0 -- the shadow path must never
           # turn the job (or the workflow) red.
-          if [ -s shadow-structure.json ]; then
+          if [ -s "${RUNNER_TEMP}/shadow-structure.json" ]; then
             echo "receipt_written=true" >> "${GITHUB_OUTPUT}"
           else
             echo "receipt_written=false" >> "${GITHUB_OUTPUT}"
@@ -668,7 +668,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: shadow-receipt-structure-${{ github.run_attempt }}
-          path: shadow-structure.json
+          path: ${{ runner.temp }}/shadow-structure.json
           retention-days: 7
           if-no-files-found: warn
 
@@ -719,11 +719,11 @@ jobs:
           BASE_SHA: ${{ steps.base.outputs.sha }}
         run: |
           set +e
-          uv run manifest check full --group lint --project-config config/project-checks.json --base "${BASE_SHA}" --json --output shadow-lint.json
+          uv run manifest check full --group lint --project-config config/project-checks.json --base "${BASE_SHA}" --json --output "${RUNNER_TEMP}/shadow-lint.json"
           exit_code=$?
           set -e
           echo "exit_code=${exit_code}" >> "${GITHUB_OUTPUT}"
-          if [ -s shadow-lint.json ]; then
+          if [ -s "${RUNNER_TEMP}/shadow-lint.json" ]; then
             echo "receipt_written=true" >> "${GITHUB_OUTPUT}"
           else
             echo "receipt_written=false" >> "${GITHUB_OUTPUT}"
@@ -736,7 +736,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: shadow-receipt-lint-${{ github.run_attempt }}
-          path: shadow-lint.json
+          path: ${{ runner.temp }}/shadow-lint.json
           retention-days: 7
           if-no-files-found: warn
 
@@ -791,11 +791,11 @@ jobs:
           BASE_SHA: ${{ steps.base.outputs.sha }}
         run: |
           set +e
-          uv run manifest check full --group test --project-config config/project-checks.json --base "${BASE_SHA}" --json --output shadow-test.json
+          uv run manifest check full --group test --project-config config/project-checks.json --base "${BASE_SHA}" --json --output "${RUNNER_TEMP}/shadow-test.json"
           exit_code=$?
           set -e
           echo "exit_code=${exit_code}" >> "${GITHUB_OUTPUT}"
-          if [ -s shadow-test.json ]; then
+          if [ -s "${RUNNER_TEMP}/shadow-test.json" ]; then
             echo "receipt_written=true" >> "${GITHUB_OUTPUT}"
           else
             echo "receipt_written=false" >> "${GITHUB_OUTPUT}"
@@ -808,7 +808,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: shadow-receipt-test-${{ github.run_attempt }}
-          path: shadow-test.json
+          path: ${{ runner.temp }}/shadow-test.json
           retention-days: 7
           if-no-files-found: warn
 
@@ -859,11 +859,11 @@ jobs:
           BASE_SHA: ${{ steps.base.outputs.sha }}
         run: |
           set +e
-          uv run manifest check full --group security --project-config config/project-checks.json --base "${BASE_SHA}" --json --output shadow-security.json
+          uv run manifest check full --group security --project-config config/project-checks.json --base "${BASE_SHA}" --json --output "${RUNNER_TEMP}/shadow-security.json"
           exit_code=$?
           set -e
           echo "exit_code=${exit_code}" >> "${GITHUB_OUTPUT}"
-          if [ -s shadow-security.json ]; then
+          if [ -s "${RUNNER_TEMP}/shadow-security.json" ]; then
             echo "receipt_written=true" >> "${GITHUB_OUTPUT}"
           else
             echo "receipt_written=false" >> "${GITHUB_OUTPUT}"
@@ -876,7 +876,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: shadow-receipt-security-${{ github.run_attempt }}
-          path: shadow-security.json
+          path: ${{ runner.temp }}/shadow-security.json
           retention-days: 7
           if-no-files-found: warn
 
@@ -927,11 +927,11 @@ jobs:
           BASE_SHA: ${{ steps.base.outputs.sha }}
         run: |
           set +e
-          uv run manifest check full --group package --project-config config/project-checks.json --base "${BASE_SHA}" --json --output shadow-package.json
+          uv run manifest check full --group package --project-config config/project-checks.json --base "${BASE_SHA}" --json --output "${RUNNER_TEMP}/shadow-package.json"
           exit_code=$?
           set -e
           echo "exit_code=${exit_code}" >> "${GITHUB_OUTPUT}"
-          if [ -s shadow-package.json ]; then
+          if [ -s "${RUNNER_TEMP}/shadow-package.json" ]; then
             echo "receipt_written=true" >> "${GITHUB_OUTPUT}"
           else
             echo "receipt_written=false" >> "${GITHUB_OUTPUT}"
@@ -944,7 +944,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: shadow-receipt-package-${{ github.run_attempt }}
-          path: shadow-package.json
+          path: ${{ runner.temp }}/shadow-package.json
           retention-days: 7
           if-no-files-found: warn
 
@@ -1026,18 +1026,18 @@ jobs:
         id: context
         env:
           GITHUB_TOKEN: ${{ github.token }}
-        run: uv run python tools/project_checks/ci_context_cli.py --output shadow-context.json
+        run: uv run python tools/project_checks/ci_context_cli.py --output "${RUNNER_TEMP}/shadow-context.json"
 
       - name: Download shadow receipts (current attempt)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          mkdir -p shadow-results
+          mkdir -p "${RUNNER_TEMP}/shadow-results"
           for group in structure lint test security package; do
             gh run download "${GITHUB_RUN_ID}" \
               --name "shadow-receipt-${group}-${GITHUB_RUN_ATTEMPT}" \
-              --dir shadow-results
+              --dir "${RUNNER_TEMP}/shadow-results"
           done
 
       - name: Aggregate shadow checks (informational only)
@@ -1046,17 +1046,17 @@ jobs:
         run: |
           uv run manifest check-aggregate full \
             --project-config config/project-checks.json \
-            --results-dir shadow-results \
-            --context shadow-context.json \
+            --results-dir "${RUNNER_TEMP}/shadow-results" \
+            --context "${RUNNER_TEMP}/shadow-context.json" \
             --json \
-            --output shadow-aggregate.json
+            --output "${RUNNER_TEMP}/shadow-aggregate.json"
 
       - name: Upload shadow aggregate receipt (current attempt)
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: shadow-receipt-aggregate-${{ github.run_attempt }}
-          path: shadow-aggregate.json
+          path: ${{ runner.temp }}/shadow-aggregate.json
           retention-days: 7
           if-no-files-found: warn
 
@@ -1066,8 +1066,8 @@ jobs:
           set -euo pipefail
           {
             echo "### Shadow shared-check aggregate (non-blocking, informational)"
-            if [ -s shadow-aggregate.json ]; then
-              status="$(python3 -c "import json; print(json.load(open('shadow-aggregate.json')).get('status', 'UNKNOWN'))")"
+            if [ -s "${RUNNER_TEMP}/shadow-aggregate.json" ]; then
+              status="$(python3 -c "import json, sys; print(json.load(open(sys.argv[1])).get('status', 'UNKNOWN'))" "${RUNNER_TEMP}/shadow-aggregate.json")"
               echo "Status: \`${status}\`"
             else
               echo "Status: \`UNKNOWN\` (no aggregate receipt was written)"

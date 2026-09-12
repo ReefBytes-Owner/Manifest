@@ -214,6 +214,21 @@ class TestShadowGroupJobShape:
             f"attempt's evidence, got {name!r}"
         )
 
+    def test_receipt_is_written_outside_the_checkout(
+        self, job_name: str, group: str
+    ) -> None:
+        job = _jobs()[job_name]
+        (command,) = _manifest_check_lines(job)
+        receipt = f"${{RUNNER_TEMP}}/shadow-{group}.json"
+        assert f'--output "{receipt}"' in command
+
+        (upload,) = [
+            step
+            for step in job["steps"]
+            if "upload-artifact" in str(step.get("uses", ""))
+        ]
+        assert upload["with"]["path"] == f"${{{{ runner.temp }}}}/shadow-{group}.json"
+
     def test_shadow_job_not_gating(self, job_name: str, group: str) -> None:
         # `needs:` on the pre-existing required jobs must remain untouched;
         # a shadow job must not appear in another (legacy) job's `needs:`.
@@ -238,6 +253,25 @@ class TestShadowGroupJobShape:
 
 
 class TestShadowAggregateJob:
+
+    def test_context_receipts_and_aggregate_stay_outside_checkout(self) -> None:
+        job = _jobs()[SHADOW_AGGREGATE_JOB]
+        run_text = "\n".join(_run_texts(job))
+        assert '--output "${RUNNER_TEMP}/shadow-context.json"' in run_text
+        assert '--dir "${RUNNER_TEMP}/shadow-results"' in run_text
+        assert '--results-dir "${RUNNER_TEMP}/shadow-results"' in run_text
+        assert '--context "${RUNNER_TEMP}/shadow-context.json"' in run_text
+        assert '--output "${RUNNER_TEMP}/shadow-aggregate.json"' in run_text
+
+        (upload,) = [
+            step
+            for step in job["steps"]
+            if "upload-artifact" in str(step.get("uses", ""))
+        ]
+        assert upload["with"]["path"] == (
+            "${{ runner.temp }}/shadow-aggregate.json"
+        )
+
     def test_runs_always(self) -> None:
         job = _jobs()[SHADOW_AGGREGATE_JOB]
         assert job.get("if") == "always()", (

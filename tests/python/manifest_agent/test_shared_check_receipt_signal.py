@@ -114,6 +114,7 @@ def _run_shadow_step(
         "PATH": f"{bin_dir}:{os.environ['PATH']}",
         "BASE_SHA": "deadbeef",
         "GITHUB_OUTPUT": str(output_path),
+        "RUNNER_TEMP": str(tmp_path),
     }
     result = subprocess.run(
         ["bash", "-c", script],
