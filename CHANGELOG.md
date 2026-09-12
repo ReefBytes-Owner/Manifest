@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add reviewed Linux toolchain attestation output and align local
+  markdownlint-cli2 policy with the CI action's bundled 0.23.2 engine.
 - Make refactor and security review fan-out risk-based: one reviewer is now the
   default, with independent review reserved for consequential or uncertain changes.
 - Make Context7 authentication persistent across harnesses: device OAuth now

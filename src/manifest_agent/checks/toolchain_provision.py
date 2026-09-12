@@ -21,7 +21,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import toolchain, toolchain_npm_cache
+from . import toolchain, toolchain_env, toolchain_npm_cache
 from . import toolchain_materialize as materialize
 
 Fetcher = Callable[[str], bytes]
@@ -35,6 +35,7 @@ class ProvisionOutcome:
     bundle: str
     status: str  # "provisioned" | "skipped" | "blocked"
     reason: str = ""
+    digest: str | None = None
 
 
 @dataclass(frozen=True)
@@ -217,7 +218,9 @@ def _provision_env_entry(
     `exe_sha256` matching -- exactly like `_provision_binary_entry`, the
     check is `toolchain.resolve()`'s job on every later preflight, not
     provisioning time; the store's own manifest is never the trust anchor."""
-    platform_entry = _platform_entry(entry, bundle, ctx.platform)
+    platform_entry = _platform_entry(
+        entry, bundle, ctx.platform, require_exe_sha256=False
+    )
     if isinstance(platform_entry, ProvisionOutcome):
         return platform_entry
     try:
@@ -246,18 +249,33 @@ def _provision_env_entry(
     store_relative_scripts = {
         name: str(env_relative / relative) for name, relative in scripts.items()
     }
+    try:
+        digest = toolchain_env.distribution_set_digest(
+            env_root,
+            entry["kind"],
+            store=ctx.store,
+            checkout_root=ctx.repo_root.resolve(),
+        )
+    except (OSError, ValueError, toolchain_env.UntrustedPthError) as error:
+        return ProvisionOutcome(
+            bundle, "blocked", f"toolchain: {bundle} attestation failed: {error}"
+        )
     _record_env_bundle(ctx, bundle, source_sha256, store_relative_scripts)
-    return ProvisionOutcome(bundle, "provisioned")
+    return ProvisionOutcome(bundle, "provisioned", digest=digest)
 
 
 def _platform_entry(
-    entry: Mapping, bundle: str, platform: str
+    entry: Mapping,
+    bundle: str,
+    platform: str,
+    *,
+    require_exe_sha256: bool = True,
 ) -> dict | ProvisionOutcome:
     platform_entry = entry.get("platforms", {}).get(platform)
     if (
         platform_entry is None
         or platform_entry.get("sha256") is None
-        or platform_entry.get("exe_sha256") is None
+        or (require_exe_sha256 and platform_entry.get("exe_sha256") is None)
     ):
         return ProvisionOutcome(
             bundle, "blocked", f"toolchain: {bundle} unattested for {platform}"

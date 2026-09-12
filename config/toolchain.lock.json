@@ -171,7 +171,7 @@
       "platforms": {
         "linux-x64": {
           "url": "file://config/toolchain/package-lock.json",
-          "sha256": "1ee45c828cc5b1a0f3ddb92239d70977bb33d453179eaf96f550a405b22460a7",
+          "sha256": "36aa4e1f7e2768d9c8fc12e2130325ac1f23e3995437f4c5364fd8d7668a5758",
           "exe_sha256": null,
           "path_in_archive": ".",
           "console_scripts": [
@@ -183,8 +183,8 @@
         },
         "darwin-arm64": {
           "url": "file://config/toolchain/package-lock.json",
-          "sha256": "1ee45c828cc5b1a0f3ddb92239d70977bb33d453179eaf96f550a405b22460a7",
-          "exe_sha256": "a6158fdd7343c327dd071389818dc4fbcc5381aae7116107909edeeb176288fd",
+          "sha256": "36aa4e1f7e2768d9c8fc12e2130325ac1f23e3995437f4c5364fd8d7668a5758",
+          "exe_sha256": "de335591df3e2653c708f5443839fecb625c53fbc5771a020c58fa7228fa6972",
           "path_in_archive": ".",
           "console_scripts": [
             "bin/markdownlint-cli2",

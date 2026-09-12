@@ -578,7 +578,7 @@
         "command-version",
         "markdownlint-cli2"
       ],
-      "expected_version": "command:markdownlint-cli2=0.23.0",
+      "expected_version": "command:markdownlint-cli2=0.23.2",
       "required_modules": []
     },
     "hook.yamllint": {
@@ -2107,7 +2107,7 @@
       "timeout_seconds": 20,
       "selection": "changed",
       "tool": "hook.markdownlint-cli2",
-      "version": "command:markdownlint-cli2=0.23.0",
+      "version": "command:markdownlint-cli2=0.23.2",
       "include_regex": "",
       "exclude_regex": "(?:^(\\.Jules/|\\.git/|\\.agent_outputs/|node_modules/))|(?:^(\\.Jules/|\\.jules/|specs/|docs/superpowers/|docs/templates/|docs/SHELL_ANALYSIS_REPORT\\.md|docs/VALIDATION_REPORT\\.md|\\.specify/|\\.claude/skills/speckit-[^/]+/|node_modules/|\\.apm/skills/|plugins/stitch-design/|plugins/manifest-i-have-adhd/(skills/|guidance/|devin/)))",
       "types": [

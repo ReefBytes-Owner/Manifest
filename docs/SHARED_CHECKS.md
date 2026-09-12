@@ -226,6 +226,13 @@ manifest provision --lock config/toolchain.lock.json --import gitleaks=/usr/loca
   against the store's `manifest.json` and re-hashes each executable; exits
   `0` only if every attested tool for the target platform resolves cleanly,
   else `3`. It never contacts the network.
+- **First-time environment attestation**: an explicit
+  `.github/workflows/toolchain-attest-linux.yml` dispatch materializes the
+  four environment bundles and npm cache on `linux-x64`. Its JSON outcomes
+  include each computed `digest`, even while the corresponding lock field is
+  `null`; checks remain BLOCKED until a maintainer reviews the artifact and
+  commits those values to `config/toolchain.lock.json`. Binary bundles still
+  refuse a missing `exe_sha256`.
 - **Unattested entries always BLOCK.** `config/toolchain.lock.json` is
   committed with real tool/version/platform structure but `"sha256": null`
   wherever a real hash needs a download; an unattested entry can never
@@ -373,7 +380,7 @@ instead of silently resolving whatever happens to be on `PATH`. Test:
 | `lint.shell.scripts`, `lint.shell.bootstrap`, `hook.shellcheck` | `distribution:shellcheck-py=0.11.0.1;command:shellcheck=0.11.0` | `command:shellcheck=0.11.0` | **Attested for `linux-x64` and `darwin-arm64` (C7) from the pinned release archives; passes once `manifest provision` has populated the store.** Body resolves `store:shellcheck/bin/shellcheck` via `tools/project_checks/toolchain_resolve.py`; the registry-level version probe (drift detection only, not a security control) is unchanged. |
 | `hook.shfmt` | `"ok"` (unpinned placeholder) | `command:shfmt=3.13.1`; body argv is `-d` (check-only), never `-w` | **Attested for both platforms (C7); BLOCKED only until `manifest provision` runs.** Body resolves `store:shfmt/bin/shfmt`. |
 | `lint.yaml.config`, `hook.yamllint` | `distribution:pyyaml=6.0.2;distribution:yamllint=1.38.0;command:yamllint=1.38.0` | `distribution:yamllint=1.38.0` | **Attested for `darwin-arm64` (C7b); `linux-x64` stays BLOCKED pending a CI attestation run.** Body resolves `store:python-env/bin/yamllint`; the registry version probe now runs under `store:python-env/bin/python`. |
-| `hook.markdownlint-cli2` | already `command:markdownlint-cli2=0.23.0` | unchanged | **Attested for `darwin-arm64` (C7b); `linux-x64` pending CI attestation.** Direct-argv check; registry `tool.executable` and `check.argv[0]` are both `store:node-env/bin/markdownlint-cli2` (same generic runner rewrite `test.bats` already used — no wrapper body needed). |
+| `hook.markdownlint-cli2` | `command:markdownlint-cli2=0.23.0` | `command:markdownlint-cli2=0.23.2` | **The local pin tracks markdownlint-cli2-action v24.2.0's bundled engine. `darwin-arm64` is re-attested with this change; `linux-x64` remains pending the explicit CI attestation.** Direct-argv check; registry `tool.executable` and `check.argv[0]` are both `store:node-env/bin/markdownlint-cli2` (same generic runner rewrite `test.bats` already used — no wrapper body needed). |
 | `test.bats` | `./node_modules/.bin/bats` | `command:bats=1.11.1`; argv is `store:node-env/bin/bats` | Yes (unchanged from before this chunk). |
 | `test.bundle-partition` | `"ok"` + hardcoded BLOCKED (`npx` control) | `command:bats=1.11.1`; runs `tests/bats/bundle_partition.bats` | **Attested for `darwin-arm64` (C7b); `linux-x64` pending CI attestation.** Body resolves `store:node-env/bin/bats`; the preflight now names `--executable store:node-env/bin/bats` explicitly (C7c). |
 | `hook.gitleaks` | `command:gitleaks=8.30.0` | `command:gitleaks=8.30.1` | **Attested for `linux-x64` and `darwin-arm64` (C7) from the pinned release archives; passes once `manifest provision` has populated the store.** Body resolves `store:gitleaks/bin/gitleaks` via `tools/project_checks/toolchain_resolve.py`; C2b left this on `shutil.which("gitleaks")` (out of that chunk's explicit scope, created by C6b afterwards), which C2c's audit caught and closed. |
@@ -425,11 +432,12 @@ includes `python-env` and `node-env`. `config/toolchain/pyproject.toml` +
 `config/toolchain/uv.lock` and `config/toolchain/package.json` +
 `config/toolchain/package-lock.json` pin the exact tool versions the
 registry names (`ruff==0.15.20`, `pytest==8.3.4`, `pre-commit-hooks==6.0.0`,
-`yamllint==1.38.0`+`pyyaml==6.0.2`, `semgrep`/`pip-audit`/`pyright` at
-current-latest — flagged in the pyproject/package.json comments, since no
-version for those three is named anywhere in the registry or this doc —
-`eslint==9.18.0`, `markdownlint-cli2==0.23.0`, `bats==1.11.1`). The lock's
-`python-env`/`node-env` `url` points at the lockfile itself
+`yamllint==1.38.0`+`pyyaml==6.0.2`, owner-confirmed
+`semgrep==1.176.1`, `pip-audit==2.10.1`, and `pyright==1.1.414`,
+`eslint==9.18.0`, `markdownlint-cli2==0.23.2`, `bats==1.11.1`). A pyright
+bump also moves the `types.python` ratchet baseline, so it belongs in a
+reviewed PR with that baseline re-measured; automation must not advance it.
+The lock's `python-env`/`node-env` `url` points at the lockfile itself
 (`file://config/toolchain/uv.lock` / `file://config/toolchain/package-lock.json`);
 `sha256` is that lockfile's own digest.
 

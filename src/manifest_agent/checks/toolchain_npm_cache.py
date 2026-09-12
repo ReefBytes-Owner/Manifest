@@ -295,13 +295,14 @@ def _record(ctx: _ProvisionContext, bundle: str, digest: str) -> None:
         (ctx.store / "manifest.json").write_text(json.dumps(manifest, sort_keys=True))
 
 
-def provision(ctx: _ProvisionContext, bundle: str) -> tuple[str, str]:
-    """Materialize + record `bundle` (only `CACHE_BUNDLE` is recognized
-    today). Returns `(status, reason)` -- `"provisioned"`/`""` or
-    `"blocked"`/<reason> -- for `toolchain_provision.py` to wrap into its
-    own `ProvisionOutcome`."""
+def provision(ctx: _ProvisionContext, bundle: str) -> tuple[str, str, str | None]:
+    """Materialize and record a cache, returning status, reason, and digest."""
     if bundle != CACHE_BUNDLE:
-        return "blocked", f"toolchain: {bundle} has no cache materializer"
+        return (
+            "blocked",
+            f"toolchain: {bundle} has no cache materializer",
+            None,
+        )
     try:
         _cache_dir, digest = materialize(
             repo_root=ctx.repo_root,
@@ -311,6 +312,6 @@ def provision(ctx: _ProvisionContext, bundle: str) -> tuple[str, str]:
             env=ctx.env,
         )
     except NpmCacheError as error:
-        return "blocked", str(error)
+        return "blocked", str(error), None
     _record(ctx, bundle, digest)
-    return "provisioned", ""
+    return "provisioned", "", digest

@@ -8554,17 +8554,17 @@
     },
     {
       "hook_id": "hook.markdownlint-cli2",
-      "wrapper_rev": "https://github.com/DavidAnson/markdownlint-cli2@v0.23.0",
+      "wrapper_rev": "https://github.com/DavidAnson/markdownlint-cli2@v0.23.2",
       "wrapper_hooks_yaml_blob_sha": "",
       "engine": "markdownlint-cli2",
-      "engine_version": "0.23.0",
+      "engine_version": "0.23.2",
       "wrapper_entry_argv": [
         "markdownlint-cli2",
         "--config",
         ".markdownlint.jsonc",
         "--fix"
       ],
-      "evidence": "The pre-commit wrapper repo (DavidAnson/markdownlint-cli2) and the markdownlint-cli2 npm package are the same upstream project at the same version -- there is no separate wrapper engine here, unlike the shellcheck-py/shfmt classes. The registry's hook.markdownlint-cli2 body omits the wrapper's --fix flag (non-mutation rule). A SEPARATE, still-unresolved identity is DavidAnson/markdownlint-cli2-action@21c1be1b93ad9ed58fa840aacc3f279cde2a72ff (a GitHub Action used only in CI, not this pre-commit hook); its action.yml -> engine version mapping has not been read (needs network, C7) and lint.markdown.keydocs stays BLOCKED until that is confirmed.",
+      "evidence": "The pre-commit wrapper repo (DavidAnson/markdownlint-cli2) and the markdownlint-cli2 npm package are the same upstream project at the same version -- there is no separate wrapper engine here, unlike the shellcheck-py/shfmt classes. The registry's hook.markdownlint-cli2 body omits the wrapper's --fix flag (non-mutation rule). DavidAnson/markdownlint-cli2-action@21c1be1b93ad9ed58fa840aacc3f279cde2a72ff is v24.2.0 and bundles markdownlint-cli2 0.23.2; the local npm, pre-commit, and registry pins intentionally track that bundled engine.",
       "fixture_corpus": "tests/fixtures/equivalence/markdownlint-cli2/"
     },
     {

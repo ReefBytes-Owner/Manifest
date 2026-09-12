@@ -294,6 +294,42 @@ class TestProvisionerNeverFallsBackToAmbientEngines:
         assert outcomes[0].status == "blocked"
         assert "uv" in outcomes[0].reason
 
+    def test_unattested_env_materializes_and_reports_digest(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        repo_root = tmp_path / "repo"
+        source = repo_root / "config/toolchain/uv.lock"
+        _write(source, b"locked")
+        lock = _one_env_bundle_lock(
+            "python-env",
+            "file://config/toolchain/uv.lock",
+            hashlib.sha256(source.read_bytes()).hexdigest(),
+        )
+        lock["tools"]["python-env"]["platforms"]["linux-x64"]["exe_sha256"] = None
+
+        def materialize_env(_ctx, _bundle, _entry, env_root, _names):
+            _fake_python_env(env_root)
+            return {"python": str(env_root / "bin/python")}
+
+        monkeypatch.setattr(tp, "_materialize_env", materialize_env)
+        outcomes = tp.provision(
+            lock,
+            tmp_path / "store",
+            platform="linux-x64",
+            only=frozenset({"python-env"}),
+            repo_root=repo_root,
+        )
+
+        assert outcomes[0].status == "provisioned"
+        assert outcomes[0].digest == te.distribution_set_digest(
+            tmp_path
+            / "store/tools/python-env"
+            / hashlib.sha256(source.read_bytes()).hexdigest()[:16],
+            "python-env",
+            store=tmp_path / "store",
+            checkout_root=repo_root,
+        )
+
     def test_a_missing_file_url_source_blocks_instead_of_crashing(self, tmp_path: Path):
         """C7g (ee640879): a missing `file://` lock source must BLOCK with a
         reason, never raise a raw `FileNotFoundError`."""

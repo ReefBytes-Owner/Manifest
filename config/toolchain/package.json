@@ -4,9 +4,9 @@
   "private": true,
   "description": "Pinned console-script tools materialized into the node-env toolchain store (phase-3-5-decisions.md Correction 3, chunk C7b). Never installed as a dependency of any tracked project; matches config/project-checks.json expected_version pins and docs/SHARED_CHECKS.md.",
   "dependencies": {
-    "eslint": "9.18.0",
-    "markdownlint-cli2": "0.23.0",
     "bats": "1.11.1",
+    "eslint": "9.18.0",
+    "markdownlint-cli2": "0.23.2",
     "pyright": "1.1.414"
   }
 }

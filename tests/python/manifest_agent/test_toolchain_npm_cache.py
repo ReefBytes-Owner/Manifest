@@ -70,6 +70,32 @@ def test_index_digest_changes_when_an_entry_is_added(tmp_path):
     assert before != after
 
 
+def test_provision_reports_the_computed_attestation_digest(
+    tmp_path, monkeypatch: pytest.MonkeyPatch
+):
+    digest = "d" * 64
+
+    class Context:
+        def __init__(self):
+            self.store = tmp_path / "store"
+            self.lock = {"schema_version": 1, "tools": {}, "caches": {}}
+            self.platform = "linux-x64"
+            self.repo_root = tmp_path / "repo"
+            self.env = {}
+
+    monkeypatch.setattr(
+        toolchain_npm_cache,
+        "materialize",
+        lambda **_kwargs: (tmp_path / "cache", digest),
+    )
+
+    assert toolchain_npm_cache.provision(Context(), "node-cache") == (
+        "provisioned",
+        "",
+        digest,
+    )
+
+
 # --- resolve() -----------------------------------------------------------
 
 

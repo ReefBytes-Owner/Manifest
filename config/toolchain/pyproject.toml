@@ -11,10 +11,9 @@
 # requires regenerating `uv.lock` AND re-attesting `config/toolchain.lock.json`
 # in the same reviewed change.
 #
-# semgrep and pip-audit have no version named anywhere in the registry or
-# docs/SHARED_CHECKS.md; these two pins were chosen as "current latest on
-# PyPI at authoring time" per the C7b task instructions and are flagged here
-# for a reviewer to confirm or replace with an intentional pin.
+# `semgrep==1.176.1` and `pip-audit==2.10.1` are owner-confirmed policy
+# pins. Changing either requires the reviewed relock and re-attestation
+# described above; automated latest-version updates are not authoritative.
 [project]
 name = "manifest-toolchain-python-env"
 version = "0.0.0"
@@ -26,11 +25,8 @@ dependencies = [
     "pre-commit-hooks==6.0.0",
     "yamllint==1.38.0",
     "pyyaml==6.0.2",
-    # FLAGGED: no version pinned by the registry or docs/SHARED_CHECKS.md;
-    # pinned to PyPI latest as of 2026-09-10.
+    # Owner-confirmed policy pins (2026-09-12).
     "semgrep==1.176.1",
-    # FLAGGED: no version pinned by the registry or docs/SHARED_CHECKS.md;
-    # pinned to PyPI latest as of 2026-09-10.
     "pip-audit==2.10.1",
     # C7f: package.coordinator/config runs a real build of the root project
     # under this interpreter (build-backend = "hatchling.build" in the root

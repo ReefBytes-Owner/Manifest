@@ -17,8 +17,8 @@
 #     https://raw.githubusercontent.com/shellcheck-py/shellcheck-py/v0.11.0.1/.pre-commit-hooks.yaml
 #   scop/pre-commit-shfmt @ v3.13.1-1 (hook id: shfmt)
 #     https://raw.githubusercontent.com/scop/pre-commit-shfmt/v3.13.1-1/.pre-commit-hooks.yaml
-#   DavidAnson/markdownlint-cli2 @ v0.23.0
-#     https://raw.githubusercontent.com/DavidAnson/markdownlint-cli2/v0.23.0/.pre-commit-hooks.yaml
+#   DavidAnson/markdownlint-cli2 @ v0.23.2
+#     https://raw.githubusercontent.com/DavidAnson/markdownlint-cli2/v0.23.2/.pre-commit-hooks.yaml
 #   adrienverge/yamllint @ v1.38.0
 #     https://raw.githubusercontent.com/adrienverge/yamllint/v1.38.0/.pre-commit-hooks.yaml
 #     (declares `types: [file, yaml]`; `file` is true of every regular file
