@@ -35,13 +35,17 @@ RULE_FILE="$REPO_ROOT/configs/cursor/rules/orchestration.mdc"
     ! grep -qE '^\*\*CLI tool\*\*.*apm-dev-sync' "$RULE_FILE"
 }
 
-@test "orchestration.mdc contains the CONSIDER Parallel Agents For tier" {
-    grep -qF '### CONSIDER Parallel Agents For' "$RULE_FILE"
+@test "orchestration.mdc contains the Proactive Decision Framework" {
+    grep -qF '## Proactive Decision Framework' "$RULE_FILE"
+    grep -qF 'risk-based review routing' "$RULE_FILE"
+    ! grep -qF '### CONSIDER Parallel Agents For' "$RULE_FILE"
 }
 
-@test "orchestration.mdc contains the code-audit auto-trigger thresholds" {
+@test "orchestration.mdc contains the code-audit semantic activation policy" {
     grep -qF '### Auto-Triggered Rule' "$RULE_FILE"
-    grep -qF '>500 lines, >10 functions, or >5' "$RULE_FILE"
+    grep -qF 'security boundary' "$RULE_FILE"
+    grep -qF 'vocabulary and complexity metrics alone do not activate it' "$RULE_FILE"
+    ! grep -qF '>500 lines, >10 functions, or >5' "$RULE_FILE"
 }
 
 @test "orchestration.mdc contains the token-conserve re-assert note" {
