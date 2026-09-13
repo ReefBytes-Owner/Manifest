@@ -108,7 +108,7 @@
     {
       "bundle": "manifest-code-quality",
       "category": "code-quality",
-      "description": "Inspect a target file or codebase, detect language, and route to the matching refactoring engine (Python, Go, Node/TypeScript, Shell, Terraform) with parallel agent verification.",
+      "description": "Inspect a target file or codebase, detect language, and route to the matching refactoring engine.",
       "name": "refactor",
       "qualified_name": "manifest-code-quality:refactor"
     },
@@ -640,7 +640,7 @@
     {
       "bundle": "manifest-security",
       "category": "security",
-      "description": "Auto-trigger on security-sensitive code (auth, crypto, secrets, input validation), large files (>500 lines), or complex files (>10 functions/>5 classes). Gives code-audit and security feedback without blocking user flow.",
+      "description": "Auto-trigger for changed security-boundary behavior or an explicit security review request. Gives focused security feedback without blocking user flow.",
       "name": "code-audit",
       "qualified_name": "manifest-security:code-audit"
     },

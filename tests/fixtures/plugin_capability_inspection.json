@@ -1,4 +1,5 @@
 {
+  "provenance": "synthetic-fixture",
   "harnesses": {
     "antigravity": {
       "capabilities": {
@@ -49,6 +50,7 @@
       "components": {
         "manifest-code-quality": [
           "runtime:code-audit-references",
+          "runtime:review-escalation-reference",
           "runtime:constitution-config",
           "runtime:constitution-references",
           "runtime:constitution-scripts",
@@ -318,6 +320,7 @@
       "components": {
         "manifest-code-quality": [
           "runtime:code-audit-references",
+          "runtime:review-escalation-reference",
           "runtime:constitution-config",
           "runtime:constitution-references",
           "runtime:constitution-scripts",
@@ -587,6 +590,7 @@
       "components": {
         "manifest-code-quality": [
           "runtime:code-audit-references",
+          "runtime:review-escalation-reference",
           "runtime:constitution-config",
           "runtime:constitution-references",
           "runtime:constitution-scripts",
@@ -859,6 +863,7 @@
       "components": {
         "manifest-code-quality": [
           "runtime:code-audit-references",
+          "runtime:review-escalation-reference",
           "runtime:constitution-config",
           "runtime:constitution-references",
           "runtime:constitution-scripts",
@@ -1128,6 +1133,7 @@
       "components": {
         "manifest-code-quality": [
           "runtime:code-audit-references",
+          "runtime:review-escalation-reference",
           "runtime:constitution-config",
           "runtime:constitution-references",
           "runtime:constitution-scripts",
@@ -1397,6 +1403,7 @@
       "components": {
         "manifest-code-quality": [
           "runtime:code-audit-references",
+          "runtime:review-escalation-reference",
           "runtime:constitution-config",
           "runtime:constitution-references",
           "runtime:constitution-scripts",

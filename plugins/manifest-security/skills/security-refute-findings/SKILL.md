@@ -39,11 +39,10 @@ refuted one, each reason citing concrete `file:line` evidence. An empty survived
 
 ## Sub-agent dispatch
 
-Follow the bundled `sub-agent-dispatch.md` selection rules. Dispatches use the
-pinned `opus` model.
+Follow the [finding refutation dispatch rules](references/security-refute-findings-dispatch.md).
+Use the pinned `opus` model. For three or more candidate findings, refute one
+finding per review unit and aggregate structured verdicts. Below that threshold,
+refute inline; if structured output is unavailable, report `DEGRADED`.
 
-When ≥3 candidate findings need refutation, invoke `manifest-workspace:parallel-agent`
-with one finding per review unit, adversarial verification enabled, and a bounded
-timeout, then aggregate its structured verdicts. If structured skill output is
-unavailable, perform the same refutations inline and report `DEGRADED`. Below
-the threshold, refute inline.
+When dispatching, invoke `manifest-workspace:parallel-agent` with one candidate
+per review unit and aggregate its structured verdicts.

@@ -11,6 +11,14 @@
 This file provides guidance to AI coding agents when working with code in this repository.
 It follows the [AGENTS.md standard](https://agents.md/) for unified coding agent instructions.
 
+## Risk-based review routing
+
+Use a single capable reviewer by default. Independent review is risk-based:
+escalate only for a trust-boundary change, destructive behavior, broad
+compatibility or deployment impact, conflicting evidence or unresolved
+uncertainty, or genuinely independent codebase-wide tracks. Counts of files,
+packages, modules, languages, keywords, and units do not independently escalate.
+
 ## Token Economy (always on)
 
 Apply at all times, in every session:
@@ -215,11 +223,11 @@ Skills are invoked as slash commands (e.g., `/python-refactor src/`).
 | `/docs-generate-diagrams` | Generate Mermaid architecture diagrams | CONDITIONAL (5+ modules) |
 | `/docs-improve` | Diataxis documentation framework analysis | CONDITIONAL (>500 lines) |
 | `/docs-all` | Run docs-improve-readme/docs-generate-diagrams/docs-improve as sub-agents in one pass | CONDITIONAL |
-| `/python-refactor` | Python codebase security and quality analysis | ALWAYS |
-| `/shell-refactor` | Bash/Shell script security and quality analysis | ALWAYS |
-| `/node-refactor` | Node.js/TypeScript codebase security and quality analysis | ALWAYS |
-| `/go-refactor` | Go codebase security and quality analysis | ALWAYS |
-| `/terraform-refactor` | Terraform/OpenTofu IaC security, modularity, and quality analysis | ALWAYS |
+| `/python-refactor` | Python codebase security and quality analysis | CONDITIONAL (risk-based) |
+| `/shell-refactor` | Bash/Shell script security and quality analysis | CONDITIONAL (risk-based) |
+| `/node-refactor` | Node.js/TypeScript codebase security and quality analysis | CONDITIONAL (risk-based) |
+| `/go-refactor` | Go codebase security and quality analysis | CONDITIONAL (risk-based) |
+| `/terraform-refactor` | Terraform/OpenTofu IaC security, modularity, and quality analysis | CONDITIONAL (risk-based) |
 | `/issue-triage` | Linear issue audit: duplicates, staleness, priority validation | CONDITIONAL |
 | `/issue-prioritize` | Score and rank open issues by impact/urgency/readiness/risk | CONDITIONAL |
 | `/plan-manage` | Plan lifecycle with parallel agent orchestration | CONDITIONAL |

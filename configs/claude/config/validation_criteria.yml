@@ -165,15 +165,20 @@ command_overrides:
       - security
       - error_handling
       - breaking_changes
-      - cross_verification
+    conditional_tier1_checks:
+      review_mode:
+        escalated:
+          - cross_verification
     tier2_required: true
     tier2_threshold: 0.80
-    consensus_threshold: 0.80
-    consensus_action:
-      high: auto_proceed         # >=80%: Use unified recommendation
-      medium: show_disagreements  # 50-79%: Highlight to user
-      low: block_and_escalate     # <50%: Human review required
-
+    conditional_consensus:
+      review_mode:
+        escalated:
+          threshold: 0.80
+          action:
+            high: auto_proceed         # >=80%: Use unified recommendation
+            medium: show_disagreements  # 50-79%: Highlight to user
+            low: block_and_escalate     # <50%: Human review required
   docs-improve-readme:
     tier1_required: false
     tier2_required: true
@@ -202,33 +207,27 @@ command_overrides:
     tier1_checks:
       - security
       - error_handling
-      - cross_verification
+    conditional_tier1_checks:
+      review_mode:
+        escalated:
+          - cross_verification
     tier2_required: true
     tier2_threshold: 0.70
-    consensus_threshold: 0.75
-    consensus_action:
-      high: auto_proceed         # >=75%: Use unified recommendation
-      medium: show_disagreements  # 50-74%: Highlight to user
-      low: block_and_escalate     # <50%: Human review required
-
-  code-audit:  # Skill (auto-triggered)
+    conditional_consensus:
+      review_mode:
+        escalated:
+          threshold: 0.75
+          action:
+            high: auto_proceed         # >=75%: Use unified recommendation
+            medium: show_disagreements  # 50-74%: Highlight to user
+            low: block_and_escalate     # <50%: Human review required
+  code-audit:  # Validation only; activation lives in skill_policies.yml
     tier1_required: true
     tier1_checks:
       - security
       - error_handling
     tier2_required: true
     tier2_threshold: 0.60
-    auto_trigger: true
-    trigger_patterns:
-      security:
-        - auth|login|session|jwt
-        - crypto|encrypt|hash|secret
-        - api_key|password|token|credential
-        - sanitize|validate|escape
-      complexity:
-        file_lines: 500
-        function_count: 10
-        class_count: 5
 
   # PR-OPEN gate (#360): consensus is ADVISORY — cross_verification is deliberately OMITTED so
   # a <80%-consensus change still surfaces (real-vs-draft PR); the gate annotates, never blocks.

@@ -84,11 +84,13 @@ either platform — only the vocabulary changes:
 
 ## Sub-agent dispatch
 
-Follow the bundled `sub-agent-dispatch.md` selection rules. Dispatches use the
-pinned `sonnet` model.
+Follow the [CI audit dispatch rules](references/ci-audit-triggers-dispatch.md). Use the
+pinned `sonnet` model. For three or more workflow files, audit one workflow per
+review unit and merge the findings. Below that threshold, audit inline. If
+structured output is unavailable, perform the same review inline and report
+`DEGRADED`.
 
-When ≥3 workflow files need auditing, invoke `manifest-workspace:parallel-agent` with one
-workflow per review unit, security-analysis mode, validation enabled, and a
-bounded timeout; consume its structured result and merge findings. If the
-current harness cannot return structured skill output, perform the same reviews
-inline and report `DEGRADED`. Below the threshold, audit inline.
+When dispatching three or more workflows, invoke
+`manifest-workspace:parallel-agent --analyze <workflow> --validate --json` once
+per workflow and merge its structured findings. Dispatched reviewers do not
+re-dispatch.

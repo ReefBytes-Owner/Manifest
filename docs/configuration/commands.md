@@ -18,12 +18,18 @@ thresholds:
   docs_improve_lines: 500         # Trigger parallel agents when total doc lines > 500
   docs_diagrams_modules: 5        # Trigger when analyzing 5+ unique imports/modules
 
-  # Code quality skill auto-triggers
+  # Advisory code-quality measurements (never auto-trigger a skill)
   skill_file_lines: 500           # File > 500 lines
   skill_function_count: 10        # > 10 functions per file
   skill_class_count: 5            # > 5 classes per file
   skill_cyclomatic_complexity: 15 # Cyclomatic complexity > 15
 ```
+
+These thresholds are advisory review signals only. The risk-based escalation
+contract uses
+semantic conditions such as trust-boundary changes, destructive behavior, broad
+compatibility or deployment impact, conflicting evidence, or genuinely
+independent codebase-wide tracks.
 
 ### Consensus Thresholds
 
@@ -48,12 +54,17 @@ tool_policies:
       - Read
       - Glob
       - Grep
+      - Bash  # Check-only verification
     forbidden:
-      - Bash
       - Write
       - Edit  # Read-only analysis
-    parallel_agents: always
+    bash_mode: check-only
+    parallel_agents: conditional
+    trigger_condition: trust_boundary_change OR destructive_behavior OR broad_compatibility_or_deployment_change OR conflicting_evidence_or_unresolved_uncertainty OR codebase_wide_independent_tracks
     validation_tier: 1
+    subagents: conditional
+    subagent_trigger: trust_boundary_change OR destructive_behavior OR broad_compatibility_or_deployment_change OR conflicting_evidence_or_unresolved_uncertainty OR codebase_wide_independent_tracks
+    subagent_model: sonnet
 
   docs-generate-diagrams:
     allowed:
@@ -69,9 +80,9 @@ tool_policies:
 
 **Parallel agent modes:**
 
-- `always`: Always run parallel agents
+- `always`: Always run parallel agents (reserved for explicit high-assurance workflows)
 - `never`: Never run parallel agents (single-agent mode)
-- `conditional`: Run based on trigger_condition
+- `conditional`: Run only when its stated risk condition is present
 
 ### Model Selection Defaults
 

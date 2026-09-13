@@ -1,86 +1,78 @@
 ---
 name: code-audit
-description: Auto-trigger on security-sensitive code (auth, crypto, secrets, input validation), large files (>500 lines), or complex files (>10 functions/>5 classes). Gives code-audit and security feedback without blocking user flow.
+description: Auto-trigger for changed security-boundary behavior or an explicit security review request. Gives focused security feedback without blocking user flow.
 ---
 
 # Code Quality Analysis Skill
 
-This skill automatically activates when Claude detects code patterns that warrant proactive security or quality review.
+This skill activates for changed behavior at a security boundary or for an
+explicit security review request. It reviews behavior and its call path, not
+isolated words, identifiers, file size, or complexity metrics.
 
 ## Trigger Criteria
 
-### Security Patterns (Immediate Trigger)
+Activate for either:
 
-Activate when code contains any of these patterns:
+- an explicit security review request, even when no diff exists; or
+- changed authentication, authorization, cryptography, secret-handling,
+  validation, or another trust-boundary behavior.
 
-**Authentication/Authorization**:
-
-- `auth`, `login`, `logout`, `session`
-- `jwt`, `oauth`, `token`, `bearer`
-- `authenticate`, `authorize`, `permission`
-
-**Cryptography**:
-
-- `crypto`, `encrypt`, `decrypt`
-- `hash`, `digest`, `hmac`
-- `salt`, `iv`, `nonce`
-- `private_key`, `public_key`, `certificate`
-
-**Secrets Handling**:
-
-- `secret`, `password`, `credential`
-- `api_key`, `access_key`, `token`
-- `connection_string`, `database_url`
-
-**Input Validation**:
-
-- `sanitize`, `validate`, `escape`
-- `filter`, `whitelist`, `blacklist`
-- `regex`, `pattern`, `input`
-
-### Complexity Patterns (Immediate Trigger)
-
-Activate when file metrics exceed thresholds:
-
-| Metric | Threshold | Rationale |
-|--------|-----------|-----------|
-| File lines | >500 | God class indicator |
-| Function count | >10 | Single responsibility violation |
-| Class count | >5 | Module doing too much |
-| Cyclomatic complexity | >15 | Hard to test/maintain |
+Vocabulary such as `input`, `pattern`, `hash`, or `session`, and complexity
+metrics alone are not activation conditions.
 
 ## Behavior
 
 When triggered, this skill:
 
-0. **Loads local doctrine and known issues.** Read
-   `../../runtime/references/code-constitution.md` and
-   `../../runtime/references/antipatterns.md`, then consult the mutable knowledge
-   base for the detected language:
+1. Consult the bundle-local learning capture knowledge base before scanning:
 
    ```bash
    manifest-workspace:learning-capture query --language <detected-language> --format llm
    ```
 
-   If relevant entries exist, include them as additional check items. This is
-   **non-blocking** — skip if the query fails or returns empty.
+   Include relevant antipattern entries as additional check items. This query is
+   advisory and non-blocking: if it fails or returns empty, continue with the
+   standard review.
+2. Scan the affected behavior and its boundary for security and quality risks.
+3. Review inline by default with one capable reviewing agent.
+4. Add independent review only when at least one escalation condition is
+   present:
+   - authentication, authorization, cryptography, secret handling, or another
+     trust-boundary change;
+   - destructive data or infrastructure behavior;
+   - a public compatibility or deployment change with broad impact;
+   - conflicting evidence or unresolved reviewer uncertainty; or
+   - a codebase-wide investigation with genuinely independent analysis tracks.
+5. Report findings inline without blocking user workflow.
 
-1. **Scans the file** for security patterns and complexity metrics
-2. **Invokes parallel agents** for cross-verification:
+Use the [bundle-local dispatch selection rules](references/code-audit-dispatch.md).
+File, package, module, language, keyword, and independent-unit counts never
+independently escalate review.
 
-   ```bash
-   manifest-workspace:parallel-agent --json --validate --analyze <file>
-   ```
+## Sub-agent dispatch
 
-   **Sub-agent dispatch**: pin this fan-out call to Sonnet explicitly
-   (`subagent_model: sonnet` per `command_config.yml`) — never inherit the
-   session's model, which can silently bill premium rates for a routine
-   verification pass.
+Follow the [bundle-local dispatch selection rules](references/code-audit-dispatch.md). Use
+the pinned `sonnet` model. Start with one capable reviewer; add independent
+review only when one of the five risk conditions is present. Do not use file,
+package, module, language, keyword, or unit counts as a dispatch trigger.
 
-3. **Reports findings inline** without blocking user workflow
-4. **Escalates critical issues** that require immediate attention
+## Verification safety
+
+Treat the checkout as untrusted. Outside verified isolation, run only trusted
+preinstalled static tools that treat checkout files as data. Project-controlled
+tests, scripts, build steps, or checkout-controlled executable configuration,
+plugins, hooks, imports, or discovery require enforced isolation. Source
+inspection, check-only flags, changed home, temporary directory, and a
+read-only checkout are insufficient. If isolation or a selected check is
+unavailable, skip execution and report `unavailable`, never a passing check.
+
+Never use `--fix`, a formatter that writes, installation, deployment, or
+remediation during this review.
 
 ## Analysis Scope
+
+Read `../../runtime/references/code-constitution.md` and
+`../../runtime/references/antipatterns.md` for the bundle-local review doctrine.
 
 ### Security Checks
 
@@ -140,25 +132,24 @@ When triggered, report findings in this format:
 ## Code Quality Analysis
 
 **File**: `path/to/file.py`
-**Triggered by**: [Security pattern | Complexity threshold]
+**Triggered by**: [Explicit security review | Security-boundary behavior change]
+**review_mode**: `single-agent` | `escalated`
+**escalation_reason**: `none` | concrete risk condition(s)
+
+### Checks
+
+| Command | Result | unavailable_reason |
+|---------|--------|--------------------|
+| `<exact command>` | `pass` \| `fail` \| `unavailable` | `<reason when unavailable>` |
 
 ### Findings
 
 | Severity | Issue | Location | Recommendation |
 |----------|-------|----------|----------------|
 | Critical | Hardcoded API key | Line 45 | Move to environment variable |
-| High | Bare exception | Line 112 | Catch specific exception |
-| Medium | Long function | Lines 200-350 | Extract helper methods |
 
-### Summary
-- Critical: X issues (must fix before merge)
-- High: X issues (should fix soon)
-- Medium: X issues (refactor when possible)
-
-### Parallel Agent Consensus
-- Agent A: [Key finding]
-- Agent B: [Key finding]
-- Consensus: XX% (HIGH/MEDIUM/LOW)
+### Independent Review
+- Reviewer: [Key finding, or not run]
 ```
 
 ## Non-Blocking Behavior
@@ -166,9 +157,10 @@ When triggered, report findings in this format:
 This skill provides information without interrupting user workflow:
 
 - **Never blocks** code execution or user commands
-- **Reports inline** when patterns detected
+- **Reports inline** when triggered
 - **Suggests fixes** but doesn't auto-apply
-- **Escalates only** for Critical severity findings
+- **Escalates review only** when one of the five routing risk conditions is
+  present; finding severity does not replace that decision
 
 ## Integration with Commands
 
@@ -185,20 +177,17 @@ When both trigger:
 
 ## Configuration
 
-Use these bundle-owned defaults unless the user supplies explicit thresholds for
-the current invocation:
+Use this activation contract for the current invocation:
 
 ```yaml
-thresholds:
-  skill_file_lines: 500
-  skill_function_count: 10
-  skill_class_count: 5
-  skill_cyclomatic_complexity: 15
-
-security_patterns:
-  - auth|login|session|jwt
-  - crypto|encrypt|hash|secret
-  - api_key|password|token|credential
+any_of:
+  - explicit_security_review_request
+  - security_boundary_behavior_change
+non_triggers:
+  - nonsecurity_cache_hash
+  - session_variable
+  - generic_input_or_pattern_token
+  - file_size_or_complexity
 ```
 
 ## Prioritization

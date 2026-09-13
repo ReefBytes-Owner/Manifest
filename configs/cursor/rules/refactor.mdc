@@ -1,12 +1,12 @@
 ---
-description: "Inspect a target file or codebase, detect language, and route to the matching refactoring engine (Python, Go, Node/TypeScript, Shell, Terraform) with parallel agent verification."
+description: "Inspect a target file or codebase, detect language, and route to the matching refactoring engine."
 globs: ".claude/skills/refactor/**"
 alwaysApply: false
 ---
 
 # refactor
 
-Inspect a target file or codebase, detect language, and route to the matching refactoring engine (Python, Go, Node/TypeScript, Shell, Terraform) with parallel agent verification.
+Inspect a target file or codebase, detect language, and route to the matching refactoring engine.
 
 <!-- Auto-generated from .claude/skills/refactor/SKILL.md -->
 <!-- Regenerate with: .claude/scripts/generate_cursor_rules.sh -->

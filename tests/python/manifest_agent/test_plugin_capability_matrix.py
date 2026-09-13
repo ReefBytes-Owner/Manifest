@@ -72,10 +72,39 @@ def test_matrix_checked_in_rendering_is_current() -> None:
     ) == renderer.render(inspection)
 
 
+def test_synthetic_fixture_evidence_is_not_rendered_as_live_native_inspection() -> None:
+    renderer = _renderer_module()
+    root = Path(__file__).resolve().parents[3]
+    inspection = renderer._load_inspection(
+        root / "tests/fixtures/plugin_capability_inspection.json"
+    )
+
+    assert inspection is not None
+    assert inspection["provenance"] == "synthetic-fixture"
+    rendered = renderer.render(inspection)
+    assert "synthetic fixture evidence; not live native inspection" in rendered
+
+
 def test_matrix_without_inspection_is_explicitly_blocked() -> None:
     renderer = _renderer_module()
 
-    assert "BLOCKED(adapter inspection missing)" in renderer.render()
+    rendered = renderer.render()
+
+    assert "no native adapter inspection evidence" in rendered
+    assert "verified native adapter inspection evidence" not in rendered
+    assert "BLOCKED(adapter inspection missing)" in rendered
+
+
+def test_ready_contract_names_all_enforced_evidence_predicates() -> None:
+    renderer = _renderer_module()
+
+    rendered = renderer.render()
+
+    assert (
+        "`READY` requires a verified native harness state and non-empty native version,"
+        in rendered
+    )
+    assert "matching installed plugin, component, and capability evidence." in rendered
 
 
 def test_matrix_blocks_ready_harness_without_matching_plugin_component_or_capability(

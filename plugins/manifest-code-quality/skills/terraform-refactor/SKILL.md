@@ -9,10 +9,12 @@ Analyze Terraform/OpenTofu infrastructure-as-code against security best practice
 module composition patterns, and state management standards. Generate a comprehensive
 refactoring report with prioritized recommendations.
 
-## Parallel Agent Integration
+## Review routing
 
-This command ALWAYS uses parallel agents (security-critical).
-Executes: `manifest-workspace:parallel-agent --json --full-output --validate --analyze`
+Use one capable reviewer by default. Add independent review only when a
+condition in the [review escalation contract](../refactor/references/review-escalation.md)
+is present; file, package, module, language, keyword, and unit counts do not
+independently escalate review.
 
 ## Task
 
@@ -142,6 +144,15 @@ locking). Then work each category below — order does not matter.
 **Modules:** N
 **Overall Score:** XX/100
 
+**review_mode**: `single-agent` | `escalated`
+**escalation_reason**: `none` | concrete risk condition(s)
+
+## Checks
+
+| Command | Result | unavailable_reason |
+|---------|--------|--------------------|
+| `<exact command>` | `pass` \| `fail` \| `unavailable` | `<reason when unavailable>` |
+
 ## Executive Summary
 
 | Category | Score | Issues | Critical |
@@ -228,12 +239,9 @@ After completing the analysis, capture the most significant findings:
 
 ## Sub-agent dispatch
 
-Follow the bundled `sub-agent-dispatch.md` selection rules. Dispatches use the
-pinned `sonnet` model.
-
-When ≥3 independent modules or stacks exist, dispatch one sub-agent per module to analyze it, then merge findings;
-below that, analyze inline. Use native Task sub-agents on Claude, or `manifest-workspace:parallel-agent` /
-inline on other assistants. Dispatched sub-agents execute their task directly and do not re-dispatch.
-
-Dispatch on **Sonnet** (`subagent_model: sonnet`) — pass the model
-explicitly; inheriting the session's model bills premium rates for fan-out work.
+Follow the [dispatch mechanics](references/terraform-refactor-dispatch.md) and
+the [review escalation contract](../refactor/references/review-escalation.md). Use
+the pinned `sonnet` model. Start with one capable reviewer; add independent
+review only when at least one of that contract's five risk conditions is
+present. This overrides any count or size threshold. Check commands are
+check-only. Unavailable checks are reported as `unavailable`, never pass.

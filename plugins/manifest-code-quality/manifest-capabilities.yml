@@ -18,6 +18,7 @@ components:
     - {id: smoke-vendor, path: skills/smoke-manage/vendor}
     - {id: scaffold-templates, path: skills/project-scaffold/templates}
     - {id: code-audit-references, path: skills/code-audit/references}
+    - {id: review-escalation-reference, path: skills/refactor/references/review-escalation.md}
   guidance: []
 capabilities:
   mcp:

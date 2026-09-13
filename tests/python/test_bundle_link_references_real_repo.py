@@ -25,11 +25,6 @@ def test_real_repo_catches_sub_agent_dispatch_true_positives() -> None:
         "sub-agent-dispatch.md",
     ) in found
     assert (
-        "plugins/manifest-code-quality/skills/refactor/SKILL.md",
-        "home-tree-path",
-        "~/.claude/references/sub-agent-dispatch.md",
-    ) in found
-    assert (
         "plugins/stitch-design/skills/ux-review/SKILL.md",
         "missing-bundled-reference",
         "sub-agent-dispatch.md",
@@ -37,15 +32,10 @@ def test_real_repo_catches_sub_agent_dispatch_true_positives() -> None:
 
 
 def test_real_repo_catches_bare_command_config_yml_true_positives() -> None:
-    # 12 occurrences / 11 skills / 3 bundles.
+    # code-audit now owns its dispatch reference.
     found = real_repo_violation_tuples()
     assert (
         "plugins/manifest-forge/skills/pr-review/SKILL.md",
-        "missing-bundled-reference",
-        "command_config.yml",
-    ) in found
-    assert (
-        "plugins/manifest-security/skills/code-audit/SKILL.md",
         "missing-bundled-reference",
         "command_config.yml",
     ) in found
@@ -98,13 +88,25 @@ def test_real_repo_does_not_flag_the_documented_non_defects() -> None:
 
     # manifest-security/skills/code-audit resolves its ../../runtime/
     # references/{code-constitution,antipatterns}.md citations correctly --
-    # neither may appear as a violation value for this file (it does have an
-    # unrelated, separately-verified command_config.yml violation, so the
-    # file itself is not asserted clean here, only these two citations are).
+    # neither may appear as a violation value for this file. Its dispatch
+    # reference is now skill-local, so this file is expected to remain clean.
     for value in ("code-constitution.md", "antipatterns.md"):
         assert ("plugins/manifest-security/skills/code-audit/SKILL.md", value) not in {
             (path, val) for path, _kind, val in found
         }
+
+
+def test_real_repo_accepts_pr883_skill_local_dispatch_links() -> None:
+    found = real_repo_violation_tuples()
+    flagged_paths = {path for path, _kind, _value in found}
+
+    assert not flagged_paths & {
+        "plugins/manifest-code-quality/skills/refactor/SKILL.md",
+        "plugins/manifest-security/skills/code-audit/SKILL.md",
+        "plugins/manifest-security/skills/ci-audit-triggers/SKILL.md",
+        "plugins/manifest-security/skills/security-refute-findings/SKILL.md",
+        "plugins/manifest-security/skills/security-triage-findings/SKILL.md",
+    }
 
 
 def test_real_repo_excludes_generated_data_files_from_scanning() -> None:

@@ -3,6 +3,14 @@
 This document defines how Claude should leverage parallel LLM agents
 (Gemini, Cursor, Claude CLI, Codex, Antigravity, Devin) for cross-verification, planning, and validation.
 
+## Risk-based review routing
+
+Use a single capable reviewer by default. Independent review is risk-based:
+escalate only for a trust-boundary change, destructive behavior, broad
+compatibility or deployment impact, conflicting evidence or unresolved
+uncertainty, or genuinely independent codebase-wide tracks. Counts of files,
+packages, modules, languages, keywords, and units do not independently escalate.
+
 ## Token Economy (always on)
 
 Apply at all times, in every session:
@@ -82,20 +90,11 @@ Registry: `~/.claude/config/knowledge_base.yml`; `/ai-code-audit` = full audit.
 
 ## Proactive Decision Framework
 
-### ALWAYS Use Parallel Agents For
-
-1. **Security-sensitive changes**: authN/authZ, input validation/sanitization, crypto, secret handling
-2. **Architectural decisions**: new components, API design, DB schema, service integration
-3. **Large file mods (>200 lines)**: complex refactoring, major features, performance-critical code
-4. **Critical business logic**: payment processing, user-data handling, compliance
-
-### CONSIDER Parallel Agents For
-
-Complex multi-file refactoring, new feature implementation, performance optimization, debugging difficult issues.
-
-### SKIP Parallel Agents For
-
-Typo/comment/formatting fixes, single-line changes, documentation updates, simple variable renames.
+Use risk-based review routing. One capable reviewer is the default. Escalate
+only for a trust-boundary change, destructive behavior, broad compatibility or
+deployment impact, conflicting evidence or unresolved uncertainty, or genuinely
+independent codebase-wide tracks. File, package, module, language, keyword, and
+independent-unit counts are not escalation conditions.
 
 ## Validation Criteria
 
@@ -123,9 +122,8 @@ Common entry points: `/git-commit`, `/project-verify`, `/<lang>-refactor`,
 
 ### Auto-Triggered Skill
 
-`code-audit` auto-triggers on security-sensitive patterns (auth, crypto,
-secrets, input validation) or complexity (>500 lines, >10 functions):
-inline, non-blocking.
+`code-audit` activates for an explicit security review or changed behavior at a
+security boundary; vocabulary and complexity metrics alone do not activate it.
 
 ## Plan Management
 

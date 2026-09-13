@@ -1,8 +1,8 @@
 # Plugin Capability Matrix
 
-Generated from portable contracts and verified adapter inspection evidence; do not edit by hand.
-`READY` requires a native adapter inspection with a non-empty version.
-Matching installed plugin, component, and capability evidence is also required.
+Generated from portable contracts and synthetic fixture evidence; not live native inspection; do not edit by hand.
+`READY` requires a verified native harness state and non-empty native version,
+matching installed plugin, component, and capability evidence.
 
 | Capability | Evidence | Claude | Codex | Gemini | Cursor | Antigravity | Devin |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -34,6 +34,7 @@ Matching installed plugin, component, and capability evidence is also required.
 | `manifest-code-quality:runtime:constitution-config` | contract runtime | READY | READY | READY | READY | READY | READY |
 | `manifest-code-quality:runtime:constitution-references` | contract runtime | READY | READY | READY | READY | READY | READY |
 | `manifest-code-quality:runtime:constitution-scripts` | contract runtime | READY | READY | READY | READY | READY | READY |
+| `manifest-code-quality:runtime:review-escalation-reference` | contract runtime | READY | READY | READY | READY | READY | READY |
 | `manifest-code-quality:runtime:scaffold-templates` | contract runtime | READY | READY | READY | READY | READY | READY |
 | `manifest-code-quality:runtime:smoke-scripts` | contract runtime | READY | READY | READY | READY | READY | READY |
 | `manifest-code-quality:runtime:smoke-vendor` | contract runtime | READY | READY | READY | READY | READY | READY |

@@ -78,39 +78,9 @@
       "value": "docs/KNOWLEDGE_BASE.md"
     },
     {
-      "path": "plugins/manifest-code-quality/skills/go-refactor/SKILL.md",
-      "kind": "missing-bundled-reference",
-      "value": "sub-agent-dispatch.md"
-    },
-    {
-      "path": "plugins/manifest-code-quality/skills/node-refactor/SKILL.md",
-      "kind": "missing-bundled-reference",
-      "value": "sub-agent-dispatch.md"
-    },
-    {
       "path": "plugins/manifest-code-quality/skills/project-scaffold/SKILL.md",
       "kind": "cross-bundle-path",
       "value": "tests/__init__.py"
-    },
-    {
-      "path": "plugins/manifest-code-quality/skills/python-refactor/SKILL.md",
-      "kind": "missing-bundled-reference",
-      "value": "sub-agent-dispatch.md"
-    },
-    {
-      "path": "plugins/manifest-code-quality/skills/refactor/SKILL.md",
-      "kind": "home-tree-path",
-      "value": "~/.claude/references/sub-agent-dispatch.md"
-    },
-    {
-      "path": "plugins/manifest-code-quality/skills/shell-refactor/SKILL.md",
-      "kind": "missing-bundled-reference",
-      "value": "sub-agent-dispatch.md"
-    },
-    {
-      "path": "plugins/manifest-code-quality/skills/terraform-refactor/SKILL.md",
-      "kind": "missing-bundled-reference",
-      "value": "sub-agent-dispatch.md"
     },
     {
       "path": "plugins/manifest-delegate/skills/delegate/SKILL.md",
@@ -264,26 +234,6 @@
     },
     {
       "path": "plugins/manifest-forge/skills/repo-clean/SKILL.md",
-      "kind": "missing-bundled-reference",
-      "value": "sub-agent-dispatch.md"
-    },
-    {
-      "path": "plugins/manifest-security/skills/ci-audit-triggers/SKILL.md",
-      "kind": "missing-bundled-reference",
-      "value": "sub-agent-dispatch.md"
-    },
-    {
-      "path": "plugins/manifest-security/skills/code-audit/SKILL.md",
-      "kind": "missing-bundled-reference",
-      "value": "command_config.yml"
-    },
-    {
-      "path": "plugins/manifest-security/skills/security-refute-findings/SKILL.md",
-      "kind": "missing-bundled-reference",
-      "value": "sub-agent-dispatch.md"
-    },
-    {
-      "path": "plugins/manifest-security/skills/security-triage-findings/SKILL.md",
       "kind": "missing-bundled-reference",
       "value": "sub-agent-dispatch.md"
     },

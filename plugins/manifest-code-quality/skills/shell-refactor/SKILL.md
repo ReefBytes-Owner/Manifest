@@ -9,16 +9,12 @@ Analyze Bash/Shell scripts against security best practices, ShellCheck standards
 enterprise shell scripting guidelines. Generate a comprehensive refactoring report
 with prioritized recommendations.
 
-## Parallel Agent Integration
+## Review routing
 
-This command ALWAYS uses parallel agents (security-critical).
-Executes: `manifest-workspace:parallel-agent --json --full-output --validate`
-
-Consensus scoring:
-
-- ≥80%: Auto-proceed with unified recommendation
-- 50-79%: Highlight disagreements to user
-- <50%: Escalate for human review
+Use one capable reviewer by default. Add independent review only when a
+condition in the [review escalation contract](../refactor/references/review-escalation.md)
+is present; file, package, module, language, keyword, and unit counts do not
+independently escalate review.
 
 ## Task
 
@@ -188,6 +184,15 @@ local var="value"  # Function-scoped variables
 **Date:** YYYY-MM-DD
 **Scripts Analyzed:** N
 **Overall Score:** XX/100
+
+**review_mode**: `single-agent` | `escalated`
+**escalation_reason**: `none` | concrete risk condition(s)
+
+## Checks
+
+| Command | Result | unavailable_reason |
+|---------|--------|--------------------|
+| `<exact command>` | `pass` \| `fail` \| `unavailable` | `<reason when unavailable>` |
 
 ---
 
@@ -391,27 +396,17 @@ files=(*.txt)
 
 ## Testing Recommendations
 
-### Unit Testing with BATS
+### Testing during this review
 
-```bash
-# Install BATS
-npm install -g bats
+This review is check-only. Do not install BATS or other tooling, and do not run
+checkout-controlled test scripts, Docker images, or `setup.sh` from the target
+checkout. If a BATS or container scenario would be needed to establish a
+finding, report the check as `unavailable` with the missing verified-isolation
+or an already available preinstalled-tool reason. Recommend the command to the
+repository owner; do not execute it during this review.
 
-# Create test file: tests/bootstrap.bats
-@test "detect_platform identifies macOS" {
-  run detect_platform
-  [ "$status" -eq 0 ]
-  [[ "$PLATFORM" = "macos" ]]
-}
-```
-
-### Integration Testing
-
-```bash
-# Test in Docker containers
-docker run --rm -v "$PWD:/work" -w /work ubuntu:22.04 ./setup.sh --skip-auth
-docker run --rm -v "$PWD:/work" -w /work fedora:39 ./setup.sh --skip-auth
-```
+If you cannot provide enforced isolation for checkout-controlled execution,
+report these checks as `unavailable`.
 
 ---
 
@@ -455,12 +450,9 @@ After completing the analysis, capture the most significant findings:
 
 ## Sub-agent dispatch
 
-Follow the bundled `sub-agent-dispatch.md` selection rules. Dispatches use the
-pinned `sonnet` model.
-
-When ≥3 independent scripts exist, dispatch one sub-agent per script to analyze it, then merge findings; below
-that, analyze inline. Use native Task sub-agents on Claude, or `manifest-workspace:parallel-agent` /
-inline on other assistants. Dispatched sub-agents execute their task directly and do not re-dispatch.
-
-Dispatch on **Sonnet** (`subagent_model: sonnet`) — pass the model
-explicitly; inheriting the session's model bills premium rates for fan-out work.
+Follow the [dispatch mechanics](references/shell-refactor-dispatch.md) and the
+[review escalation contract](../refactor/references/review-escalation.md). Use
+the pinned `sonnet` model. Start with one capable reviewer; add independent
+review only when at least one of that contract's five risk conditions is
+present. This overrides any count or size threshold. Check commands are
+check-only. Unavailable checks are reported as `unavailable`, never pass.

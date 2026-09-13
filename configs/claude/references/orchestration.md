@@ -71,60 +71,31 @@ The script implements:
 
 ## Orchestrated Code Review Workflow
 
-When modifying code, Claude acts as an orchestrator that spawns Task subagents for analysis, synthesis, and validation.
+Use one capable reviewer by default. Before adding independent review, assess
+only the shared five-condition risk gate:
 
-### Workflow Overview
+- trust-boundary change;
+- destructive behavior;
+- broad compatibility or deployment impact;
+- conflicting evidence or unresolved uncertainty; or
+- a codebase-wide investigation with genuinely independent analysis tracks.
 
-```text
-┌─────────────────────────────────────────────────────────────────┐
-│                     Claude (Orchestrator)                        │
-├─────────────────────────────────────────────────────────────────┤
-│  1. Receive code modification task                               │
-│  2. Task(Explore) → Pre-flight analysis                          │
-│  3. If criteria met → Bash: parallel_agent.py --json --validate  │
-│  4. Parse JSON output from agents                                │
-│  5. If disagreement → Task(general-purpose) → Synthesis          │
-│  6. Task(general-purpose) → Validation against criteria          │
-│  7. Report final result to user                                  │
-└─────────────────────────────────────────────────────────────────┘
-```
+Counts of files, lines, packages, modules, languages, keywords, and units do
+not independently trigger review. If a condition is present, use the
+pre-flight prompt to record the concrete evidence and select either Task
+sub-agents for independent tracks or cross-model verification.
 
-### Phase 1: Pre-flight Analysis
+### Cross-model review
 
-Before making significant code changes, spawn a Task agent to determine if parallel review is needed:
-
-```text
-Task(
-  subagent_type: "Explore",
-  prompt: "Analyze these files/changes against the criteria in ~/.claude/prompts/preflight_analysis.md:
-           [FILES_OR_DIFF]
-           Return JSON with needs_parallel_review, reason, triggered_criteria, confidence"
-)
-```
-
-**Trigger Criteria** (from `~/.claude/prompts/preflight_analysis.md`):
-
-- Security-sensitive: auth, crypto, secrets, input validation
-- Architectural: new services, API changes, schema modifications
-- Large changes: >200 lines modified
-- Critical logic: payments, user data, compliance
-
-### Phase 2: Parallel Agent Review
-
-If pre-flight triggers review, execute:
+When the risk gate opens and cross-model verification is appropriate, execute:
 
 ```bash
-# Always use absolute paths and large timeout for file arguments
 ~/.claude/scripts/parallel_agent.py --json --full-output --validate --timeout 600 --review /absolute/path/to/file
 ```
 
-Parse the JSON output to extract:
-
-- `agents.gemini.output` - Gemini's analysis
-- `agents.cursor.output` - Cursor's analysis
-- `agents.claude.output` - Claude's analysis
-- `agents.*.status` - Agent completion status
-- `cross_verification.consensus_score` - Agreement percentage
+Parse JSON only after the command succeeds. If the check cannot be run safely
+or its required capability is unavailable, report it as unavailable rather
+than treating it as a passing review.
 
 ### Phase 3: Synthesis (on disagreement)
 

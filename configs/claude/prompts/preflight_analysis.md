@@ -20,96 +20,34 @@ Do not skip steps. If you are uncertain about a criterion, say so explicitly
 rather than defaulting to "not triggered" -- uncertainty should bias toward
 triggering review.
 
-### Step 1: Security Sensitivity
+### Step 1: Trust-boundary change
 
-Check for any of these patterns in the changed code:
+Determine whether changed behavior crosses authentication, authorization,
+cryptographic, secret-handling, validation, privilege, network, or another
+trust boundary. Evidence must describe the changed behavior and boundary, not
+an identifier or keyword.
 
-- **Authentication/authorization**: login, session, JWT, OAuth, RBAC, middleware guards
-- **Cryptographic operations**: hashing, encryption, key generation, signing
-- **Secrets handling**: API keys, tokens, credentials, environment variables
-- **Input validation/sanitization**: user input parsing, form validation, query parameters
-- **Network security**: CORS, CSP, TLS configuration, firewall rules
+### Step 2: Destructive behavior
 
-Evidence format: Quote the specific line or pattern that triggered this criterion.
+Determine whether the change deletes, migrates, deploys, irreversibly mutates,
+or otherwise causes hard-to-reverse data or infrastructure effects.
 
-### Step 2: Architectural Impact
+### Step 3: Broad compatibility or deployment impact
 
-Check for structural changes:
+Determine whether a public compatibility, platform, deployment, or operational
+change has broad impact. File, line, package, module, or language counts do
+not establish this condition.
 
-- **New services or modules**: new entry points, new packages, new API routes
-- **API changes**: modified endpoints, changed request/response schemas, new public interfaces
-- **Schema modifications**: database migrations, model changes, state shape changes
-- **Integration patterns**: new external service calls, webhook handlers, message queue consumers
-- **Configuration changes**: environment config, infrastructure-as-code, CI/CD pipelines
+### Step 4: Conflicting evidence or unresolved uncertainty
 
-### Step 3: Change Scope
+Determine whether available evidence conflicts or a material uncertainty cannot
+be resolved through a single capable review.
 
-Assess the magnitude of changes:
+### Step 5: Genuinely independent codebase-wide tracks
 
-- **Line count**: >200 lines modified triggers review
-- **File count**: >5 files changed triggers review
-- **Cross-cutting changes**: modifications spanning multiple packages or layers
-
-### Step 4: Critical Logic
-
-Check for business-critical operations:
-
-- **Payment processing**: billing, subscriptions, transactions, financial calculations
-- **User data handling**: PII, GDPR-relevant operations, data export/deletion
-- **Compliance-related**: audit logging, access control, data retention policies
-- **State mutations**: operations that are hard to reverse (deletes, migrations, deployments)
-
-### Step 5: Language-Specific Triggers
-
-Apply additional trigger criteria based on the languages detected in the change.
-Only evaluate sections relevant to the languages present.
-
-#### Go
-
-- **Unsafe operations**: `unsafe.Pointer`, `reflect.SliceHeader`, `//go:linkname`, `//go:nosplit`
-- **CGo boundary**: `import "C"`, `C.` calls, manual memory management across FFI boundary
-- **Concurrency hazards**: goroutine spawning (`go func`), channel operations without
-  context/cancellation, missing `sync.Mutex` around shared state, `sync/atomic` usage
-- **Error swallowing**: unchecked `err` returns, `_ = someFunc()` discarding errors
-
-#### Node.js / JavaScript / TypeScript
-
-- **Code injection**: `eval()`, `new Function()`, `vm.runInContext()`, `child_process.exec()`
-  with string interpolation
-- **Prototype pollution**: direct assignment to `__proto__`, `Object.assign` with untrusted
-  input, deep merge of user-controlled objects
-- **Dependency surface**: >5 new dependencies added, dependencies without lockfile pinning,
-  install scripts (`preinstall`, `postinstall`) in new packages
-- **Deserialization**: `JSON.parse` of untrusted input without schema validation,
-  `require()` with dynamic paths
-
-#### Terraform / OpenTofu / IaC
-
-- **State manipulation**: `terraform state mv`, `terraform import`, `terraform state rm`,
-  manual `.tfstate` edits
-- **Provider credentials**: hardcoded `access_key`, `secret_key`, `token` in provider blocks;
-  credentials outside of variables/secrets managers
-- **Module sources**: modules sourced from `git::`, `http://`, or unversioned registries;
-  missing `version` constraint on registry modules
-- **Destructive operations**: `force_destroy = true`, `prevent_destroy = false`,
-  `create_before_destroy = false` on stateful resources
-- **IAM / permissions**: `iam:*`, overly broad `Action` or `Resource` wildcards in policies
-
-#### Python
-
-- **Code injection**: `exec()`, `eval()`, `compile()` with user input, `subprocess.shell=True`
-- **Deserialization**: `pickle.load()`, `yaml.load()` without `Loader=SafeLoader`,
-  `marshal.loads()` from untrusted sources
-- **SQL injection**: string formatting in SQL queries (`f"SELECT ... {user_input}"`)
-
-#### Rust
-
-- **Unsafe blocks**: `unsafe { }`, `#[no_mangle]`, FFI declarations, raw pointer dereferencing
-- **Concurrency**: `Arc<Mutex<>>` without deadlock analysis, `std::thread::spawn` with
-  shared mutable state
-
-> If the language is not listed above, apply general security heuristics from Steps 1-4.
-> Language-specific triggers carry the same weight as security triggers in the Decision Matrix.
+Determine whether a codebase-wide investigation has genuinely independent
+analysis tracks. The number of files, units, or languages is not evidence of
+independence.
 
 ## Confidence Calibration
 
@@ -141,32 +79,24 @@ Return ONLY the following JSON object. Do not include commentary outside the JSO
 ```json
 {
   "needs_parallel_review": true,
-  "reason": "Short explanation of why review is or isn't needed",
+  "reason": "Changed authorization behavior crosses a trust boundary",
   "triggered_criteria": [
     {
-      "criterion": "security_sensitivity",
+      "criterion": "trust_boundary_change",
       "step": 1,
-      "evidence": "Line 42: jwt.verify(token, secret) — authentication logic",
+      "evidence": "The changed authorization decision grants a new caller role access",
       "severity": "high"
-    },
-    {
-      "criterion": "language_specific",
-      "step": 5,
-      "language": "go",
-      "evidence": "Line 78: go func() without context.Context propagation",
-      "severity": "medium"
     }
   ],
   "non_triggered_criteria": [
     {
-      "criterion": "critical_logic",
-      "step": 4,
-      "reason": "No payment or PII handling detected"
+      "criterion": "destructive_behavior",
+      "step": 2,
+      "reason": "No irreversible data or infrastructure operation changed"
     }
   ],
   "confidence": 0.92,
-  "calibration_notes": "High confidence: small, focused auth change with clear trigger pattern. No ambiguous data flows.",
-  "recommended_model_tier": "security|review|analyze|quick",
+  "calibration_notes": "The authorization behavior and its affected caller role are explicit.",
   "scope_summary": {
     "files_changed": 3,
     "lines_added": 120,
@@ -178,12 +108,7 @@ Return ONLY the following JSON object. Do not include commentary outside the JSO
 
 ## Decision Matrix
 
-| Criteria Triggered | Confidence | Decision |
-|--------------------|------------|----------|
-| Any security criterion (Step 1) | Any | REVIEW (use security model tier) |
-| Any language-specific trigger (Step 5) | Any | REVIEW (use security model tier) |
-| Architectural + >200 lines | >= 0.70 | REVIEW (use review model tier) |
-| Critical logic only | >= 0.70 | REVIEW (use analyze model tier) |
-| Scope only (>200 lines) | >= 0.70 | REVIEW (use review model tier) |
-| None triggered | >= 0.80 | SKIP review |
-| None triggered | < 0.80 | REVIEW (insufficient confidence to skip) |
+| Criteria Triggered | Decision |
+|--------------------|----------|
+| Any of Steps 1-5 | REVIEW; record the concrete condition and evidence |
+| None | Single-agent inline review |

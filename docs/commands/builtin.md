@@ -19,11 +19,11 @@ are built from each skill's `SKILL.md` frontmatter, the authoritative source.
 | `/docs-generate-diagrams` | Generate Mermaid architecture diagrams | CONDITIONAL (5+ modules) |
 | `/docs-improve` | Diataxis documentation framework analysis | CONDITIONAL (>500 lines) |
 | `/docs-all` | Run docs-improve-readme/docs-generate-diagrams/docs-improve as sub-agents in one pass | CONDITIONAL |
-| `/python-refactor` | Python codebase security and quality analysis | ALWAYS |
-| `/shell-refactor` | Bash/Shell script security and quality analysis | ALWAYS |
-| `/node-refactor` | Node.js/TypeScript codebase security and quality analysis | ALWAYS |
-| `/go-refactor` | Go codebase security and quality analysis | ALWAYS |
-| `/terraform-refactor` | Terraform/OpenTofu IaC security, modularity, and quality analysis | ALWAYS |
+| `/python-refactor` | Python codebase security and quality analysis | CONDITIONAL (risk-based) |
+| `/shell-refactor` | Bash/Shell script security and quality analysis | CONDITIONAL (risk-based) |
+| `/node-refactor` | Node.js/TypeScript codebase security and quality analysis | CONDITIONAL (risk-based) |
+| `/go-refactor` | Go codebase security and quality analysis | CONDITIONAL (risk-based) |
+| `/terraform-refactor` | Terraform/OpenTofu IaC security, modularity, and quality analysis | CONDITIONAL (risk-based) |
 | `/issue-triage` | Linear issue audit: duplicates, staleness, priority validation | CONDITIONAL |
 | `/issue-prioritize` | Score and rank open issues by impact/urgency/readiness/risk | CONDITIONAL |
 | `/issue-dev-auto` | Autonomously develop one opted-in (`auto-dev`-labeled) issue end-to-end — selects next ready issue, implements test-first, verifies, opens a PR. **Now also monitors automation PRs and (opt-in via `PR_MERGE_LOOP_APPLY=1`) merges them to main once the gated decision clears — CI green, comments addressed, #360 gate Tier-1 pass, consensus ≥0.80; fail-closed to a human otherwise.** Self-paced, stops after 5 empty runs | NO |
@@ -47,7 +47,7 @@ are built from each skill's `SKILL.md` frontmatter, the authoritative source.
 | `/a11y-audit` | WCAG 2.2 AA accessibility audit | NO |
 | `/antipattern-detect` | Detect recurring antipatterns from lint, test, and review feedback | NO |
 | `/ci-setup` | Configure CI/CD pipelines for a target repository (GitHub Actions or GitLab CI) | NO |
-| `/code-audit` | Auto-triggered security and quality checks | AUTO (always when triggered) |
+| `/code-audit` | Semantic security-boundary review | AUTO (only when triggered) |
 | `/metrics-report` | Visualize agent efficiency metrics | NO |
 | `/learning-capture` | Capture structured lessons learned | NO |
 | `/performance-check` | Frontend performance audit: bundle size, Core Web Vitals, caching | NO |
@@ -63,8 +63,10 @@ are built from each skill's `SKILL.md` frontmatter, the authoritative source.
 | `apm-dev-sync` | **Retired** (spec 674 Phase 5). Skills ship as plugin bundles: `claude plugin update <bundle>@manifest` |
 | `sync-skills` | Legacy copy-based sync; stands down for apm-owned domains (`skills`) |
 
-The `code-audit` skill auto-triggers on security-sensitive code, large files (>500 lines),
-or complex files (>10 functions or >5 classes).
+`code-audit` activates only for explicit security review requests or confirmed
+security-boundary behavior changes. File size, function/class counts,
+complexity metrics, and keyword matches alone are advisory review signals, not
+activation triggers.
 
 ---
 

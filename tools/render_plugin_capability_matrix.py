@@ -60,6 +60,11 @@ def _inspection_records(document: dict[str, Any] | None) -> dict[str, dict[str, 
             harness: {"state": "BLOCKED(adapter inspection missing)"}
             for harness in HARNESSES
         }
+    provenance = document.get("provenance")
+    if provenance not in {"native-adapter-inspection", "synthetic-fixture"}:
+        raise MatrixError(
+            "inspection evidence must declare native-adapter-inspection or synthetic-fixture provenance"
+        )
     records = document.get("harnesses")
     if not isinstance(records, dict):
         raise MatrixError("inspection evidence must contain a harnesses object")
@@ -218,12 +223,22 @@ def _rows(inspection: dict[str, Any] | None = None) -> list[tuple[str, str, list
 
 def render(inspection: dict[str, Any] | None = None) -> str:
     """Return deterministic Markdown, one applicability state per cell."""
+    provenance = None if inspection is None else inspection.get("provenance")
+    if provenance == "synthetic-fixture":
+        evidence_description = "synthetic fixture evidence; not live native inspection"
+    elif provenance is None:
+        evidence_description = (
+            "no native adapter inspection evidence; missing inspections render as "
+            "`BLOCKED(adapter inspection missing)`"
+        )
+    else:
+        evidence_description = "verified native adapter inspection evidence"
     lines = [
         "# Plugin Capability Matrix",
         "",
-        "Generated from portable contracts and verified adapter inspection evidence; do not edit by hand.",
-        "`READY` requires a native adapter inspection with a non-empty version.",
-        "Matching installed plugin, component, and capability evidence is also required.",
+        f"Generated from portable contracts and {evidence_description}; do not edit by hand.",
+        "`READY` requires a verified native harness state and non-empty native version,",
+        "matching installed plugin, component, and capability evidence.",
         "",
         "| Capability | Evidence | Claude | Codex | Gemini | Cursor | Antigravity | Devin |",
         "| --- | --- | --- | --- | --- | --- | --- | --- |",

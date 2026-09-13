@@ -2,7 +2,7 @@
 
 > Invoking skills and commands after your first successful run.
 
-**Last Updated**: 2026-08-20
+**Last Updated**: 2026-09-12
 
 ## Using Commands
 
@@ -10,7 +10,7 @@ Manifest integrates with Claude Code through slash commands.
 
 ### Available Commands
 
-#### `/python-refactor` - Code Analysis (Always uses parallel agents)
+#### `/python-refactor` - Code Analysis (risk-based review)
 
 Analyzes Python codebases for security, architecture, and code quality issues.
 
@@ -23,12 +23,13 @@ Analyzes Python codebases for security, architecture, and code quality issues.
 
 **What it does:**
 
-1. Runs every enabled agent in parallel (Cursor, Gemini, Claude, Codex, Antigravity,
-   plus Devin when enabled)
-2. Each agent analyzes for: security vulnerabilities, bugs, performance issues
-3. Synthesizes results with consensus scoring
-4. Validates against Tier 1 (security) and Tier 2 (quality) checks
-5. Returns unified recommendation
+1. Uses one capable reviewer by default.
+2. Runs independent cross-verification only for a trust-boundary or destructive
+   change, broad compatibility or deployment impact, conflicting evidence or
+   unresolved uncertainty, or genuinely independent codebase-wide tracks.
+3. Runs the applicable security, quality, and check-only validation steps.
+4. Records the review mode, escalation reason, and each check result; an
+   unavailable check is reported as unavailable, never as a pass.
 
 #### `/docs-generate-diagrams` - Architecture Diagrams (Conditional)
 

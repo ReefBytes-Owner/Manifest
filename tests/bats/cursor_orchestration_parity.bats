@@ -35,14 +35,6 @@ RULE_FILE="$REPO_ROOT/configs/cursor/rules/orchestration.mdc"
     ! grep -qE '^\*\*CLI tool\*\*.*apm-dev-sync' "$RULE_FILE"
 }
 
-@test "orchestration.mdc contains the CONSIDER Parallel Agents For tier" {
-    grep -qF '### CONSIDER Parallel Agents For' "$RULE_FILE"
-}
-
-@test "orchestration.mdc contains the code-audit auto-trigger thresholds" {
-    grep -qF '### Auto-Triggered Rule' "$RULE_FILE"
-    grep -qF '>500 lines, >10 functions, or >5' "$RULE_FILE"
-}
 
 @test "orchestration.mdc contains the token-conserve re-assert note" {
     grep -qF 're-asserts this mode if drift is noticed mid-session' "$RULE_FILE"

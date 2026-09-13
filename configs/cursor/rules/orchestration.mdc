@@ -11,6 +11,14 @@ This rule defines how the Cursor agent should leverage parallel LLM agents
 
 <!-- Adapted from: .claude/CLAUDE.md -->
 
+## Risk-based review routing
+
+Use a single capable reviewer by default. Independent review is risk-based:
+escalate only for a trust-boundary change, destructive behavior, broad
+compatibility or deployment impact, conflicting evidence or unresolved
+uncertainty, or genuinely independent codebase-wide tracks. Counts of files,
+packages, modules, languages, keywords, and units do not independently escalate.
+
 ## Token Economy (always on)
 
 Apply at all times, in every session:
@@ -131,24 +139,11 @@ Read on demand (NOT auto-loaded). You MUST read the reference before related tas
 
 ## Proactive Decision Framework
 
-### ALWAYS Use Parallel Agents For
-
-1. **Security-sensitive code changes** — auth, crypto, secrets, input validation
-2. **Architectural decisions** — new services, API changes, schema modifications
-3. **Large file modifications (>200 lines)** — complex refactoring, major features
-4. **Critical business logic** — payments, user data, compliance
-
-### CONSIDER Parallel Agents For
-
-Complex multi-file refactoring, new feature implementation, performance
-optimization, debugging difficult issues.
-
-### SKIP Parallel Agents For
-
-- Typo fixes, comments, formatting
-- Single-line changes
-- Documentation updates
-- Simple variable renames
+Use risk-based review routing. One capable reviewer is the default. Escalate
+only for a trust-boundary change, destructive behavior, broad compatibility or
+deployment impact, conflicting evidence or unresolved uncertainty, or genuinely
+independent codebase-wide tracks. File, package, module, language, keyword, and
+independent-unit counts are not escalation conditions.
 
 ---
 
@@ -240,11 +235,11 @@ manifest parallel-agent --json --validate --timeout 600 \
 | Rule | Description | Parallel Agents |
 |------|-------------|-----------------|
 | @git-commit | Full commit pipeline | CONDITIONAL |
-| @python-refactor | Python security and quality analysis | ALWAYS |
-| @go-refactor | Go security and quality analysis | ALWAYS |
-| @node-refactor | Node.js/TypeScript security and quality analysis | ALWAYS |
-| @terraform-refactor | Terraform IaC security and modularity analysis | ALWAYS |
-| @shell-refactor | Shell script security and quality analysis | ALWAYS |
+| @python-refactor | Python security and quality analysis | CONDITIONAL (risk-based) |
+| @go-refactor | Go security and quality analysis | CONDITIONAL (risk-based) |
+| @node-refactor | Node.js/TypeScript security and quality analysis | CONDITIONAL (risk-based) |
+| @terraform-refactor | Terraform IaC security and modularity analysis | CONDITIONAL (risk-based) |
+| @shell-refactor | Shell script security and quality analysis | CONDITIONAL (risk-based) |
 | @scaffold | Initialize new project with quality gates | NO |
 | @verify | Run linters, tests, and security scans | CONDITIONAL |
 | @ci-setup | Configure CI/CD pipelines | NO |
@@ -305,9 +300,8 @@ All configuration is symlinked from `.claude/`:
 
 ### Auto-Triggered Rule
 
-`@code-audit` auto-triggers on security-sensitive patterns (auth, crypto,
-secrets, input validation) or complexity (>500 lines, >10 functions, or >5
-classes per file), giving inline feedback without blocking the workflow.
+`@code-audit` activates for an explicit security review or changed behavior at
+a security boundary; vocabulary and complexity metrics alone do not activate it.
 
 ---
 

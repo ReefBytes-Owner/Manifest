@@ -2,7 +2,7 @@
 
 > How skills are processed and how agent output is scored into a verdict.
 
-**Last Updated**: 2026-08-20
+**Last Updated**: 2026-09-12
 
 ## Skill Processing Architecture
 
@@ -23,9 +23,9 @@ flowchart LR
         LOAD_CMD["Load Skill Definition<br/>(SKILL.md)"]:::process
     end
 
-    subgraph "Preflight Analysis"
-        CHECK_CRITERIA{"Meets Parallel<br/>Agent Criteria?"}:::decision
-        TRIGGER["Trigger Conditions:<br/>- Security-sensitive<br/>- Architecture changes<br/>- Large scope (3+ files)<br/>- Critical logic"]:::process
+    subgraph "Review Preflight"
+        CHECK_CRITERIA{"risk-based review<br/>escalation?"}:::decision
+        TRIGGER["Escalate only for:<br/>- Trust boundary or destructive behavior<br/>- Broad compatibility/deployment impact<br/>- Unresolved uncertainty<br/>- Independent codebase-wide tracks"]:::process
     end
 
     subgraph "Execution"
@@ -45,11 +45,11 @@ flowchart LR
     PARSE --> LOAD_CMD
     LOAD_CMD --> CHECK_CRITERIA
 
-    CHECK_CRITERIA -->|Yes| PARALLEL
-    CHECK_CRITERIA -->|No| SINGLE
+    CHECK_CRITERIA -->|Escalated| PARALLEL
+    CHECK_CRITERIA -->|Single-agent| SINGLE
 
     PARALLEL --> SYNTHESIS
-    SINGLE --> OUTPUT
+    SINGLE --> VALIDATION
 
     SYNTHESIS -->|Yes| SYNTH_AGENT
     SYNTHESIS -->|No| VALIDATION
@@ -59,10 +59,13 @@ flowchart LR
 
 **Command Types**:
 
-- **ALWAYS Parallel**: `/python-refactor`, `/shell-refactor` (security-sensitive)
-- **CONDITIONAL**: `/docs-generate-diagrams` (5+ modules), `/plan-manage` (complex planning),
-  `/docs-improve` (500+ total doc lines)
-- **NEVER Parallel**: `/docs-improve-readme` (straightforward documentation)
+- **Risk-based review escalation**: `/python-refactor`, `/shell-refactor`, and
+  other refactor skills use independent cross-verification only when the
+  review-risk gate opens.
+- **Workload-based fan-out**: `/docs-generate-diagrams` (5+ modules) and
+  `/docs-improve` (500+ total documentation lines) retain their own scale
+  triggers; those triggers are not review escalation.
+- **No parallel work**: `/docs-improve-readme` (straightforward documentation).
 
 ---
 
@@ -84,7 +87,7 @@ flowchart TD
     LOAD_CRITERIA["Load validation_criteria.yml"]:::process
 
     subgraph "Tier 1: Critical Checks (Blocking)"
-        CROSS_VERIFY["Cross-Verification<br/>(weight: 0.3)"]:::tier1
+        CROSS_VERIFY["Cross-Verification<br/>(escalated review only)"]:::tier1
         SECURITY["Security Issues<br/>(weight: 0.3)"]:::tier1
         ERROR_HANDLE["Error Handling<br/>(weight: 0.2)"]:::tier1
         BREAKING["Breaking Changes<br/>(weight: 0.2)"]:::tier1
@@ -108,7 +111,8 @@ flowchart TD
     NEEDS_REVIEW["VERDICT: NEEDS_REVIEW"]:::tier2
 
     CODE --> LOAD_CRITERIA
-    LOAD_CRITERIA --> CROSS_VERIFY
+    LOAD_CRITERIA --> SECURITY
+    LOAD_CRITERIA -->|escalated review| CROSS_VERIFY
     CROSS_VERIFY --> SECURITY
     SECURITY --> ERROR_HANDLE
     ERROR_HANDLE --> BREAKING

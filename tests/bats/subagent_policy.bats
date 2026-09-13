@@ -74,13 +74,29 @@ elif check == "never_rationale":       # T4
             if not e.get("subagent_rationale") and "Sub-agents: not used" not in body(s):
                 fail.append(f"{s}: never but no rationale (config or SKILL.md)")
 elif check == "body_trigger":          # T5
+    local_dispatch_ref = re.compile(
+        r"\[[^\]]+\]\((references/[A-Za-z0-9_-]+-dispatch\.md)\)"
+    )
+    shared_dispatch_ref = "sub-agent-dispatch.md"
     for s in skills:
-        if entry(s).get("subagents") in ("always", "conditional"):
-            b = body(s)
-            if MARKER not in b:
-                fail.append(f"{s}: {entry(s)['subagents']} but no '{MARKER}' section")
-            elif "sub-agent-dispatch.md" not in b:
-                fail.append(f"{s}: dispatch section does not link the shared selection rules")
+        if entry(s).get("subagents") not in ("always", "conditional"):
+            continue
+        b = body(s)
+        if MARKER not in b:
+            fail.append(f"{s}: {entry(s)['subagents']} but no '{MARKER}' section")
+            continue
+        section = dispatch_section(s)
+        match = local_dispatch_ref.search(section)
+        if match:
+            path = os.path.join(skills_dir, s, match.group(1))
+            if not os.path.isfile(path):
+                fail.append(
+                    f"{s}: local dispatch reference does not resolve: {match.group(1)}"
+                )
+        elif shared_dispatch_ref not in section:
+            fail.append(
+                f"{s}: dispatch section does not link a selection-reference contract"
+            )
 elif check == "no_contradiction":      # T6
     # Two ways a `never` skill can contradict its disposition. The section
     # heading is the obvious one; the DISPATCH ITSELF is the one that actually
@@ -182,7 +198,7 @@ PY
     [ "$status" -eq 0 ] || { echo "$output"; false; }
 }
 
-@test "always/conditional skills have an in-body trigger linking the shared rules" {
+@test "always/conditional skills have an in-body selection-reference contract" {
     run run_check body_trigger
     [ "$status" -eq 0 ] || { echo "$output"; false; }
 }

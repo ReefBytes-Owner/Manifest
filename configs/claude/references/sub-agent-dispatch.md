@@ -15,21 +15,33 @@ body states the concrete trigger and links here.
 | **`parallel_agent.py`** | External multi-CLI cross-verification (Gemini/Cursor/Codex/Antigravity) with consensus scoring | Independent cross-model verification of one artifact/decision | Cross-platform |
 | **Headless CLI invoke** (`cddl_invoke.py`, `EVOLVE_CLI`, `SYNTH_CLI`) | Single-provider subprocess using `cli_agents` config | CDDL critics on Gemini/Codex/Agy; synthesis; SkillClaw evolve | Cross-platform (CLI on PATH) |
 
-## Selection rules (by task type)
+## Review and cross-verification escalation
 
-| Task type | Mechanism | Notes |
-|-----------|-----------|-------|
-| Parallel information-gathering / research / broad audit (many independent items) | Native Task sub-agents | One sub-agent per item/batch. On Gemini/Codex/Agy → `parallel_agent.py` or inline. |
-| CDDL personas (`/spec-implement-loop`) | Task sub-agents on Claude/Cursor; else `cddl_invoke.py` | See skill `prompts/cli-dispatch.md`. Developer writes only in main session when Task absent. |
-| Independent cross-model verification of a security-sensitive, architectural, or >200-line change | `parallel_agent.py` | Required by the constitution's Tier-1 gate (Principle II). Not native sub-agents. |
-| Trivial / single-unit / fewer than the threshold | **Inline** | No dispatch — overhead is not justified. |
+This risk gate governs **review and cross-verification only**. It does not
+replace a skill's workload-decomposition trigger: `/docs-all`, `/docs-improve`,
+and `/issue-prioritize` retain their documented fan-out rules for independent
+documents, analysis items, or issues.
 
-## When to dispatch (the threshold)
+Use a single capable reviewer by default. Add independent review only when the
+review work has at least one of these conditions:
 
-Dispatch only when **≥3 independent units of work** exist, OR an existing per-skill scale threshold
-is exceeded (e.g., `total_doc_lines >= 500`, `unique_imports >= 5`). Below that, do the work inline.
-This default keeps token-conserve intact; the structured value lives in each skill's
-`subagent_trigger` in `command_config.yml` (authoritative), and the skill body's prose must agree.
+- a trust-boundary change;
+- destructive behavior;
+- broad compatibility or deployment impact;
+- conflicting evidence or unresolved uncertainty; or
+- a codebase-wide investigation with genuinely independent analysis tracks.
+
+Counts of files, packages, modules, languages, keywords, and units never
+escalate review by themselves. A skill may choose its cross-verification
+mechanism after this risk gate opens: native Task/Agent sub-agents for
+independent review work, or `parallel_agent.py` for cross-model verification.
+If none of the conditions is present, review inline.
+
+## workload decomposition
+
+For work other than review and cross-verification, follow each skill's own
+documented fan-out trigger. Those workload triggers may use counts or other
+scale signals and remain independent of the risk gate.
 
 ## Model selection (measured — the one cache-safe cost lever)
 
@@ -95,60 +107,38 @@ Never leave an assistant without an executable path. Headless seams share
 
 ---
 
-## Convention: adding (or declining) sub-agent guidance to a skill
-
-The durable contributor convention (this is the one documented place).
+## Convention: adding sub-agent guidance to a skill
 
 ### 1. Classify the skill
 
-| Does the work decompose into independent units? | `subagents` | Example |
-|--------------------------------------------------|-------------|---------|
-| Decomposition IS the job (always fan out) | `always` | `docs-all` |
-| Only above the threshold | `conditional` | `python-refactor` |
-| Single-step / sequential / mutates shared state | `never` | `session-checkpoint` |
+Record whether it can use native sub-agents or external cross-model review.
+Use `never` for single-step, sequential, or shared-state work; use
+`conditional` when the shared risk gate can justify independent review. This
+classification does not create a count-based trigger.
 
-### 2. Record it in `config/command_config.yml` (canonical store)
+### 2. Record it in `config/command_config.yml`
 
 ```yaml
 tool_policies:
   <skill-name>:
     subagents: conditional
-    subagent_trigger: "independent_units >= 3"   # only when conditional
-    subagent_model: sonnet                       # required when always|conditional; see the table above
-    # subagent_rationale: "<one line>"           # when never (or as a SKILL.md note, below)
+    subagent_trigger: "trust_boundary_change OR destructive_behavior OR broad_compatibility_or_deployment_change OR conflicting_evidence_or_unresolved_uncertainty OR codebase_wide_independent_tracks"
+    subagent_model: sonnet
 ```
 
-For a `never` skill you may record the rationale either as `subagent_rationale` here **or** as a
-one-line marker in the `SKILL.md` body: `> Sub-agents: not used — <reason>.` The enforcement test
-accepts either form.
+For `never`, record `subagent_rationale` in the policy or a one-line marker in
+the skill body.
 
-### 3. Add the in-body trigger (always / conditional only)
+### 3. Add the in-body policy
 
-In the skill's `SKILL.md` **body** (never frontmatter — frontmatter is auto-loaded):
+State that a single capable reviewer is the default, name the five conditions,
+and require inline review otherwise. Link here rather than duplicating
+mechanics. Dispatched sub-agents perform their assigned work directly and do
+not re-dispatch.
 
-```markdown
-## Sub-agent dispatch
-
-When ≥3 independent <units> exist, dispatch one sub-agent per <unit> to <task>, then merge.
-Below that, do it inline. Pick the mechanism per the shared Sub-Agent Selection Rules
-(`configs/claude/references/sub-agent-dispatch.md`): native Task on Claude Code/Cursor, or
-`parallel_agent.py` / `cddl_invoke.py` / inline on other assistants. Sub-agents execute
-directly and do not re-dispatch.
-
-Dispatch on **Sonnet** (`subagent_model: sonnet` in `command_config.yml`) — pass the model
-explicitly; inheriting the session's model bills premium rates for fan-out work.
-```
-
-### 4. Do NOT restate these rules
-
-Link here; never copy. The selection rules and threshold live once, in this file.
-
-### 5. Verify
+### 4. Verify
 
 ```bash
-bats tests/bats/subagent_policy.bats        # coverage + consistency gate
+bats tests/bats/subagent_policy.bats
 yamllint configs/claude/config/command_config.yml
 ```
-
-A new skill with no `subagents` disposition fails the test until classified — the intended forcing
-function.
